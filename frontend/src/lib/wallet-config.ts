@@ -24,9 +24,11 @@ const celo = {
 } as const;
 
 // Celo Sepolia Testnet
+// NOTE: Contracts are deployed on chain ID 11142220 (EIP-155 format)
+// This is the correct chain ID where the contracts exist
 const celoSepolia = {
-  id: 44787, // Celo Sepolia chain ID (frontend uses 44787, backend uses 11142220)
-  name: "Celo Sepolia",
+  id: 11142220, // Celo Sepolia chain ID (EIP-155 format) - matches deployed contracts
+  name: "Celo Sepolia Testnet",
   nativeCurrency: {
     decimals: 18,
     name: "Celo",
@@ -34,13 +36,13 @@ const celoSepolia = {
   },
   rpcUrls: {
     default: {
-      http: ["https://rpc.ankr.com/celo_sepolia"],
+      http: ["https://forno.celo-sepolia.celo-testnet.org"],
     },
   },
   blockExplorers: {
     default: {
       name: "Celo Sepolia Explorer",
-      url: "https://sepolia.celoscan.io",
+      url: "https://celo-sepolia.blockscout.com",
     },
   },
 } as const;
@@ -90,4 +92,56 @@ export function formatCurrency(
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(num);
+}
+
+/**
+ * Add Celo Sepolia network to MetaMask
+ * This function programmatically adds the network if it doesn't exist
+ * Uses chain ID 11142220 (EIP-155 format) to match deployed contracts
+ */
+export async function addCeloSepoliaToMetaMask(): Promise<boolean> {
+  if (typeof window === "undefined" || !(window as any).ethereum) {
+    return false;
+  }
+
+  const ethereum = (window as any).ethereum;
+  const chainIdHex = `0x${celoSepolia.id.toString(16)}`; // Convert to hex (0xAA147C = 11142220)
+
+  try {
+    await ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: chainIdHex,
+          chainName: "Celo Sepolia Testnet",
+          nativeCurrency: {
+            name: "CELO",
+            symbol: "CELO",
+            decimals: 18,
+          },
+          rpcUrls: ["https://forno.celo-sepolia.celo-testnet.org"],
+          blockExplorerUrls: ["https://celo-sepolia.blockscout.com"],
+        },
+      ],
+    });
+    return true;
+  } catch (error: unknown) {
+    console.error("Error adding network to MetaMask:", error);
+    const err = error as { code?: number };
+    // Error code 4902 means the network already exists
+    if (err?.code === 4902) {
+      // Try to switch to it instead
+      try {
+        await ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: chainIdHex }],
+        });
+        return true;
+      } catch (switchError) {
+        console.error("Error switching network:", switchError);
+        return false;
+      }
+    }
+    return false;
+  }
 }

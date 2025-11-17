@@ -28,7 +28,6 @@ export {
 export {
   usePredictionMarket,
   useMarketDetails,
-  useMarketId,
   useIsResolved,
   usePoolAmounts,
 } from "./usePredictionMarket";

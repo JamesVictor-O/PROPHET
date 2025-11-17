@@ -21,9 +21,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Calendar, DollarSign, Info, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAccount } from "wagmi";
 import { useCreateMarket } from "@/hooks/contracts";
 import { toast } from "sonner";
 import { parseEther } from "viem";
+import { defaultChain } from "@/lib/wallet-config";
 
 interface CreateMarketModalProps {
   open: boolean;
@@ -64,7 +66,11 @@ export function CreateMarketModal({
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof MarketData, string>>>({});
+  const { chainId } = useAccount();
   const { write, isPending, isConfirmed, error: writeError } = useCreateMarket();
+  
+  // Check if on correct network
+  const isCorrectNetwork = chainId === defaultChain.id;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -146,13 +152,34 @@ export function CreateMarketModal({
   useEffect(() => {
     if (writeError) {
       console.error("Error creating market:", writeError);
-      toast.error(`Failed to create market: ${writeError.message || "Unknown error"}`);
+      
+      // Provide more helpful error messages
+      let errorMessage = "Failed to create market";
+      if (writeError.message) {
+        if (writeError.message.includes("Internal JSON-RPC error")) {
+          errorMessage = "RPC error: Please check your network connection and try again";
+        } else if (writeError.message.includes("user rejected")) {
+          errorMessage = "Transaction was rejected";
+        } else if (writeError.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for transaction";
+        } else {
+          errorMessage = writeError.message;
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   }, [writeError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
+      return;
+    }
+
+    // Check network before submitting
+    if (!isCorrectNetwork) {
+      toast.error(`Please switch to Celo Sepolia (Chain ID: ${defaultChain.id}) to create markets`);
       return;
     }
 

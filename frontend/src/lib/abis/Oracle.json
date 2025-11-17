@@ -3,7 +3,7 @@
     "type": "constructor",
     "inputs": [
       {
-        "name": "_factory",
+        "name": "_predictionMarket",
         "type": "address",
         "internalType": "address"
       },
@@ -130,19 +130,6 @@
   },
   {
     "type": "function",
-    "name": "factory",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract MarketFactory"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "getResolution",
     "inputs": [
       {
@@ -203,6 +190,19 @@
   },
   {
     "type": "function",
+    "name": "grantDisputeRole",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "grantOracleRole",
     "inputs": [
       {
@@ -258,6 +258,25 @@
   },
   {
     "type": "function",
+    "name": "inDisputeWindow",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isResolved",
     "inputs": [
       {
@@ -271,6 +290,19 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "predictionMarket",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract PredictionMarket"
       }
     ],
     "stateMutability": "view"
@@ -342,6 +374,24 @@
   },
   {
     "type": "function",
+    "name": "resolveDispute",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "finalOutcome",
+        "type": "uint8",
+        "internalType": "enum IPredictionMarket.Outcome"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "resolveMarket",
     "inputs": [
       {
@@ -353,6 +403,19 @@
         "name": "outcome",
         "type": "uint8",
         "internalType": "enum IPredictionMarket.Outcome"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revokeDisputeRole",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -407,6 +470,25 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "DisputeResolved",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "finalOutcome",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum IPredictionMarket.Outcome"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",

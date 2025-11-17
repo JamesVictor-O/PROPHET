@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useAccount, useSwitchChain } from "wagmi";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { SearchFilters } from "@/components/dashboard/search-filters";
@@ -11,8 +12,10 @@ import {
   MarketData,
 } from "@/components/markets/create-market-modal";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, AlertTriangle } from "lucide-react";
 import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
+import { defaultChain, addCeloSepoliaToMetaMask } from "@/lib/wallet-config";
+import { toast } from "sonner";
 
 // Category color mapping
 const categoryColors: Record<string, string> = {
@@ -34,65 +37,6 @@ const categoryDisplayNames: Record<string, string> = {
   other: "OTHER",
 };
 
-// Mock market data (fallback)
-const mockMarkets: Market[] = [
-  {
-    id: "burna-album",
-    category: "MUSIC",
-    categoryColor: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
-    timeLeft: "3d left",
-    question: "Will Burna Boy drop an album in Q4 2024?",
-    yesPercent: 68,
-    noPercent: 32,
-    predictions: 1234,
-    pool: "$890",
-  },
-  {
-    id: "bbnaija-eviction",
-    category: "REALITY TV",
-    categoryColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    timeLeft: "2d left",
-    question: "Will Sarah be evicted from BBNaija this week?",
-    yesPercent: 58,
-    noPercent: 42,
-    predictions: 2045,
-    pool: "$1,234",
-  },
-  {
-    id: "kot2-boxoffice",
-    category: "MOVIES",
-    categoryColor: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-    timeLeft: "5d left",
-    question: "Will 'King of Thieves 2' make ₦50M opening weekend?",
-    yesPercent: 65,
-    noPercent: 35,
-    predictions: 789,
-    pool: "$523",
-  },
-  {
-    id: "wizkid-streams",
-    category: "MUSIC",
-    categoryColor: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
-    timeLeft: "1d left",
-    question: "Will Wizkid's new single hit 5M streams in week 1?",
-    yesPercent: 73,
-    noPercent: 27,
-    predictions: 456,
-    pool: "$342",
-  },
-  {
-    id: "tems-grammy",
-    category: "AWARDS",
-    categoryColor: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    timeLeft: "7d left",
-    question: "Will Tems win Grammy for Best New Artist?",
-    yesPercent: 52,
-    noPercent: 48,
-    predictions: 892,
-    pool: "$678",
-  },
-];
-
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -100,6 +44,53 @@ export default function DashboardPage() {
   const [createMarketModalOpen, setCreateMarketModalOpen] = useState(false);
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [selectedSide, setSelectedSide] = useState<"yes" | "no" | undefined>();
+
+  // Check network
+  const { chainId } = useAccount();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
+  const isCorrectNetwork = chainId === defaultChain.id;
+  const isWrongNetwork = chainId !== undefined && !isCorrectNetwork;
+
+  const handleSwitchNetwork = async () => {
+    try {
+      // First try to switch using wagmi
+      await switchChain({ chainId: defaultChain.id });
+      toast.success("Switched to Celo Sepolia");
+    } catch (error: unknown) {
+      console.error("Error switching network:", error);
+      const err = error as { code?: number };
+
+      // If network doesn't exist (4902), try to add it
+      if (err?.code === 4902) {
+        toast.info("Adding Celo Sepolia network to your wallet...");
+        const added = await addCeloSepoliaToMetaMask();
+        if (added) {
+          toast.success("Network added! Please try again.");
+        } else {
+          toast.error(
+            "Failed to add network. Please add manually in MetaMask."
+          );
+        }
+      } else {
+        // For other errors, try direct MetaMask call as fallback
+        try {
+          const added = await addCeloSepoliaToMetaMask();
+          if (added) {
+            toast.success("Switched to Celo Sepolia");
+          } else {
+            toast.error(
+              "Failed to switch network. Please switch manually in MetaMask."
+            );
+          }
+        } catch (fallbackError) {
+          console.error("Fallback network switch failed:", fallbackError);
+          toast.error(
+            "Failed to switch network. Please switch manually in MetaMask."
+          );
+        }
+      }
+    }
+  };
 
   // Fetch real markets from contract
   const {
@@ -113,7 +104,9 @@ export default function DashboardPage() {
     console.error("Error loading markets - check browser console for details");
     console.error("Possible issues:");
     console.error("1. Contract not deployed at the configured address");
-    console.error("2. Wrong network (should be Celo Sepolia - chain ID 44787)");
+    console.error(
+      "2. Wrong network (should be Celo Sepolia - chain ID 11142220)"
+    );
     console.error("3. RPC endpoint issues");
     console.error("4. Contract address mismatch");
   }
@@ -145,8 +138,7 @@ export default function DashboardPage() {
   }, [marketsData]);
 
   const filteredMarkets = useMemo(() => {
-    const marketsToFilter = markets.length > 0 ? markets : mockMarkets;
-    return marketsToFilter.filter((market) => {
+    return markets.filter((market) => {
       const matchesSearch =
         market.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
         market.category.toLowerCase().includes(searchQuery.toLowerCase());
@@ -157,8 +149,7 @@ export default function DashboardPage() {
   }, [markets, searchQuery, selectedCategory]);
 
   const handlePredict = (marketId: string, side?: "yes" | "no") => {
-    const allMarkets = markets.length > 0 ? markets : mockMarkets;
-    const market = allMarkets.find((m) => m.id === marketId);
+    const market = markets.find((m) => m.id === marketId);
     if (market) {
       setSelectedMarket(market);
       setSelectedSide(side);
@@ -202,6 +193,29 @@ export default function DashboardPage() {
             </Button>
           </div>
 
+          {/* Network Warning Banner */}
+          {isWrongNetwork && (
+            <div className="mb-6 bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-5 h-5 text-orange-400" />
+                <div>
+                  <p className="text-orange-400 font-semibold">Wrong Network</p>
+                  <p className="text-gray-400 text-sm">
+                    Please switch to Celo Sepolia (Chain ID: 11142220) to use
+                    this app
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleSwitchNetwork}
+                disabled={isSwitching}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                {isSwitching ? "Switching..." : "Switch Network"}
+              </Button>
+            </div>
+          )}
+
           {/* Filters & Search */}
           <SearchFilters
             onSearchChange={setSearchQuery}
@@ -228,7 +242,7 @@ export default function DashboardPage() {
                 <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
                   <li>
                     Ensure you&apos;re connected to{" "}
-                    <strong>Celo Sepolia</strong> (Chain ID: 44787)
+                    <strong>Celo Sepolia</strong> (Chain ID: 11142220)
                   </li>
                   <li>
                     Check that contracts are deployed at the configured
@@ -240,9 +254,6 @@ export default function DashboardPage() {
                   </li>
                 </ul>
               </div>
-              <p className="text-gray-500 text-xs mt-4">
-                Showing mock data below for development purposes
-              </p>
             </div>
           ) : filteredMarkets.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">

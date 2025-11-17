@@ -17,9 +17,10 @@ export function useMarketFactory() {
   // Verify we're on the correct network
   const isCorrectNetwork = !chainId || chainId === contracts.chainId;
 
-  if (!isCorrectNetwork) {
+  // Only log warning if connected (not just initializing)
+  if (!isCorrectNetwork && chainId) {
     console.warn(
-      `Network mismatch: Expected Celo Sepolia (${contracts.chainId}), got ${chainId}`
+      `Network mismatch: Expected Celo Sepolia (${contracts.chainId}), got ${chainId}. Please switch networks.`
     );
   }
 

@@ -1,20 +1,21 @@
 # ✅ Successfully Deployed Contract Addresses
 
-## Celo Sepolia Testnet
+## Celo Sepolia Testnet - REFACTORED ARCHITECTURE
 
 **Deployment Date:** November 17, 2025  
 **Network:** Celo Sepolia (Chain ID: 11142220)  
-**Status:** ✅ **FULLY FUNCTIONAL** - Username feature included, correct cUSD address configured
+**Status:** ✅ **FULLY FUNCTIONAL** - Refactored to use single PredictionMarket contract
 
 ### Contract Addresses
 
 | Contract             | Address                                      | Transaction Hash                                                     |
 | -------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
-| **ReputationSystem** | `0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50` | `0xc8a770db24dbfa53cebdbfa0f6557b1cc8d5203163ceb9fc33ba5ea53c251f41` |
-| **MarketFactory**    | `0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f` | `0x1f3a8bb3debbd2b8b9f15035070a66c2b492edd1992aec5f4c59a3096cc63937` |
-| **Oracle**           | `0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09` | `0x9652583533af18157c04f783e1fc318c6c58ad1b75ab6894ffa0f4848c8a435a` |
+| **ReputationSystem** | `0x757E92F1CfD400732943854E8526Cfb3CA5351Ca` | `0x56bd3870f254e8b19ed3e6569d5ad5347dd2f43ee971d2af0875c83579e0ee65` |
+| **PredictionMarket** | `0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC` | `0x3dc4cd90ee92ab8de0d3e7208fb3039e16798a7aab21c537afea51dcf61bf388` |
+| **Oracle**           | `0xf7aD63d0478aC4aAF5929CB07F3078412088d237` | `0xa5bc3e1813e8e730b2024fa4049dc72cdb818808d1a52650bc488680480b6eaa` |
+| **MarketFactory**    | `0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5` | `0x1cbb6fe8a376bd3534e14942e82abd190a491ac36820b4ce1df475ea71750ab9` |
 
-**Note:** `PredictionMarket` contracts are **NOT deployed directly**. They are created dynamically by `MarketFactory` when users call `createMarket()`. Each market is a new `PredictionMarket` instance.
+**⚠️ ARCHITECTURE CHANGE:** All markets are now stored in a **single PredictionMarket contract** (`0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC`). No new contracts are deployed per market - much more gas efficient!
 
 ### Network Configuration
 
@@ -25,10 +26,12 @@
 
 ### Gas Costs
 
--   ReputationSystem: 1,050,921 gas (0.026 CELO)
--   MarketFactory: 2,707,317 gas (0.068 CELO)
--   Oracle: 1,292,195 gas (0.032 CELO)
--   **Total:** 5,177,135 gas (0.129 CELO)
+-   ReputationSystem: 1,594,330 gas (0.040 CELO)
+-   PredictionMarket: 2,610,847 gas (0.065 CELO)
+-   Oracle: 1,342,777 gas (0.034 CELO)
+-   MarketFactory: 1,058,639 gas (0.026 CELO)
+-   Role Setup: ~48,000 gas (0.001 CELO)
+-   **Total:** 6,754,492 gas (0.168 CELO)
 
 ### Deployment Summary
 
@@ -41,14 +44,15 @@
 
 ## Frontend Integration
 
-Update the frontend with these addresses in `frontend/src/lib/contracts.ts`:
+✅ **Frontend updated!** Addresses in `frontend/src/lib/contracts.ts`:
 
 ```typescript
 export const CONTRACTS = {
     celoSepolia: {
-        factory: "0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f",
-        oracle: "0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09",
-        reputationSystem: "0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50",
+        factory: "0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5",
+        oracle: "0xf7aD63d0478aC4aAF5929CB07F3078412088d237",
+        reputationSystem: "0x757E92F1CfD400732943854E8526Cfb3CA5351Ca",
+        predictionMarket: "0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC", // Single contract for all markets
         cUSD: "0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80",
         chainId: 44787, // Note: Frontend uses 44787, backend uses 11142220
     },
@@ -91,9 +95,10 @@ forge verify-contract 0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09 \
 
 ## View on Explorer
 
--   ReputationSystem: https://sepolia.celoscan.io/address/0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50
--   MarketFactory: https://sepolia.celoscan.io/address/0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f
--   Oracle: https://sepolia.celoscan.io/address/0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09
+-   ReputationSystem: https://sepolia.celoscan.io/address/0x757E92F1CfD400732943854E8526Cfb3CA5351Ca
+-   PredictionMarket: https://sepolia.celoscan.io/address/0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC
+-   Oracle: https://sepolia.celoscan.io/address/0xf7aD63d0478aC4aAF5929CB07F3078412088d237
+-   MarketFactory: https://sepolia.celoscan.io/address/0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5
 
 ## Next Steps
 

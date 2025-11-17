@@ -5,8 +5,8 @@
 
 import { useMemo } from "react";
 import { Address } from "viem";
-import { useAllMarketIds, useMarketAddress } from "./useMarketFactory";
-import { useMarketDetails } from "./usePredictionMarket";
+import { useAllMarketIds } from "./useMarketFactory";
+import { useMarketDetails, usePredictionMarket } from "./usePredictionMarket";
 
 export interface MarketInfo {
   id: string;
@@ -154,111 +154,106 @@ export function useAllMarkets() {
     return idsArray.reverse().slice(0, 10);
   }, [marketIds]);
 
-  // Fetch addresses for each market (up to 10)
-  const address1 = useMarketAddress(
+  // In refactored architecture, all markets are in one contract
+  // We get the contract address once and use marketIds directly
+  const { address: predictionMarketAddress } = usePredictionMarket();
+
+  // Fetch details for each market using marketId directly
+  const details1 = useMarketDetails(
     limitedIds[0] ? Number(limitedIds[0]) : undefined
   );
-  const address2 = useMarketAddress(
+  const details2 = useMarketDetails(
     limitedIds[1] ? Number(limitedIds[1]) : undefined
   );
-  const address3 = useMarketAddress(
+  const details3 = useMarketDetails(
     limitedIds[2] ? Number(limitedIds[2]) : undefined
   );
-  const address4 = useMarketAddress(
+  const details4 = useMarketDetails(
     limitedIds[3] ? Number(limitedIds[3]) : undefined
   );
-  const address5 = useMarketAddress(
+  const details5 = useMarketDetails(
     limitedIds[4] ? Number(limitedIds[4]) : undefined
   );
-  const address6 = useMarketAddress(
+  const details6 = useMarketDetails(
     limitedIds[5] ? Number(limitedIds[5]) : undefined
   );
-  const address7 = useMarketAddress(
+  const details7 = useMarketDetails(
     limitedIds[6] ? Number(limitedIds[6]) : undefined
   );
-  const address8 = useMarketAddress(
+  const details8 = useMarketDetails(
     limitedIds[7] ? Number(limitedIds[7]) : undefined
   );
-  const address9 = useMarketAddress(
+  const details9 = useMarketDetails(
     limitedIds[8] ? Number(limitedIds[8]) : undefined
   );
-  const address10 = useMarketAddress(
+  const details10 = useMarketDetails(
     limitedIds[9] ? Number(limitedIds[9]) : undefined
   );
 
-  // Fetch details for each market
-  const details1 = useMarketDetails(address1.data);
-  const details2 = useMarketDetails(address2.data);
-  const details3 = useMarketDetails(address3.data);
-  const details4 = useMarketDetails(address4.data);
-  const details5 = useMarketDetails(address5.data);
-  const details6 = useMarketDetails(address6.data);
-  const details7 = useMarketDetails(address7.data);
-  const details8 = useMarketDetails(address8.data);
-  const details9 = useMarketDetails(address9.data);
-  const details10 = useMarketDetails(address10.data);
-
   const markets = useMemo(() => {
+    // All markets use the same contract address in refactored architecture
+    const marketAddress = predictionMarketAddress as Address | undefined;
+
     const results = [
       formatMarketData(
         limitedIds[0] || BigInt(0),
-        address1.data,
+        marketAddress,
         details1.data,
-        address1.isLoading || details1.isLoading
+        details1.isLoading
       ),
       formatMarketData(
         limitedIds[1] || BigInt(0),
-        address2.data,
+        marketAddress,
         details2.data,
-        address2.isLoading || details2.isLoading
+        details2.isLoading
       ),
       formatMarketData(
         limitedIds[2] || BigInt(0),
-        address3.data,
+        marketAddress,
         details3.data,
-        address3.isLoading || details3.isLoading
+        details3.isLoading
       ),
       formatMarketData(
         limitedIds[3] || BigInt(0),
-        address4.data,
+        marketAddress,
         details4.data,
-        address4.isLoading || details4.isLoading
+        details4.isLoading
       ),
       formatMarketData(
         limitedIds[4] || BigInt(0),
-        address5.data,
+        marketAddress,
         details5.data,
-        address5.isLoading || details5.isLoading
+        details5.isLoading
       ),
       formatMarketData(
         limitedIds[5] || BigInt(0),
-        address6.data,
+        marketAddress,
         details6.data,
-        address6.isLoading || details6.isLoading
+        details6.isLoading
       ),
       formatMarketData(
         limitedIds[6] || BigInt(0),
-        address7.data,
+        marketAddress,
         details7.data,
-        address7.isLoading || details7.isLoading
+        details7.isLoading
       ),
       formatMarketData(
         limitedIds[7] || BigInt(0),
-        address8.data,
+        marketAddress,
         details8.data,
-        address8.isLoading || details8.isLoading
+        details8.isLoading
       ),
       formatMarketData(
         limitedIds[8] || BigInt(0),
-        address9.data,
+        marketAddress,
         details9.data,
-        address9.isLoading || details9.isLoading
+        details9.isLoading
       ),
       formatMarketData(
         limitedIds[9] || BigInt(0),
-        address10.data,
+        marketAddress,
         details10.data,
-        address10.isLoading || details10.isLoading
+        details10.isLoading
       ),
     ];
 
@@ -268,16 +263,7 @@ export function useAllMarkets() {
     );
   }, [
     limitedIds,
-    address1,
-    address2,
-    address3,
-    address4,
-    address5,
-    address6,
-    address7,
-    address8,
-    address9,
-    address10,
+    predictionMarketAddress,
     details1,
     details2,
     details3,

@@ -1,26 +1,37 @@
 /**
  * Hook for interacting with PredictionMarket contract
  * Handles market data fetching and predictions
+ *
+ * NOTE: In the refactored architecture, all markets are stored in a single
+ * PredictionMarket contract. We use marketId to fetch specific market data.
  */
 
 import { Address } from "viem";
 import { useContractRead } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
+import { getContractAddress } from "@/lib/contracts";
 
-export function usePredictionMarket(marketAddress: Address | undefined) {
+/**
+ * Get the single PredictionMarket contract address
+ */
+export function usePredictionMarket() {
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
   return {
-    address: marketAddress,
+    address: predictionMarketAddress,
     abi: PredictionMarketABI,
   };
 }
 
 /**
- * Get market details
+ * Get market details by marketId
+ * In the refactored architecture, all markets are in one contract
  */
-export function useMarketDetails(marketAddress: Address | undefined) {
-  const { address, abi } = usePredictionMarket(marketAddress);
+export function useMarketDetails(marketId: bigint | number | undefined) {
+  const { address, abi } = usePredictionMarket();
 
-  // Fetch market struct
+  // Fetch market info using getMarketInfo(marketId)
   const {
     data: market,
     isLoading,
@@ -41,8 +52,9 @@ export function useMarketDetails(marketAddress: Address | undefined) {
   }>({
     address,
     abi,
-    functionName: "market",
-    enabled: !!address,
+    functionName: "getMarketInfo",
+    args: marketId !== undefined ? [BigInt(marketId)] : undefined,
+    enabled: marketId !== undefined && !!address,
   });
 
   return {
@@ -54,51 +66,38 @@ export function useMarketDetails(marketAddress: Address | undefined) {
 }
 
 /**
- * Get market ID
+ * Get resolved status by marketId
  */
-export function useMarketId(marketAddress: Address | undefined) {
-  const { address, abi } = usePredictionMarket(marketAddress);
-  return useContractRead<bigint>({
-    address,
-    abi,
-    functionName: "marketId",
-    enabled: !!address,
-  });
+export function useIsResolved(marketId: bigint | number | undefined) {
+  const { data: market } = useMarketDetails(marketId);
+
+  return {
+    data: market?.resolved ?? false,
+    isLoading: !market,
+  };
 }
 
 /**
- * Get resolved status
+ * Get pool amounts by marketId
+ * In refactored architecture, pools are stored per marketId
  */
-export function useIsResolved(marketAddress: Address | undefined) {
-  const { address, abi } = usePredictionMarket(marketAddress);
-  return useContractRead<boolean>({
-    address,
-    abi,
-    functionName: "resolved",
-    enabled: !!address,
-  });
-}
-
-/**
- * Get pool amounts
- */
-export function usePoolAmounts(marketAddress: Address | undefined) {
-  const { address, abi } = usePredictionMarket(marketAddress);
+export function usePoolAmounts(marketId: bigint | number | undefined) {
+  const { address, abi } = usePredictionMarket();
 
   const yesPool = useContractRead<bigint>({
     address,
     abi,
     functionName: "poolAmounts",
-    args: [0], // Outcome.Yes = 0
-    enabled: !!address,
+    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined, // [marketId, Outcome.Yes = 0]
+    enabled: marketId !== undefined && !!address,
   });
 
   const noPool = useContractRead<bigint>({
     address,
     abi,
     functionName: "poolAmounts",
-    args: [1], // Outcome.No = 1
-    enabled: !!address,
+    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined, // [marketId, Outcome.No = 1]
+    enabled: marketId !== undefined && !!address,
   });
 
   return {
