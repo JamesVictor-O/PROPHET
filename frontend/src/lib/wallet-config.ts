@@ -100,11 +100,23 @@ export function formatCurrency(
  * Uses chain ID 11142220 (EIP-155 format) to match deployed contracts
  */
 export async function addCeloSepoliaToMetaMask(): Promise<boolean> {
-  if (typeof window === "undefined" || !(window as any).ethereum) {
+  if (
+    typeof window === "undefined" ||
+    !(window as { ethereum?: unknown }).ethereum
+  ) {
     return false;
   }
 
-  const ethereum = (window as any).ethereum;
+  const ethereum = (
+    window as {
+      ethereum: {
+        request: (args: {
+          method: string;
+          params: unknown[];
+        }) => Promise<unknown>;
+      };
+    }
+  ).ethereum;
   const chainIdHex = `0x${celoSepolia.id.toString(16)}`; // Convert to hex (0xAA147C = 11142220)
 
   try {

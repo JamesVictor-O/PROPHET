@@ -1,140 +1,28 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useAccount } from "wagmi";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PredictionCard } from "@/components/predictions/prediction-card";
 import { PredictionsStats } from "@/components/predictions/predictions-stats";
 import { PredictionsFilter } from "@/components/predictions/predictions-filter";
-
-export interface Prediction {
-  id: string;
-  marketId: string;
-  marketQuestion: string;
-  category: string;
-  categoryColor: string;
-  side: "yes" | "no";
-  stake: number;
-  potentialWin: number;
-  actualWin?: number;
-  status: "active" | "won" | "lost" | "pending";
-  marketStatus: "active" | "resolved";
-  timeLeft?: string;
-  resolvedAt?: string;
-  yesPercent: number;
-  noPercent: number;
-  pool: string;
-}
-
-// Mock predictions data
-const mockPredictions: Prediction[] = [
-  {
-    id: "pred-1",
-    marketId: "burna-album",
-    marketQuestion: "Will Burna Boy drop an album in Q4 2024?",
-    category: "MUSIC",
-    categoryColor: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
-    side: "yes",
-    stake: 5.0,
-    potentialWin: 7.35,
-    status: "active",
-    marketStatus: "active",
-    timeLeft: "3d left",
-    yesPercent: 68,
-    noPercent: 32,
-    pool: "$890",
-  },
-  {
-    id: "pred-2",
-    marketId: "bbnaija-eviction",
-    marketQuestion: "Will Sarah be evicted from BBNaija this week?",
-    category: "REALITY TV",
-    categoryColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    side: "no",
-    stake: 3.5,
-    potentialWin: 5.83,
-    status: "active",
-    marketStatus: "active",
-    timeLeft: "2d left",
-    yesPercent: 58,
-    noPercent: 42,
-    pool: "$1,234",
-  },
-  {
-    id: "pred-3",
-    marketId: "wizkid-streams",
-    marketQuestion: "Will Wizkid's new single hit 5M streams in week 1?",
-    category: "MUSIC",
-    categoryColor: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
-    side: "yes",
-    stake: 2.0,
-    actualWin: 2.74,
-    status: "won",
-    marketStatus: "resolved",
-    resolvedAt: "2 days ago",
-    yesPercent: 73,
-    noPercent: 27,
-    pool: "$342",
-  },
-  {
-    id: "pred-4",
-    marketId: "kot2-boxoffice",
-    marketQuestion: "Will 'King of Thieves 2' make ₦50M opening weekend?",
-    category: "MOVIES",
-    categoryColor: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-    side: "no",
-    stake: 4.0,
-    status: "lost",
-    marketStatus: "resolved",
-    resolvedAt: "5 days ago",
-    yesPercent: 65,
-    noPercent: 35,
-    pool: "$523",
-  },
-  {
-    id: "pred-5",
-    marketId: "tems-grammy",
-    marketQuestion: "Will Tems win Grammy for Best New Artist?",
-    category: "AWARDS",
-    categoryColor: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    side: "yes",
-    stake: 1.5,
-    potentialWin: 2.88,
-    status: "active",
-    marketStatus: "active",
-    timeLeft: "7d left",
-    yesPercent: 52,
-    noPercent: 48,
-    pool: "$678",
-  },
-  {
-    id: "pred-6",
-    marketId: "davido-collab",
-    marketQuestion: "Will Davido collaborate with a major US artist this year?",
-    category: "MUSIC",
-    categoryColor: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
-    side: "yes",
-    stake: 6.0,
-    actualWin: 9.23,
-    status: "won",
-    marketStatus: "resolved",
-    resolvedAt: "1 week ago",
-    yesPercent: 65,
-    noPercent: 35,
-    pool: "$1,200",
-  },
-];
+import { useUserPredictions, UserPrediction } from "@/hooks/contracts";
+import { Loader2 } from "lucide-react";
 
 export default function PredictionsPage() {
+  const { address, isConnected } = useAccount();
+  const { data: userPredictions, isLoading } = useUserPredictions();
   const [filter, setFilter] = useState<"all" | "active" | "won" | "lost">(
     "all"
   );
 
   const filteredPredictions = useMemo(() => {
-    if (filter === "all") return mockPredictions;
-    return mockPredictions.filter((pred) => pred.status === filter);
-  }, [filter]);
+    if (!userPredictions) return [];
+    if (filter === "all") return userPredictions;
+    return userPredictions.filter((pred) => pred.status === filter);
+  }, [userPredictions, filter]);
 
   const activePredictions = useMemo(
     () => filteredPredictions.filter((p) => p.status === "active"),
@@ -147,15 +35,28 @@ export default function PredictionsPage() {
   );
 
   const stats = useMemo(() => {
-    const total = mockPredictions.length;
-    const active = mockPredictions.filter((p) => p.status === "active").length;
-    const won = mockPredictions.filter((p) => p.status === "won").length;
-    const lost = mockPredictions.filter((p) => p.status === "lost").length;
-    const totalEarned = mockPredictions
+    if (!userPredictions) {
+      return {
+        total: 0,
+        active: 0,
+        won: 0,
+        lost: 0,
+        totalEarned: 0,
+        totalStaked: 0,
+        winRate: "0",
+      };
+    }
+
+    const total = userPredictions.length;
+    const active = userPredictions.filter((p) => p.status === "active").length;
+    const won = userPredictions.filter((p) => p.status === "won").length;
+    const lost = userPredictions.filter((p) => p.status === "lost").length;
+    const totalEarned = userPredictions
       .filter((p) => p.status === "won" && p.actualWin)
       .reduce((sum, p) => sum + (p.actualWin || 0), 0);
-    const totalStaked = mockPredictions.reduce((sum, p) => sum + p.stake, 0);
-    const winRate = total > 0 ? ((won / (won + lost)) * 100).toFixed(0) : "0";
+    const totalStaked = userPredictions.reduce((sum, p) => sum + p.stake, 0);
+    const winRate =
+      won + lost > 0 ? ((won / (won + lost)) * 100).toFixed(0) : "0";
 
     return {
       total,
@@ -166,7 +67,7 @@ export default function PredictionsPage() {
       totalStaked,
       winRate,
     };
-  }, []);
+  }, [userPredictions]);
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white">
@@ -184,16 +85,38 @@ export default function PredictionsPage() {
             </p>
           </div>
 
-          {/* Stats */}
-          <PredictionsStats stats={stats} />
+          {/* Loading State */}
+          {isLoading && (
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#2563EB]" />
+              <p className="text-gray-400">Loading your predictions...</p>
+            </div>
+          )}
 
-          {/* Filters */}
-          <div className="mb-6">
-            <PredictionsFilter filter={filter} onFilterChange={setFilter} />
-          </div>
+          {/* Not Connected State */}
+          {!isConnected && !isLoading && (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg mb-4">
+                Please connect your wallet to view your predictions
+              </p>
+            </div>
+          )}
 
-          {/* Predictions Tabs */}
-          <Tabs defaultValue="all" className="w-full">
+          {/* Stats - Only show if connected and has predictions */}
+          {isConnected && !isLoading && userPredictions && (
+            <PredictionsStats stats={stats} />
+          )}
+
+          {/* Filters - Only show if connected and has predictions */}
+          {isConnected && !isLoading && userPredictions && userPredictions.length > 0 && (
+            <div className="mb-6">
+              <PredictionsFilter filter={filter} onFilterChange={setFilter} />
+            </div>
+          )}
+
+          {/* Predictions Tabs - Only show if connected and has predictions */}
+          {isConnected && !isLoading && userPredictions && userPredictions.length > 0 && (
+            <Tabs defaultValue="all" className="w-full">
             <TabsList className="grid w-full max-w-md grid-cols-3 bg-[#1E293B] border-[#334155]">
               <TabsTrigger value="all">All ({filteredPredictions.length})</TabsTrigger>
               <TabsTrigger value="active">
@@ -259,6 +182,19 @@ export default function PredictionsPage() {
               )}
             </TabsContent>
           </Tabs>
+          )}
+
+          {/* Empty State - Connected but no predictions */}
+          {isConnected && !isLoading && (!userPredictions || userPredictions.length === 0) && (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg mb-4">
+                You haven&apos;t made any predictions yet
+              </p>
+              <p className="text-gray-500 text-sm">
+                Start predicting on markets to see them here
+              </p>
+            </div>
+          )}
         </main>
       </div>
     </div>

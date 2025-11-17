@@ -1,6 +1,6 @@
 # ✅ Successfully Deployed Contract Addresses
 
-## Celo Sepolia Testnet - REFACTORED ARCHITECTURE
+## Celo Sepolia Testnet - Latest Deployment
 
 **Deployment Date:** November 17, 2025  
 **Network:** Celo Sepolia (Chain ID: 11142220)  
@@ -10,33 +10,33 @@
 
 | Contract             | Address                                      | Transaction Hash                                                     |
 | -------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
-| **ReputationSystem** | `0x757E92F1CfD400732943854E8526Cfb3CA5351Ca` | `0x56bd3870f254e8b19ed3e6569d5ad5347dd2f43ee971d2af0875c83579e0ee65` |
-| **PredictionMarket** | `0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC` | `0x3dc4cd90ee92ab8de0d3e7208fb3039e16798a7aab21c537afea51dcf61bf388` |
-| **Oracle**           | `0xf7aD63d0478aC4aAF5929CB07F3078412088d237` | `0xa5bc3e1813e8e730b2024fa4049dc72cdb818808d1a52650bc488680480b6eaa` |
-| **MarketFactory**    | `0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5` | `0x1cbb6fe8a376bd3534e14942e82abd190a491ac36820b4ce1df475ea71750ab9` |
+| **ReputationSystem** | `0xC46b51268B9BD8a8190B2106354415B58CF34787` | `0x1fb22d6e4c9df7249c9a1ba774eb2bc39dd91e96ebf4db9e5ef08106e8312c25` |
+| **PredictionMarket** | `0x0E4830E472F90B7C2Fa271206A07B5Cc36f940bF` | `0xad390e4c01fd312dca3d67da3595dabd03ffb8133e954babc6418f1a8b566877` |
+| **Oracle**           | `0x5ca009564018ac4eb6D2B41FC455f9a505118df5` | `0xc9f6d55a4e9b8985d06a78bd00e6f41c5c98ebbe1969b44396358f40b9ba7abf` |
+| **MarketFactory**    | `0x51535762f7Fd1886ADaF6f82e5BacAEcf2D22f34` | `0x1e55f68257ff6a0a7a406d8e4d3cb9cf798fe70bc57fb77eb592cfc14ece3042` |
 
-**⚠️ ARCHITECTURE CHANGE:** All markets are now stored in a **single PredictionMarket contract** (`0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC`). No new contracts are deployed per market - much more gas efficient!
+**⚠️ ARCHITECTURE:** All markets are now stored in a **single PredictionMarket contract** (`0x0E4830E472F90B7C2Fa271206A07B5Cc36f940bF`). No new contracts are deployed per market - much more gas efficient!
 
 ### Network Configuration
 
--   **cUSD Token:** `0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80` ✅ **VERIFIED CORRECT**
+-   **cUSD Token:** `0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b` ✅ **VERIFIED CORRECT**
 -   **Chain ID:** `11142220` (EIP-155 format)
--   **Explorer:** https://sepolia.celoscan.io
+-   **Explorer:** https://celo-sepolia.blockscout.com
 -   **RPC:** https://rpc.ankr.com/celo_sepolia
 
 ### Gas Costs
 
 -   ReputationSystem: 1,594,330 gas (0.040 CELO)
--   PredictionMarket: 2,610,847 gas (0.065 CELO)
--   Oracle: 1,342,777 gas (0.034 CELO)
--   MarketFactory: 1,058,639 gas (0.026 CELO)
--   Role Setup: ~48,000 gas (0.001 CELO)
--   **Total:** 6,754,492 gas (0.168 CELO)
+-   PredictionMarket: 2,873,359 gas (0.072 CELO)
+-   Oracle: 1,342,789 gas (0.034 CELO)
+-   MarketFactory: 1,115,358 gas (0.028 CELO)
+-   Role Setup: ~78,899 gas (0.002 CELO)
+-   **Total:** 7,054,735 gas (0.176 CELO)
 
 ### Deployment Summary
 
 ✅ All contracts deployed successfully  
-✅ **Correct cUSD address configured** (`0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80`)  
+✅ **Correct cUSD address configured** (`0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b`)  
 ✅ Roles configured  
 ✅ Contracts linked together  
 ✅ Chain ID detection working (`11142220`)  
@@ -49,81 +49,36 @@
 ```typescript
 export const CONTRACTS = {
     celoSepolia: {
-        factory: "0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5",
-        oracle: "0xf7aD63d0478aC4aAF5929CB07F3078412088d237",
-        reputationSystem: "0x757E92F1CfD400732943854E8526Cfb3CA5351Ca",
-        predictionMarket: "0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC", // Single contract for all markets
-        cUSD: "0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80",
-        chainId: 44787, // Note: Frontend uses 44787, backend uses 11142220
+        factory: "0x51535762f7Fd1886ADaF6f82e5BacAEcf2D22f34",
+        oracle: "0x5ca009564018ac4eb6D2B41FC455f9a505118df5",
+        reputationSystem: "0xC46b51268B9BD8a8190B2106354415B58CF34787",
+        predictionMarket: "0x0E4830E472F90B7C2Fa271206A07B5Cc36f940bF", // Single contract for all markets
+        cUSD: "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b",
+        chainId: 11142220,
     },
 };
 ```
 
-## Verification
-
-Contracts can be verified manually using:
-
-```bash
-# ReputationSystem
-forge verify-contract 0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50 \
-    src/core/ReputationSystem.sol:ReputationSystem \
-    --chain celo_sepolia \
-    --etherscan-api-key $CELO_ETHERSCAN_API_KEY \
-    --constructor-args $(cast abi-encode "constructor(address)" 0x8904fa6ec30ca11c16898d15f7d1278336824500)
-
-# MarketFactory
-forge verify-contract 0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f \
-    src/core/MarketFactory.sol:MarketFactory \
-    --chain celo_sepolia \
-    --etherscan-api-key $CELO_ETHERSCAN_API_KEY \
-    --constructor-args $(cast abi-encode "constructor(address,address,address,address)" \
-        0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80 \
-        0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09 \
-        0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50 \
-        0x8904fa6ec30ca11c16898d15f7d1278336824500)
-
-# Oracle
-forge verify-contract 0x217129a6a9CA7CD2A0dbB42e4c9B93b7b2809f09 \
-    src/core/Oracle.sol:Oracle \
-    --chain celo_sepolia \
-    --etherscan-api-key $CELO_ETHERSCAN_API_KEY \
-    --constructor-args $(cast abi-encode "constructor(address,address,address)" \
-        0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f \
-        0x01D9654C521e955A1Ef98B8A5FdAbC5976Dc5B50 \
-        0x8904fa6ec30ca11c16898d15f7d1278336824500)
-```
-
 ## View on Explorer
 
--   ReputationSystem: https://sepolia.celoscan.io/address/0x757E92F1CfD400732943854E8526Cfb3CA5351Ca
--   PredictionMarket: https://sepolia.celoscan.io/address/0xd1156ADA06e7ffa1a253C5c3b9302a7394650DeC
--   Oracle: https://sepolia.celoscan.io/address/0xf7aD63d0478aC4aAF5929CB07F3078412088d237
--   MarketFactory: https://sepolia.celoscan.io/address/0x2fA51E32203B6C1A5a0bB84AE6bf1f8faA6B96b5
+-   ReputationSystem: https://celo-sepolia.blockscout.com/address/0xC46b51268B9BD8a8190B2106354415B58CF34787
+-   PredictionMarket: https://celo-sepolia.blockscout.com/address/0x0E4830E472F90B7C2Fa271206A07B5Cc36f940bF
+-   Oracle: https://celo-sepolia.blockscout.com/address/0x5ca009564018ac4eb6D2B41FC455f9a505118df5
+-   MarketFactory: https://celo-sepolia.blockscout.com/address/0x51535762f7Fd1886ADaF6f82e5BacAEcf2D22f34
 
 ## Next Steps
 
 1. ✅ Contracts deployed with correct cUSD address
 2. ✅ Frontend updated with new addresses
-3. ⏳ Verify contracts on block explorer (optional, wait 5-10 min)
+3. ✅ ABIs updated
 4. ⏳ Test market creation
 5. ⏳ Test predictions with real cUSD
 6. ⏳ Test resolution flow
 7. ⏳ Test payout claims
 
-## Verification Command
-
-To verify the paymentToken is correct:
-
-```bash
-cast call 0x3eCAB9356cf8cD23940d0A59A3c3eE1497Ac4C4f "paymentToken()" --rpc-url https://rpc.ankr.com/celo_sepolia
-```
-
-Should return: `0x000000000000000000000000EF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80` ✅
-
 ## Notes
 
--   ✅ This deployment uses the **correct** cUSD address: `0xEF4d55D6dE8e8d73232827Cd1e9b2F2dBb45bC80`
+-   ✅ This deployment uses the **correct** cUSD address: `0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b`
 -   ✅ Chain ID detection is working correctly (`11142220`)
 -   ✅ All contracts are functional and ready for testing
 -   ⚠️ Verification errors are due to block explorer indexing delay - wait 5-10 minutes and try manual verification
--   ⚠️ Previous deployments (with wrong cUSD) should be ignored

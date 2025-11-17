@@ -30,8 +30,22 @@ export {
   useMarketDetails,
   useIsResolved,
   usePoolAmounts,
+  useUserPrediction,
+  useOdds,
+  usePotentialWinnings,
+  useFees,
+  usePredict,
+  useClaimPayout,
+  useHasClaimed,
 } from "./usePredictionMarket";
 
 // All markets hook
 export { useAllMarkets } from "./useAllMarkets";
 export type { MarketInfo } from "./useAllMarkets";
+
+// User predictions hook
+export { useUserPredictions } from "./useUserPredictions";
+export type { UserPrediction } from "./useUserPredictions";
+
+// ERC20 hooks
+export { useCUSDAllowance, useApproveCUSD } from "./useERC20";

@@ -82,7 +82,7 @@ export function ShareButton({
         align="end"
         className="bg-[#1E293B] border-[#334155] text-white"
       >
-        {navigator.share && (
+        {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
           <DropdownMenuItem
             onClick={handleNativeShare}
             className="focus:bg-[#0F172A] focus:text-white cursor-pointer"

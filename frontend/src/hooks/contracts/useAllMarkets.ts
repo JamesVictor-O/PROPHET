@@ -20,6 +20,7 @@ export interface MarketInfo {
   endTime: bigint;
   status: number;
   resolved: boolean;
+  winningOutcome?: number; // 0 = Yes, 1 = No (only present if resolved)
   yesPercent: number;
   noPercent: number;
   timeLeft: string;
@@ -44,6 +45,7 @@ function formatMarketData(
         creator?: Address;
         status?: number;
         resolved?: boolean;
+        winningOutcome?: number; // 0 = Yes, 1 = No
       }
     | undefined,
   isLoading: boolean
@@ -119,6 +121,7 @@ function formatMarketData(
     endTime: BigInt(endTime),
     status: marketDetails.status || 0,
     resolved: marketDetails.resolved || false,
+    winningOutcome: marketDetails.winningOutcome,
     yesPercent,
     noPercent,
     timeLeft,
