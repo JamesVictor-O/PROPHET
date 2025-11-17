@@ -1,0 +1,13 @@
+{
+    "extends": "solhint:recommended",
+    "rules": {
+        "compiler-version": ["error", "^0.8.0"],
+        "func-name-mixedcase": "warn",
+        "no-console": "off",
+        "no-empty-blocks": "warn",
+        "no-unused-vars": "error",
+        "payable-fallback": "warn",
+        "reason-string": "warn",
+        "visibility-modifier-order": "error"
+    }
+}

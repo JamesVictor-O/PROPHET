@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { WalletProvider } from "@/components/wallet/wallet-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,7 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "PROPHET - Predict. Earn. Win.",
-  description: "Turn your entertainment knowledge into earnings. Predict music drops, movie success, and pop culture moments.",
+  description:
+    "Turn your entertainment knowledge into earnings. Predict music drops, movie success, and pop culture moments.",
 };
 
 export default function RootLayout({
@@ -21,8 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
-        <Toaster />
+        <WalletProvider>
+          {children}
+          <Toaster />
+        </WalletProvider>
       </body>
     </html>
   );

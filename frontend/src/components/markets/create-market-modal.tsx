@@ -19,8 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, DollarSign, Info } from "lucide-react";
-import { useState } from "react";
+import { Calendar, DollarSign, Info, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useCreateMarket } from "@/hooks/contracts";
+import { toast } from "sonner";
+import { parseEther } from "viem";
 
 interface CreateMarketModalProps {
   open: boolean;
@@ -61,6 +64,7 @@ export function CreateMarketModal({
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof MarketData, string>>>({});
+  const { write, isPending, isConfirmed, error: writeError } = useCreateMarket();
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -110,10 +114,14 @@ export function CreateMarketModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateForm()) {
-      onCreateMarket(formData);
+  // Handle successful market creation
+  useEffect(() => {
+    if (isConfirmed) {
+      toast.success("Market created successfully!");
+      
+      // Store form data before resetting
+      const createdMarketData = { ...formData };
+      
       // Reset form
       setFormData({
         question: "",
@@ -125,6 +133,45 @@ export function CreateMarketModal({
       });
       setErrors({});
       onOpenChange(false);
+      
+      // Call callback after state updates
+      setTimeout(() => {
+        onCreateMarket(createdMarketData);
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConfirmed]);
+
+  // Handle errors
+  useEffect(() => {
+    if (writeError) {
+      console.error("Error creating market:", writeError);
+      toast.error(`Failed to create market: ${writeError.message || "Unknown error"}`);
+    }
+  }, [writeError]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
+
+    if (!write) {
+      toast.error("Write function not available. Please check your connection.");
+      return;
+    }
+
+    try {
+      // Convert endDate to Unix timestamp
+      const endDate = new Date(formData.endDate);
+      const endTime = Math.floor(endDate.getTime() / 1000);
+
+      // Call the contract
+      write([formData.question, formData.category, BigInt(endTime)]);
+      toast.info("Transaction submitted. Please confirm in your wallet.");
+    } catch (err) {
+      console.error("Error submitting market creation:", err);
+      toast.error("Failed to create market. Please try again.");
     }
   };
 
@@ -290,9 +337,17 @@ export function CreateMarketModal({
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white"
+              disabled={isPending}
+              className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white disabled:opacity-50"
             >
-              Create Market
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Market"
+              )}
             </Button>
           </div>
         </form>

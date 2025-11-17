@@ -1,115 +1,87 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Users } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, Wallet } from "lucide-react";
+import { useAccount, useConnect } from "wagmi";
+import { isMiniPayAvailable } from "@/lib/wallet-config";
+import { toast } from "sonner";
 
 export function Hero() {
+  const { isConnected } = useAccount();
+  const { connect, connectors, isPending } = useConnect();
+
+  const handleConnect = () => {
+    const minipayConnector = connectors.find((c) => c.id === "injected");
+    if (minipayConnector) {
+      connect({ connector: minipayConnector });
+    } else {
+      toast.error(
+        "MiniPay not detected. Please open in Opera browser with MiniPay enabled."
+      );
+    }
+  };
+
   return (
-    <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div>
-            <div className="inline-block bg-[#1E293B] border border-[#334155] rounded-full px-4 py-1.5 mb-6">
-              <span className="text-sm text-gray-300">
-                🎯 Built on Celo • Powered by MiniPay
-              </span>
-            </div>
-
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-              Predict.
-              <br />
-              Earn.
-              <br />
-              <span className="text-[#2563EB]">Win.</span>
-            </h1>
-
-            <p className="text-xl text-gray-400 mb-8 leading-relaxed">
-              Turn your entertainment knowledge into earnings. Predict music
-              drops, movie success, and pop culture moments. Get rewarded for
-              being right.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 mb-12">
+    <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 h-screen flex flex-col">
+      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col justify-center items-center">
+        {/* Text Content - Takes natural space */}
+        <div className="text-center flex flex-col items-center justify-center mb-8">
+          <h1 className="text-5xl sm:text-6xl text-center lg:text-5xl font-bold mb-6 leading-tight">
+            Turn Your Entertainment Knowledge
+            <br />
+            Into
+            <span className="text-[#2563EB]"> Earnings.</span>
+          </h1>
+          <p className="text-2xl text-gray-400 mb-8 leading-relaxed text-center max-w-4xl">
+            Turn your entertainment knowledge into earnings. Predict music
+            drops, movie success, and pop culture moments. Get rewarded for
+            being right.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 mb-12 ">
+            {isConnected ? (
+              <Link href="/dashboard">
+                <Button
+                  size="lg"
+                  className="bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3"
+                >
+                  Start Predicting
+                  <ArrowRight className="w-7 h-7 ml-2 bg-black rounded-full p-1 text-white" />
+                </Button>
+              </Link>
+            ) : (
               <Button
                 size="lg"
-                className="bg-[#2563EB] text-white hover:bg-blue-700"
+                onClick={handleConnect}
+                disabled={isPending}
+                className="bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3"
               >
-                Start Predicting
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {isPending ? (
+                  "Connecting..."
+                ) : (
+                  <>
+                    {isMiniPayAvailable()
+                      ? "Connect MiniPay"
+                      : "Connect Wallet"}
+                    <Wallet className="w-5 h-5 ml-2" />
+                  </>
+                )}
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="bg-[#1E293B] border-[#334155] text-white hover:bg-[#334155]"
-              >
-                Watch Demo
-              </Button>
-            </div>
-
+            )}
           </div>
+        </div>
 
-          {/* Right Content - Featured Market */}
-          <div className="lg:pl-12">
-            <Card className="bg-[#1E293B] border-[#334155]">
-              {/* Market Header */}
-              <div className="bg-[#2563EB] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <Badge
-                    variant="secondary"
-                    className="bg-white/20 text-white border-0"
-                  >
-                    MUSIC
-                  </Badge>
-                  <span className="text-sm font-medium">Ends in 3 days</span>
-                </div>
-                <h3 className="text-2xl font-bold mb-2">
-                  Will Burna Boy drop an album in Q4 2024?
-                </h3>
-                <p className="text-sm opacity-90">
-                  Official announcement on social media counts as confirmation
-                </p>
-              </div>
-
-              {/* Market Stats */}
-              <CardContent className="p-6">
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-[#0F172A] border border-[#334155] rounded-lg p-4">
-                    <div className="text-4xl font-bold text-green-400 mb-1">
-                      68%
-                    </div>
-                    <div className="text-sm text-gray-400 mb-3">YES</div>
-                    <Button className="w-full bg-green-600 text-white hover:bg-green-700">
-                      Predict YES
-                    </Button>
-                  </div>
-                  <div className="bg-[#0F172A] border border-[#334155] rounded-lg p-4">
-                    <div className="text-4xl font-bold text-red-400 mb-1">
-                      32%
-                    </div>
-                    <div className="text-sm text-gray-400 mb-3">NO</div>
-                    <Button
-                      variant="outline"
-                      className="w-full bg-dark-700 border-dark-700 text-white hover:bg-dark-600"
-                    >
-                      Predict NO
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Pool Info */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2 text-gray-400">
-                    <Users className="w-4 h-4" />
-                    <span>1,234 predictions</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-[#2563EB] rounded-full"></div>
-                    <span className="text-gray-400">Pool: $890</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Visual Content - Takes remaining space */}
+        <div className="flex-1 border-3 rounded-2xl items-center justify-center  border-[#7a9fed] bg-linear-to-br from-[#1E293B] to-[#0F172A] h-80 md:w-96  relative overflow-hidden">
+          <div className="relative z-10  h-full flex items-center justify-center   overflow-hidden">
+            <Image
+              width={1000}
+              height={1000}
+              src="/dashboard.png"
+              alt="Dashboard Preview"
+              className="w-full h-full object-contain rounded-2xl"
+            />
           </div>
         </div>
       </div>
