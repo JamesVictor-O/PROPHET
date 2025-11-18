@@ -27,22 +27,19 @@ export function ProfileSettings({ user, address }: ProfileSettingsProps) {
 
   const {
     write,
-    isLoading: isSettingUsername,
-    isPending,
-    isSuccess,
+    isPending: isSettingUsername,
+    isConfirmed,
     error: writeError,
   } = useSetUsername();
 
   const { data: isAvailable, isLoading: isCheckingAvailability } =
-    useIsUsernameAvailable(
-      username.length >= 3 ? username : undefined
-    );
+    useIsUsernameAvailable(username.length >= 3 ? username : undefined);
 
   useEffect(() => {
-    if (isSuccess) {
+    if (isConfirmed) {
       toast.success("Username updated successfully!");
     }
-  }, [isSuccess]);
+  }, [isConfirmed]);
 
   useEffect(() => {
     if (writeError) {
@@ -118,7 +115,7 @@ export function ProfileSettings({ user, address }: ProfileSettingsProps) {
                   name="username"
                   value={username}
                   onChange={handleUsernameChange}
-                  disabled={isSettingUsername || isPending}
+                  disabled={isSettingUsername}
                   placeholder="your.username"
                   className="bg-[#0F172A] border-dark-700 pr-10 disabled:opacity-50"
                   minLength={3}
@@ -158,13 +155,12 @@ export function ProfileSettings({ user, address }: ProfileSettingsProps) {
                 !isUsernameValid ||
                 !hasChanges ||
                 isSettingUsername ||
-                isPending ||
                 isCheckingAvailability ||
                 isAvailable === false
               }
               className="bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50"
             >
-              {isSettingUsername || isPending ? (
+              {isSettingUsername ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Setting username...
@@ -198,4 +194,3 @@ export function ProfileSettings({ user, address }: ProfileSettingsProps) {
     </div>
   );
 }
-
