@@ -25,19 +25,20 @@ export function LeaderboardFilters({
   const categories = ["All", "Music", "Movies", "Reality TV", "Awards"];
 
   return (
-    <div className="flex flex-col sm:flex-row gap-4">
+    <div className="flex flex-col gap-4 sm:gap-5">
       {/* Time Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex flex-wrap sm:flex-nowrap gap-2 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 scrollbar-hide -mx-1 px-1">
         {timeFilters.map((filter) => (
           <Button
             key={filter.id}
             onClick={() => onTimeFilterChange(filter.id)}
             variant={timeFilter === filter.id ? "default" : "outline"}
+            size="sm"
             className={cn(
-              "whitespace-nowrap",
+              "whitespace-nowrap text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4 shrink-0",
               timeFilter === filter.id
                 ? "bg-[#2563EB] text-white"
-                : "bg-[#1E293B] border-[#334155] text-gray-400 hover:bg-[#334155]"
+                : "bg-[#1E293B] border-dark-700 text-gray-400 hover:bg-dark-700"
             )}
           >
             {filter.label}
@@ -46,17 +47,20 @@ export function LeaderboardFilters({
       </div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex flex-wrap sm:flex-nowrap gap-2 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 scrollbar-hide -mx-1 px-1">
         {categories.map((category) => (
           <Button
             key={category}
             onClick={() => onCategoryFilterChange(category.toLowerCase())}
-            variant={categoryFilter === category.toLowerCase() ? "default" : "outline"}
+            variant={
+              categoryFilter === category.toLowerCase() ? "default" : "outline"
+            }
+            size="sm"
             className={cn(
-              "whitespace-nowrap",
+              "whitespace-nowrap text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4 shrink-0",
               categoryFilter === category.toLowerCase()
                 ? "bg-[#2563EB] text-white"
-                : "bg-[#1E293B] border-[#334155] text-gray-400 hover:bg-[#334155]"
+                : "bg-[#1E293B] border-dark-700 text-gray-400 hover:bg-dark-700"
             )}
           >
             {category}
@@ -66,4 +70,3 @@ export function LeaderboardFilters({
     </div>
   );
 }
-

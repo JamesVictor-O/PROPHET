@@ -42,16 +42,16 @@ export function Features() {
   ];
 
   return (
-    <section id="features" className="py-20 px-4 sm:px-6 lg:px-8">
+    <section id="features" className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4">Features</h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+        <div className="text-center mb-10 sm:mb-12 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">Features</h2>
+          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto px-4">
             Everything you need to become a top prophet
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
@@ -59,16 +59,16 @@ export function Features() {
                 key={index}
                 className="feature-card bg-[#1E293B] border-[#334155]"
               >
-                <CardContent className="p-8">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-10 h-10 bg-[#2563EB]/10 border border-[#2563EB]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-5 h-5 text-[#2563EB]" />
+                <CardContent className="p-4 sm:p-6 md:p-8">
+                  <div className="flex items-start space-x-3 sm:space-x-4">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2563EB]/10 border border-[#2563EB]/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#2563EB]" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-bold mb-1 sm:mb-2">
                         {feature.title}
                       </h3>
-                      <p className="text-gray-400">{feature.description}</p>
+                      <p className="text-sm sm:text-base text-gray-400 leading-relaxed">{feature.description}</p>
                     </div>
                   </div>
                 </CardContent>

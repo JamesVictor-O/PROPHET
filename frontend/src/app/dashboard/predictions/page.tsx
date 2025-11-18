@@ -8,12 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PredictionCard } from "@/components/predictions/prediction-card";
 import { PredictionsStats } from "@/components/predictions/predictions-stats";
 import { PredictionsFilter } from "@/components/predictions/predictions-filter";
-import { useUserPredictions, UserPrediction } from "@/hooks/contracts";
+import { useUserPredictions } from "@/hooks/contracts";
 import { Loader2 } from "lucide-react";
 
 export default function PredictionsPage() {
   const { address, isConnected } = useAccount();
   const { data: userPredictions, isLoading } = useUserPredictions();
+
   const [filter, setFilter] = useState<"all" | "active" | "won" | "lost">(
     "all"
   );
@@ -34,170 +35,187 @@ export default function PredictionsPage() {
     [filteredPredictions]
   );
 
-  const stats = useMemo(() => {
-    if (!userPredictions) {
-      return {
-        total: 0,
-        active: 0,
-        won: 0,
-        lost: 0,
-        totalEarned: 0,
-        totalStaked: 0,
-        winRate: "0",
-      };
-    }
-
-    const total = userPredictions.length;
-    const active = userPredictions.filter((p) => p.status === "active").length;
-    const won = userPredictions.filter((p) => p.status === "won").length;
-    const lost = userPredictions.filter((p) => p.status === "lost").length;
-    const totalEarned = userPredictions
-      .filter((p) => p.status === "won" && p.actualWin)
-      .reduce((sum, p) => sum + (p.actualWin || 0), 0);
-    const totalStaked = userPredictions.reduce((sum, p) => sum + p.stake, 0);
-    const winRate =
-      won + lost > 0 ? ((won / (won + lost)) * 100).toFixed(0) : "0";
-
-    return {
-      total,
-      active,
-      won,
-      lost,
-      totalEarned,
-      totalStaked,
-      winRate,
-    };
-  }, [userPredictions]);
-
   return (
     <div className="min-h-screen bg-[#0F172A] text-white">
       <DashboardNav />
+
+      {/* Layout Wrapper */}
       <div className="pt-16 flex">
-        <DashboardSidebar />
+        {/* Sidebar - Hidden on Mobile */}
+        <div className="hidden lg:block">
+          <DashboardSidebar />
+        </div>
 
         {/* Main Content */}
-        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
-          {/* Header Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">My Predictions</h1>
-            <p className="text-gray-400">
+        <main className="flex-1 lg:ml-64 p-4 sm:p-5 md:p-6">
+          {/* Page Header */}
+          <div className="mb-5 sm:mb-7">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">
+              My Predictions
+            </h1>
+            <p className="text-gray-400 text-sm sm:text-base mt-1">
               Track your predictions and earnings
             </p>
           </div>
 
-          {/* Loading State */}
+          {/* Loading */}
           {isLoading && (
-            <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#2563EB]" />
-              <p className="text-gray-400">Loading your predictions...</p>
-            </div>
-          )}
-
-          {/* Not Connected State */}
-          {!isConnected && !isLoading && (
-            <div className="text-center py-12">
-              <p className="text-gray-400 text-lg mb-4">
-                Please connect your wallet to view your predictions
+            <div className="text-center py-10 sm:py-12">
+              <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 animate-spin mx-auto mb-3 text-[#2563EB]" />
+              <p className="text-gray-400 text-sm sm:text-base">
+                Loading your predictions...
               </p>
             </div>
           )}
 
-          {/* Stats - Only show if connected and has predictions */}
-          {isConnected && !isLoading && userPredictions && (
-            <PredictionsStats stats={stats} />
+          {/* Not Connected */}
+          {!isConnected && !isLoading && (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-base sm:text-lg mb-3">
+                Connect your wallet to view predictions
+              </p>
+            </div>
           )}
 
-          {/* Filters - Only show if connected and has predictions */}
-          {isConnected && !isLoading && userPredictions && userPredictions.length > 0 && (
-            <div className="mb-6">
+          {/* Stats */}
+          {isConnected && !isLoading && userPredictions && (
+            <div className="mb-5 sm:mb-8">
+              <PredictionsStats
+                stats={{
+                  total: userPredictions.length,
+                  active: userPredictions.filter((p) => p.status === "active")
+                    .length,
+                  won: userPredictions.filter((p) => p.status === "won").length,
+                  lost: userPredictions.filter((p) => p.status === "lost")
+                    .length,
+                  totalEarned: userPredictions
+                    .filter((p) => p.status === "won" && p.actualWin)
+                    .reduce((sum, p) => sum + (p.actualWin || 0), 0),
+                  totalStaked: userPredictions.reduce(
+                    (sum, p) => sum + p.stake,
+                    0
+                  ),
+                  winRate: "0",
+                }}
+              />
+            </div>
+          )}
+
+          {/* Filters */}
+          {isConnected && !isLoading && userPredictions?.length > 0 && (
+            <div className="mb-4 sm:mb-6">
               <PredictionsFilter filter={filter} onFilterChange={setFilter} />
             </div>
           )}
 
-          {/* Predictions Tabs - Only show if connected and has predictions */}
-          {isConnected && !isLoading && userPredictions && userPredictions.length > 0 && (
+          {/* Predictions Section */}
+          {isConnected && !isLoading && userPredictions?.length > 0 && (
             <Tabs defaultValue="all" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-3 bg-[#1E293B] border-[#334155]">
-              <TabsTrigger value="all">All ({filteredPredictions.length})</TabsTrigger>
-              <TabsTrigger value="active">
-                Active ({activePredictions.length})
-              </TabsTrigger>
-              <TabsTrigger value="resolved">
-                Resolved ({resolvedPredictions.length})
-              </TabsTrigger>
-            </TabsList>
+              {/* Mobile Scrollable Tabs */}
+              <TabsList
+                className="
+                w-full overflow-x-auto scrollbar-none
+                flex sm:grid sm:grid-cols-3 gap-1
+                bg-[#1E293B] border border-[#334155] rounded-lg p-1
+              "
+              >
+                <TabsTrigger value="all" className="flex-1 text-sm">
+                  All ({filteredPredictions.length})
+                </TabsTrigger>
+                <TabsTrigger value="active" className="flex-1 text-sm">
+                  Active ({activePredictions.length})
+                </TabsTrigger>
+                <TabsTrigger value="resolved" className="flex-1 text-sm">
+                  Resolved ({resolvedPredictions.length})
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="all" className="mt-6">
-              {filteredPredictions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredPredictions.map((prediction) => (
-                    <PredictionCard
-                      key={prediction.id}
-                      prediction={prediction}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 text-lg">No predictions found</p>
-                </div>
-              )}
-            </TabsContent>
+              {/* ALL */}
+              <TabsContent value="all" className="mt-5">
+                {filteredPredictions.length > 0 ? (
+                  <div
+                    className="
+                    grid 
+                    grid-cols-1
+                    sm:grid-cols-2 
+                    xl:grid-cols-3
+                    gap-4 sm:gap-5 lg:gap-6
+                  "
+                  >
+                    {filteredPredictions.map((p) => (
+                      <PredictionCard key={p.id} prediction={p} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState message="No predictions found" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="active" className="mt-6">
-              {activePredictions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {activePredictions.map((prediction) => (
-                    <PredictionCard
-                      key={prediction.id}
-                      prediction={prediction}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 text-lg">
-                    No active predictions
-                  </p>
-                </div>
-              )}
-            </TabsContent>
+              {/* ACTIVE */}
+              <TabsContent value="active" className="mt-5">
+                {activePredictions.length > 0 ? (
+                  <div
+                    className="
+                    grid 
+                    grid-cols-1
+                    sm:grid-cols-2 
+                    xl:grid-cols-3
+                    gap-4 sm:gap-5 lg:gap-6
+                  "
+                  >
+                    {activePredictions.map((p) => (
+                      <PredictionCard key={p.id} prediction={p} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState message="No active predictions" />
+                )}
+              </TabsContent>
 
-            <TabsContent value="resolved" className="mt-6">
-              {resolvedPredictions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {resolvedPredictions.map((prediction) => (
-                    <PredictionCard
-                      key={prediction.id}
-                      prediction={prediction}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 text-lg">
-                    No resolved predictions
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+              {/* RESOLVED */}
+              <TabsContent value="resolved" className="mt-5">
+                {resolvedPredictions.length > 0 ? (
+                  <div
+                    className="
+                    grid 
+                    grid-cols-1
+                    sm:grid-cols-2 
+                    xl:grid-cols-3
+                    gap-4 sm:gap-5 lg:gap-6
+                  "
+                  >
+                    {resolvedPredictions.map((p) => (
+                      <PredictionCard key={p.id} prediction={p} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState message="No resolved predictions" />
+                )}
+              </TabsContent>
+            </Tabs>
           )}
 
-          {/* Empty State - Connected but no predictions */}
-          {isConnected && !isLoading && (!userPredictions || userPredictions.length === 0) && (
-            <div className="text-center py-12">
-              <p className="text-gray-400 text-lg mb-4">
-                You haven&apos;t made any predictions yet
-              </p>
-              <p className="text-gray-500 text-sm">
-                Start predicting on markets to see them here
-              </p>
-            </div>
-          )}
+          {/* Empty State */}
+          {isConnected &&
+            !isLoading &&
+            (!userPredictions || userPredictions.length === 0) && (
+              <EmptyState
+                message="You haven't made any predictions yet"
+                sub="Start predicting to see results here"
+              />
+            )}
         </main>
       </div>
     </div>
   );
 }
 
+// Reusable Empty State Component
+function EmptyState({ message, sub }: { message: string; sub?: string }) {
+  return (
+    <div className="text-center py-12">
+      <p className="text-gray-400 text-base sm:text-lg mb-2">{message}</p>
+      {sub && <p className="text-gray-500 text-sm">{sub}</p>}
+    </div>
+  );
+}

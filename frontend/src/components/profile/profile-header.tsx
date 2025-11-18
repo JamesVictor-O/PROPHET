@@ -23,7 +23,7 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
   return (
-    <Card className="bg-[#1E293B] border-[#334155]">
+    <Card className="bg-[#1E293B] border-dark-700">
       <CardContent className="p-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
           {/* Avatar */}
@@ -50,12 +50,16 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
               </div>
             </div>
             <p className="text-gray-400 mb-2">{user.username}</p>
-            <p className="text-sm text-gray-400 mb-4">{user.bio}</p>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-              <span>Joined {user.joinDate}</span>
-              <span>•</span>
-              <span>{user.email}</span>
-            </div>
+            {user.bio && (
+              <p className="text-sm text-gray-400 mb-4">{user.bio}</p>
+            )}
+            {(user.joinDate || user.email) && (
+              <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+                {user.joinDate && <span>Joined {user.joinDate}</span>}
+                {user.joinDate && user.email && <span>•</span>}
+                {user.email && <span>{user.email}</span>}
+              </div>
+            )}
           </div>
 
           {/* Quick Stats */}

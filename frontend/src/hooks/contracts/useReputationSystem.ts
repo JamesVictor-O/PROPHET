@@ -77,3 +77,18 @@ export function useUserStats(address: Address | undefined) {
     enabled: !!address,
   });
 }
+
+/**
+ * Get top users by reputation score
+ * @param limit Number of top users to fetch (default: 10)
+ */
+export function useTopUsers(limit: number = 10) {
+  const { address, abi } = useReputationSystem();
+  return useContractRead<Address[]>({
+    address,
+    abi,
+    functionName: "getTopUsers",
+    args: [BigInt(limit)],
+    enabled: limit > 0 && limit <= 100,
+  });
+}

@@ -22,11 +22,13 @@ import { useState, useEffect } from "react";
 interface WalletConnectProps {
   variant?: "default" | "outline" | "ghost";
   showBalance?: boolean;
+  showAddress?: boolean;
 }
 
 export function WalletConnect({
   variant = "outline",
   showBalance = true,
+  showAddress = false,
 }: WalletConnectProps) {
   const [mounted, setMounted] = useState(false);
   const { address, isConnected, chainId } = useAccount();
@@ -159,10 +161,10 @@ export function WalletConnect({
             >
               <Wallet className="w-3 h-3 text-white" />
             </div>
-            <span className="text-sm font-medium hidden sm:inline">
+            <span className={`text-sm font-medium ${showAddress ? "" : "hidden sm:inline"}`}>
               {address ? formatAddress(address) : "..."}
             </span>
-            <LogOut className="w-4 h-4 hidden sm:inline" />
+            <LogOut className={`w-4 h-4 ${showAddress ? "" : "hidden sm:inline"}`} />
           </div>
         </Button>
       </div>

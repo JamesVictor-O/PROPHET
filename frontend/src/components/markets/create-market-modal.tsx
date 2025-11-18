@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, DollarSign, Info, Loader2 } from "lucide-react";
+import { Calendar, DollarSign, Loader2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAccount, useBalance } from "wagmi";
 import {
@@ -97,6 +97,8 @@ export function CreateMarketModal({
   >({});
   const [needsApproval, setNeedsApproval] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const { chainId, address } = useAccount();
   const {
@@ -133,7 +135,7 @@ export function CreateMarketModal({
     error: approvalError,
   } = useApproveCUSD();
 
-  // Get cUSD balance (for informational purposes - creation is currently free)
+  // Get cUSD balance
   const cusdAddress = getContractAddress("cUSD") as Address;
   const { data: cusdBalance } = useBalance({
     address,
@@ -147,7 +149,6 @@ export function CreateMarketModal({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
     if (errors[name as keyof MarketData]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
@@ -185,7 +186,6 @@ export function CreateMarketModal({
     if (!formData.initialSide) {
       newErrors.initialSide = "Please select your prediction side";
     }
-    // Check balance if available
     if (cusdBalance && formData.initialStake > Number(cusdBalance.formatted)) {
       newErrors.initialStake = "Insufficient cUSD balance";
     }
@@ -194,34 +194,67 @@ export function CreateMarketModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Update needsApproval state when allowance check completes
   useEffect(() => {
     if (checkNeedsApproval !== undefined) {
       setNeedsApproval(checkNeedsApproval);
     }
   }, [checkNeedsApproval]);
 
-  // Handle successful approval
   useEffect(() => {
-    if (isApprovalConfirmed) {
-      toast.success("Approval confirmed! You can now create the market.");
+    if (isApprovalConfirmed && isProcessing) {
       setIsApproving(false);
       setNeedsApproval(false);
-      // Refetch allowance to update state
-      refetchAllowance();
-    }
-  }, [isApprovalConfirmed, refetchAllowance]);
+      refetchAllowance().then(() => {
+        // After approval is confirmed and allowance refetched, automatically create market
+        if (write) {
+          setIsCreating(true);
+          toast.info("Approval confirmed! Creating market...");
 
-  // Handle approval errors
+          // Small delay to ensure allowance is updated
+          setTimeout(() => {
+            if (!write) {
+              toast.error("Connection error");
+              setIsProcessing(false);
+              setIsCreating(false);
+              return;
+            }
+
+            try {
+              const endDate = new Date(formData.endDate);
+              const endTime = Math.floor(endDate.getTime() / 1000);
+              const stakeInWei = parseEther(formData.initialStake.toString());
+              const initialSide = formData.initialSide === "yes" ? 0 : 1;
+
+              write([
+                formData.question,
+                formData.category,
+                BigInt(endTime),
+                stakeInWei,
+                initialSide,
+              ]);
+              toast.info("Confirm market creation in your wallet");
+            } catch (err) {
+              console.error("Error:", err);
+              toast.error("Failed to create market");
+              setIsProcessing(false);
+              setIsCreating(false);
+            }
+          }, 500);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isApprovalConfirmed, refetchAllowance, isProcessing, write]);
+
   useEffect(() => {
     if (approvalError) {
       console.error("Approval error:", approvalError);
-      toast.error("Failed to approve cUSD. Please try again.");
+      toast.error("Failed to approve cUSD");
       setIsApproving(false);
+      setIsProcessing(false);
     }
   }, [approvalError]);
 
-  // Sync isApproving state with approval transaction status
   useEffect(() => {
     if (isApprovalPending) {
       setIsApproving(true);
@@ -230,15 +263,13 @@ export function CreateMarketModal({
     }
   }, [isApprovalPending, isApprovalConfirmed, approvalError]);
 
-  // Handle successful market creation
   useEffect(() => {
     if (isConfirmed) {
       toast.success("Market created successfully!");
-
-      // Store form data before resetting
+      setIsProcessing(false);
+      setIsCreating(false);
+      setIsApproving(false);
       const createdMarketData = { ...formData };
-
-      // Reset form
       setFormData({
         question: "",
         category: "",
@@ -249,8 +280,6 @@ export function CreateMarketModal({
       setErrors({});
       setNeedsApproval(false);
       onOpenChange(false);
-
-      // Call callback after state updates
       setTimeout(() => {
         onCreateMarket(createdMarketData);
       }, 0);
@@ -258,90 +287,38 @@ export function CreateMarketModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfirmed]);
 
-  // Handle errors
   useEffect(() => {
     if (writeError) {
       console.error("Error creating market:", writeError);
-
-      // Provide more helpful error messages
+      setIsProcessing(false);
+      setIsCreating(false);
       let errorMessage = "Failed to create market";
       if (writeError.message) {
-        if (writeError.message.includes("Internal JSON-RPC error")) {
-          errorMessage =
-            "RPC error: Please check your network connection and try again";
-        } else if (writeError.message.includes("user rejected")) {
-          errorMessage = "Transaction was rejected";
+        if (writeError.message.includes("user rejected")) {
+          errorMessage = "Transaction rejected";
         } else if (writeError.message.includes("insufficient funds")) {
-          errorMessage = "Insufficient funds for transaction";
+          errorMessage = "Insufficient funds";
         } else {
           errorMessage = writeError.message;
         }
       }
-
       toast.error(errorMessage);
     }
   }, [writeError]);
 
-  const handleApprove = async () => {
-    if (!approve || !factoryAddress) {
-      toast.error(
-        "Approval function not available. Please check your connection."
-      );
-      return;
-    }
-
-    setIsApproving(true);
-    try {
-      // Approve max amount to avoid repeated approvals
-      // This is a common pattern for better UX
-      approve([factoryAddress, maxUint256]);
-      toast.info("Please approve the cUSD spending in your wallet.");
-    } catch (err) {
-      console.error("Error approving cUSD:", err);
-      toast.error("Failed to approve cUSD. Please try again.");
-      setIsApproving(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) {
-      return;
-    }
-
-    // Check network before submitting
-    if (!isCorrectNetwork) {
-      toast.error(
-        `Please switch to Celo Sepolia (Chain ID: ${defaultChain.id}) to create markets`
-      );
-      return;
-    }
-
-    // Check if approval is needed first
-    if (needsApproval || checkNeedsApproval) {
-      toast.error("Please approve cUSD spending first.");
-      return;
-    }
-
+  const handleCreateMarket = () => {
     if (!write) {
-      toast.error(
-        "Write function not available. Please check your connection."
-      );
+      toast.error("Connection error");
+      setIsProcessing(false);
       return;
     }
 
     try {
-      // Convert endDate to Unix timestamp
       const endDate = new Date(formData.endDate);
       const endTime = Math.floor(endDate.getTime() / 1000);
-
-      // Convert stake to wei (cUSD has 18 decimals)
       const stakeInWei = parseEther(formData.initialStake.toString());
-
-      // Convert side to uint8 (0 = Yes, 1 = No)
       const initialSide = formData.initialSide === "yes" ? 0 : 1;
 
-      // Call the contract with stake and side
       write([
         formData.question,
         formData.category,
@@ -349,12 +326,70 @@ export function CreateMarketModal({
         stakeInWei,
         initialSide,
       ]);
-      toast.info("Transaction submitted. Please confirm in your wallet.");
+      toast.info("Confirm market creation in your wallet");
     } catch (err) {
-      console.error("Error submitting market creation:", err);
-      toast.error("Failed to create market. Please try again.");
+      console.error("Error:", err);
+      toast.error("Failed to create market");
+      setIsProcessing(false);
+      setIsCreating(false);
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    if (!isCorrectNetwork) {
+      toast.error(`Switch to Celo Sepolia (Chain ID: ${defaultChain.id})`);
+      return;
+    }
+
+    setIsProcessing(true);
+
+    // Check if approval is needed
+    if (needsApproval || checkNeedsApproval) {
+      // Automatically trigger approval
+      if (!approve || !factoryAddress) {
+        toast.error("Approval not available");
+        setIsProcessing(false);
+        return;
+      }
+
+      setIsApproving(true);
+      toast.info("Please approve cUSD spending in your wallet");
+      try {
+        approve([factoryAddress, maxUint256]);
+        // Approval confirmation will automatically trigger market creation via useEffect
+      } catch (err) {
+        console.error("Error approving:", err);
+        toast.error("Approval failed");
+        setIsApproving(false);
+        setIsProcessing(false);
+      }
+    } else {
+      // No approval needed, create market directly
+      setIsCreating(true);
+      handleCreateMarket();
+    }
+  };
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!open) {
+      setFormData({
+        question: "",
+        category: "",
+        endDate: "",
+        initialStake: 0.25,
+        initialSide: "yes",
+      });
+      setErrors({});
+      setIsProcessing(false);
+      setIsApproving(false);
+      setIsCreating(false);
+      setNeedsApproval(false);
+    }
+  }, [open]);
 
   const selectedCategory = categories.find(
     (cat) => cat.value === formData.category
@@ -362,253 +397,250 @@ export function CreateMarketModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#1E293B] border-[#334155] text-white max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
-            Create New Market
-          </DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Create a prediction market for others to participate in
-          </DialogDescription>
-          {/* Info about creation fee */}
-          <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-            <p className="text-sm text-blue-400">
-              <Info className="w-4 h-4 inline mr-1" />
-              <strong>Market creation is currently free</strong> (no cUSD
-              required). However, making predictions requires cUSD tokens.
-              {cusdBalance && (
-                <span className="block mt-1 text-xs">
-                  Your cUSD balance: {Number(cusdBalance.formatted).toFixed(2)}{" "}
-                  cUSD
+      <DialogContent
+        className="bg-[#1E293B] border-[#334155] text-white 
+  w-full sm:max-w-lg p-0 gap-0 rounded-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="bg-[#0F172A] border-b border-[#334155] px-3 py-3 sticky top-0 z-10">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-base font-bold">
+              Create Market
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-400 leading-tight">
+              Start your own prediction market
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto max-h-[calc(100vh-160px)] px-3">
+          {/* Balance Info */}
+          {cusdBalance && (
+            <div className="mt-3 p-2.5 bg-[#0F172A] border border-[#334155] rounded-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">Your Balance</span>
+                <span className="text-sm font-semibold">
+                  {Number(cusdBalance.formatted).toFixed(2)} cUSD
                 </span>
-              )}
-            </p>
-          </div>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {/* Question */}
-          <div className="space-y-2">
-            <Label htmlFor="question" className="text-sm font-medium">
-              Market Question *
-            </Label>
-            <Input
-              id="question"
-              name="question"
-              value={formData.question}
-              onChange={handleChange}
-              placeholder="e.g., Will Burna Boy drop an album in Q4 2024?"
-              className="bg-[#0F172A] border-[#334155] text-white"
-            />
-            {errors.question && (
-              <p className="text-xs text-red-400">{errors.question}</p>
-            )}
-          </div>
-
-          {/* Category */}
-          <div className="space-y-2">
-            <Label htmlFor="category" className="text-sm font-medium">
-              Category *
-            </Label>
-            <Select
-              value={formData.category}
-              onValueChange={handleCategoryChange}
-            >
-              <SelectTrigger className="bg-[#0F172A] border-[#334155] text-white">
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1E293B] border-[#334155]">
-                {categories.map((category) => (
-                  <SelectItem
-                    key={category.value}
-                    value={category.value}
-                    className="text-white focus:bg-[#0F172A]"
-                  >
-                    {category.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.category && (
-              <p className="text-xs text-red-400">{errors.category}</p>
-            )}
-            {selectedCategory && (
-              <Badge className={selectedCategory.color}>
-                {selectedCategory.label}
-              </Badge>
-            )}
-          </div>
-
-          {/* End Date */}
-          <div className="space-y-2">
-            <Label
-              htmlFor="endDate"
-              className="text-sm font-medium flex items-center gap-2"
-            >
-              <Calendar className="w-4 h-4" />
-              End Date *
-            </Label>
-            <Input
-              id="endDate"
-              name="endDate"
-              type="datetime-local"
-              value={formData.endDate}
-              onChange={handleChange}
-              className="bg-[#0F172A] border-[#334155] text-white"
-            />
-            {errors.endDate && (
-              <p className="text-xs text-red-400">{errors.endDate}</p>
-            )}
-          </div>
-
-          {/* Required Initial Stake */}
-          <div className="space-y-2">
-            <Label
-              htmlFor="initialStake"
-              className="text-sm font-medium flex items-center gap-2"
-            >
-              <DollarSign className="w-4 h-4" />
-              Your Initial Stake (Required) *
-            </Label>
-            <Input
-              id="initialStake"
-              name="initialStake"
-              type="number"
-              min="0.25"
-              step="0.25"
-              value={formData.initialStake || ""}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  initialStake: parseFloat(e.target.value) || 0,
-                }))
-              }
-              placeholder="0.25"
-              required
-              className="bg-[#0F172A] border-[#334155] text-white"
-            />
-            {errors.initialStake && (
-              <p className="text-xs text-red-400">{errors.initialStake}</p>
-            )}
-            <p className="text-xs text-gray-400">
-              Put your money where your mouth is! Minimum $0.25 cUSD required to
-              create a market.
-              {cusdBalance && (
-                <span className="block mt-1">
-                  Available: {Number(cusdBalance.formatted).toFixed(2)} cUSD
-                </span>
-              )}
-            </p>
-          </div>
-
-          {/* Initial Side Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              Your Prediction Side *
-            </Label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData((prev) => ({ ...prev, initialSide: "yes" }))
-                }
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  formData.initialSide === "yes"
-                    ? "border-green-500 bg-green-500/10"
-                    : "border-[#334155] bg-[#0F172A] hover:border-green-500/50"
-                }`}
-              >
-                <div className="text-lg font-bold text-green-400 mb-1">YES</div>
-                <div className="text-xs text-gray-400">I predict Yes</div>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData((prev) => ({ ...prev, initialSide: "no" }))
-                }
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  formData.initialSide === "no"
-                    ? "border-red-500 bg-red-500/10"
-                    : "border-[#334155] bg-[#0F172A] hover:border-red-500/50"
-                }`}
-              >
-                <div className="text-lg font-bold text-red-400 mb-1">NO</div>
-                <div className="text-xs text-gray-400">I predict No</div>
-              </button>
-            </div>
-            {errors.initialSide && (
-              <p className="text-xs text-red-400">{errors.initialSide}</p>
-            )}
-            <p className="text-xs text-gray-400">
-              Which side are you betting on when creating this market?
-            </p>
-          </div>
-
-          {/* Approval Notice */}
-          {(needsApproval || checkNeedsApproval) && !isApprovalConfirmed && (
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-              <p className="text-sm text-yellow-400 mb-3">
-                <Info className="w-4 h-4 inline mr-1" />
-                <strong>Approval Required:</strong> You need to approve the
-                MarketFactory contract to spend your cUSD tokens before creating
-                a market.
-              </p>
-              <Button
-                type="button"
-                onClick={handleApprove}
-                disabled={isApproving || isApprovalPending}
-                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
-              >
-                {isApproving || isApprovalPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Approving...
-                  </>
-                ) : (
-                  "Approve cUSD Spending"
-                )}
-              </Button>
+              </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            {/* Question */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Market Question</Label>
+              <Input
+                id="question"
+                name="question"
+                value={formData.question}
+                onChange={handleChange}
+                placeholder="Will Burna Boy drop an album in Q4?"
+                disabled={isProcessing}
+                className="bg-[#0F172A] border-[#334155] h-10 text-sm disabled:opacity-50"
+              />
+              {errors.question && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.question}
+                </p>
+              )}
+            </div>
+
+            {/* Category */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Category</Label>
+              <Select
+                value={formData.category}
+                onValueChange={handleCategoryChange}
+                disabled={isProcessing}
+              >
+                <SelectTrigger className="bg-[#0F172A] border-[#334155] h-10 disabled:opacity-50">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E293B] border-[#334155]">
+                  {categories.map((cat) => (
+                    <SelectItem
+                      key={cat.value}
+                      value={cat.value}
+                      className="text-white focus:bg-[#0F172A]"
+                    >
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {errors.category && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.category}
+                </p>
+              )}
+
+              {selectedCategory && (
+                <Badge className={`${selectedCategory.color} text-[10px]`}>
+                  {selectedCategory.label}
+                </Badge>
+              )}
+            </div>
+
+            {/* End Date */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Calendar className="w-3 h-3" /> End Date
+              </Label>
+              <Input
+                id="endDate"
+                name="endDate"
+                type="datetime-local"
+                value={formData.endDate}
+                onChange={handleChange}
+                disabled={isProcessing}
+                className="bg-[#0F172A] border-[#334155] h-10 text-sm disabled:opacity-50"
+              />
+              {errors.endDate && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.endDate}
+                </p>
+              )}
+            </div>
+
+            {/* Stake */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <DollarSign className="w-3 h-3" /> Your Stake
+              </Label>
+              <div className="relative">
+                <Input
+                  id="initialStake"
+                  name="initialStake"
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  value={formData.initialStake || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      initialStake: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  disabled={isProcessing}
+                  className="bg-[#0F172A] border-[#334155] h-10 text-sm pr-12 disabled:opacity-50"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                  cUSD
+                </span>
+              </div>
+
+              {errors.initialStake && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {errors.initialStake}
+                </p>
+              )}
+
+              <p className="text-[10px] text-gray-400">Min: $0.25 • Max: $20</p>
+            </div>
+
+            {/* Prediction Buttons */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Your Prediction</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, initialSide: "yes" }))
+                  }
+                  disabled={isProcessing}
+                  className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
+                    formData.initialSide === "yes"
+                      ? "border-green-500 bg-green-500/10"
+                      : "border-[#334155] bg-[#0F172A]"
+                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <div className="text-green-400 font-semibold">YES</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, initialSide: "no" }))
+                  }
+                  disabled={isProcessing}
+                  className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
+                    formData.initialSide === "no"
+                      ? "border-red-500 bg-red-500/10"
+                      : "border-[#334155] bg-[#0F172A]"
+                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <div className="text-red-400 font-semibold">NO</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Info message when processing */}
+            {isProcessing && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                <div className="flex items-start gap-2">
+                  <Loader2 className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5 animate-spin" />
+                  <div className="flex-1">
+                    <p className="text-xs text-blue-400 font-medium">
+                      {isApproving
+                        ? "Please approve cUSD spending in your wallet..."
+                        : isCreating
+                        ? "Creating your market..."
+                        : "Processing..."}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {isApproving
+                        ? "After approval, market creation will start automatically"
+                        : "Please confirm the transaction in your wallet"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-[#0F172A] border-t border-[#334155] p-3 sticky bottom-0">
+          <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1 bg-[#0F172A] border-[#334155] hover:bg-[#334155]"
+              className="flex-1 bg-transparent border-[#334155] hover:bg-[#1E293B] h-10 text-sm"
             >
               Cancel
             </Button>
             <Button
               type="submit"
+              onClick={handleSubmit}
               disabled={
                 isPending ||
-                needsApproval ||
-                checkNeedsApproval ||
-                isLoadingAllowance
+                isProcessing ||
+                isLoadingAllowance ||
+                !formData.question ||
+                !formData.category ||
+                !formData.endDate
               }
-              className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white disabled:opacity-50"
+              className="flex-1 bg-[#2563EB] hover:bg-blue-600 h-10 text-sm disabled:opacity-50"
             >
-              {isPending ? (
+              {isProcessing ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
+                  {isApproving
+                    ? "Approving..."
+                    : isCreating || isPending
+                    ? "Creating..."
+                    : "Processing..."}
                 </>
-              ) : isLoadingAllowance ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Checking...
-                </>
-              ) : needsApproval || checkNeedsApproval ? (
-                "Approve First"
               ) : (
                 "Create Market"
               )}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

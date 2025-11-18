@@ -22,7 +22,12 @@ export {
   useIsUsernameAvailable,
   useSetUsername,
   useUserStats,
+  useTopUsers,
 } from "./useReputationSystem";
+
+// Leaderboard hooks
+export { useLeaderboard } from "./useLeaderboard";
+export type { LeaderboardEntry } from "./useLeaderboard";
 
 // PredictionMarket hooks
 export {

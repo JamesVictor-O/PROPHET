@@ -169,38 +169,41 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-white">
+    <div className="min-h-screen bg-[#0F172A] text-white pb-20 lg:pb-0">
       <DashboardNav onCreateMarket={handleCreateMarket} />
-      <div className="pt-16 flex">
+      <div className="pt-14 sm:pt-16 flex">
         <DashboardSidebar onCreateMarket={handleCreateMarket} />
 
         {/* Main Content */}
-        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 lg:ml-64 p-3 sm:p-4 md:p-6 lg:p-8 w-full">
           {/* Header Section */}
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Markets</h1>
-              <p className="text-gray-400">
-                Predict entertainment outcomes and earn rewards
-              </p>
+          <div className="mb-4 sm:mb-6 md:mb-8 flex flex-col gap-3 sm:gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Markets</h1>
+                <p className="text-sm sm:text-base text-gray-400">
+                  Predict entertainment outcomes and earn rewards
+                </p>
+              </div>
+              <Button
+                onClick={handleCreateMarket}
+                size="sm"
+                className="bg-[#2563EB] hover:bg-blue-700 text-white shrink-0 h-9 sm:h-10 px-3 sm:px-4"
+              >
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create Market</span>
+              </Button>
             </div>
-            <Button
-              onClick={handleCreateMarket}
-              className="bg-[#2563EB] hover:bg-blue-700 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Market
-            </Button>
           </div>
 
           {/* Network Warning Banner */}
           {isWrongNetwork && (
-            <div className="mb-6 bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <AlertTriangle className="w-5 h-5 text-orange-400" />
-                <div>
-                  <p className="text-orange-400 font-semibold">Wrong Network</p>
-                  <p className="text-gray-400 text-sm">
+            <div className="mb-4 sm:mb-6 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400 shrink-0 mt-0.5 sm:mt-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-orange-400 font-semibold text-sm sm:text-base">Wrong Network</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">
                     Please switch to Celo Sepolia (Chain ID: 11142220) to use
                     this app
                   </p>
@@ -209,7 +212,8 @@ export default function DashboardPage() {
               <Button
                 onClick={handleSwitchNetwork}
                 disabled={isSwitching}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white w-full sm:w-auto shrink-0 text-xs sm:text-sm h-8 sm:h-9"
               >
                 {isSwitching ? "Switching..." : "Switch Network"}
               </Button>
@@ -224,18 +228,18 @@ export default function DashboardPage() {
 
           {/* Markets Grid */}
           {isLoadingMarkets ? (
-            <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#2563EB]" />
-              <p className="text-gray-400 text-lg">Loading markets...</p>
+            <div className="text-center py-8 sm:py-12">
+              <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-3 sm:mb-4 text-[#2563EB]" />
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg">Loading markets...</p>
             </div>
           ) : isError ? (
-            <div className="text-center py-12">
-              <p className="text-red-400 text-lg mb-2">Error loading markets</p>
-              <p className="text-gray-400 text-sm mb-4">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-red-400 text-base sm:text-lg mb-2">Error loading markets</p>
+              <p className="text-gray-400 text-xs sm:text-sm mb-4 px-4">
                 The contract may not be deployed or you&apos;re on the wrong
                 network.
               </p>
-              <div className="text-left max-w-md mx-auto bg-[#1E293B] border border-[#334155] rounded-lg p-4 space-y-2">
+              <div className="text-left max-w-md mx-auto bg-[#1E293B] border border-[#334155] rounded-lg p-3 sm:p-4 space-y-2">
                 <p className="text-xs text-gray-300 font-semibold mb-2">
                   Troubleshooting:
                 </p>
@@ -256,7 +260,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : filteredMarkets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-8">
               {filteredMarkets.map((market) => (
                 <MarketCard
                   key={market.id}
@@ -266,12 +270,12 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-gray-400 text-base sm:text-lg">
                 No markets found matching your criteria
               </p>
               {markets.length === 0 && (
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-gray-500 text-xs sm:text-sm mt-2">
                   Create the first market to get started!
                 </p>
               )}

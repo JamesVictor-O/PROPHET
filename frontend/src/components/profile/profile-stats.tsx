@@ -35,7 +35,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
     <div className="space-y-6">
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <Target className="w-5 h-5 text-blue-400" />
@@ -45,7 +45,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <TrendingUp className="w-5 h-5 text-green-400" />
@@ -57,7 +57,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <Award className="w-5 h-5 text-purple-400" />
@@ -69,7 +69,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <DollarSign className="w-5 h-5 text-green-400" />
@@ -84,7 +84,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
 
       {/* Detailed Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardHeader>
             <CardTitle>Performance</CardTitle>
           </CardHeader>
@@ -111,7 +111,7 @@ export function ProfileStats({ stats }: ProfileStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1E293B] border-[#334155]">
+        <Card className="bg-[#1E293B] border-dark-700">
           <CardHeader>
             <CardTitle>Achievements</CardTitle>
           </CardHeader>

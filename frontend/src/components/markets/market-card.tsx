@@ -25,66 +25,72 @@ interface MarketCardProps {
 
 export function MarketCard({ market, onPredict }: MarketCardProps) {
   return (
-    <Card className="market-card bg-[#1E293B] border-[#334155] hover:border-[#2563EB] transition-all duration-200">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <Badge className={`text-xs font-semibold ${market.categoryColor}`}>
+    <Card className="bg-[#0F172A] border border-[#1E293B] rounded-xl p-3 sm:p-4 w-full">
+      <CardContent className="p-0 space-y-3">
+        {/* Top Row: Category + Time Left */}
+        <div className="flex items-center justify-between">
+          <Badge
+            className="px-2 py-0.5 text-[10px] sm:text-xs"
+            style={{ backgroundColor: market.categoryColor }}
+          >
             {market.category}
           </Badge>
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-400">{market.timeLeft}</span>
+
+          <div className="flex items-center gap-1 text-gray-400 text-[11px] sm:text-xs">
+            <Clock size={12} />
+            {market.timeLeft}
           </div>
         </div>
 
-        <h3 className="text-lg font-bold mb-3 leading-snug">
+        {/* Question */}
+        <h2 className="font-semibold text-white text-sm sm:text-base leading-snug">
           {market.question}
-        </h3>
+        </h2>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* YES / NO BUTTONS */}
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => onPredict(market.id, "yes")}
-            className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center hover:border-green-500 transition-colors"
+            className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center 
+                   hover:border-green-500 active:scale-95 transition-all"
           >
-            <div className="text-2xl font-bold text-green-400 mb-1">
+            <div className="text-white text-lg font-bold">
               {market.yesPercent}%
             </div>
-            <div className="text-xs text-gray-400">YES</div>
+            <div className="text-green-400 text-[11px] font-medium">YES</div>
           </button>
+
           <button
             onClick={() => onPredict(market.id, "no")}
-            className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center hover:border-red-500 transition-colors"
+            className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center 
+                   hover:border-red-500 active:scale-95 transition-all"
           >
-            <div className="text-2xl font-bold text-red-400 mb-1">
+            <div className="text-white text-lg font-bold">
               {market.noPercent}%
             </div>
-            <div className="text-xs text-gray-400">NO</div>
+            <div className="text-red-400 text-[11px] font-medium">NO</div>
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
-          <div className="flex items-center space-x-1">
-            <Users className="w-4 h-4" />
-            <span>{market.predictions.toLocaleString()} predictions</span>
+        {/* Stats Row */}
+        <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+          <div className="flex items-center gap-1">
+            <Users size={12} />
+            {market.predictions.toLocaleString()} predictions
           </div>
-          <span>Pool: {market.pool}</span>
+
+          <div>Pool: {market.pool}</div>
         </div>
 
-        <div className="flex gap-2">
-          <Button
-            onClick={() => onPredict(market.id)}
-            className="flex-1 bg-[#2563EB] text-white hover:bg-blue-700"
-          >
-            Place Prediction
-          </Button>
-          <ShareButton
-            marketId={market.id}
-            marketQuestion={market.question}
-            category={market.category}
-            variant="outline"
-            className="bg-[#1E293B] border-[#334155] hover:bg-[#334155]"
-          />
-        </div>
+        {/* Main Button */}
+        <Button
+          onClick={() => onPredict(market.id)}
+          size="sm"
+          className="w-full bg-[#2563EB] text-white hover:bg-blue-700 
+                 text-xs sm:text-sm h-10"
+        >
+          Place Prediction
+        </Button>
       </CardContent>
     </Card>
   );

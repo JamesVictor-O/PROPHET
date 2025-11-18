@@ -36,12 +36,12 @@ export function ProfileActivity({ activities }: ProfileActivityProps) {
   };
 
   return (
-    <Card className="bg-[#1E293B] border-[#334155]">
+    <Card className="bg-[#1E293B] border-dark-700">
       <CardHeader>
         <CardTitle>Recent Activity</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-[#334155]">
+        <div className="divide-y divide-dark-700">
           {activities.map((activity) => (
             <div
               key={activity.id}
