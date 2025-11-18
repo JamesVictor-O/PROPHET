@@ -17,6 +17,7 @@ import {
 import { formatAddress } from "@/lib/wallet-config";
 import { Wallet, LogOut, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
 interface WalletConnectProps {
   variant?: "default" | "outline" | "ghost";
@@ -27,10 +28,16 @@ export function WalletConnect({
   variant = "outline",
   showBalance = true,
 }: WalletConnectProps) {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
+
+  // Prevent hydration mismatch by only rendering wallet state after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Check if on correct network (Celo Sepolia)
   const isCorrectNetwork = chainId === defaultChain.id;
@@ -101,6 +108,23 @@ export function WalletConnect({
     toast.success("Wallet disconnected");
   };
 
+  // Prevent hydration mismatch - show connect button during SSR and initial render
+  if (!mounted) {
+    return (
+      <Button
+        disabled
+        variant={variant}
+        className="bg-[#2563EB] hover:bg-blue-700 text-white"
+      >
+        <Wallet className="w-4 h-4 mr-2" />
+        Connect Wallet
+      </Button>
+    );
+  }
+
+  // In MiniPay, don't show connect button - auto-connect handles it
+  const isMiniPay = isMiniPayAvailable();
+
   if (isConnected && address) {
     return (
       <div className="flex items-center space-x-3">
@@ -145,6 +169,28 @@ export function WalletConnect({
     );
   }
 
+  // In MiniPay, don't show connect button - connection happens automatically
+  // Show a loading state while connecting
+  if (isMiniPay && isPending) {
+    return (
+      <Button
+        disabled
+        variant={variant}
+        className="bg-[#2563EB] hover:bg-blue-700 text-white"
+      >
+        <Wallet className="w-4 h-4 mr-2" />
+        Connecting...
+      </Button>
+    );
+  }
+
+  // If in MiniPay and not connected yet, show nothing or a minimal loading state
+  // The AutoConnect component will handle the connection
+  if (isMiniPay && !isConnected) {
+    return null;
+  }
+
+  // For non-MiniPay environments, show the connect button
   return (
     <Button
       onClick={handleConnect}
@@ -153,11 +199,7 @@ export function WalletConnect({
       className="bg-[#2563EB] hover:bg-blue-700 text-white"
     >
       <Wallet className="w-4 h-4 mr-2" />
-      {isPending
-        ? "Connecting..."
-        : isMiniPayAvailable()
-        ? "Connect MiniPay"
-        : "Connect Wallet"}
+      {isPending ? "Connecting..." : "Connect Wallet"}
     </Button>
   );
 }
