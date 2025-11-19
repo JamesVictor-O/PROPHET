@@ -1,12 +1,12 @@
 export const CONTRACTS = {
   celoSepolia: {
-    factory: "0x51535762f7Fd1886ADaF6f82e5BacAEcf2D22f34",
-    oracle: "0x5ca009564018ac4eb6D2B41FC455f9a505118df5",
-    reputationSystem: "0xC46b51268B9BD8a8190B2106354415B58CF34787",
-    predictionMarket: "0x0E4830E472F90B7C2Fa271206A07B5Cc36f940bF", // Single contract for all markets
+    factory: "0xEe608D11EfEC619Df33ff571c80FAad704037f75",
+    oracle: "0xa33bE09908844118B4420387F3DbeCBc86Bf1604",
+    reputationSystem: "0xe3C4Ba993d7b07EF7771D6061fC9928C1fAEc89B",
+    predictionMarket: "0xe38b7cD2Ac963b89d41bD3e14681252e95ef3eDe", // Single contract for all markets
     cUSD: "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b", // Celo Sepolia cUSD
     chainId: 11142220, // Celo Sepolia chain ID (EIP-155 format) - matches deployed contracts
-    explorer: "https://celo-sepolia.blockscout.com",
+    explorer: "https://sepolia.celoscan.xyz",
   },
   celoMainnet: {
     // Update after mainnet deployment

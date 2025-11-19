@@ -10,6 +10,8 @@ import { useAllMarkets, MarketInfo } from "./useAllMarkets";
 import { useContractRead } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
+import { MarketType } from "@/lib/types";
+import { useMarketOutcomes, useOutcomeLabel } from "./usePredictionMarket";
 
 /**
  * Get the single PredictionMarket contract address
@@ -30,7 +32,9 @@ export interface UserPrediction {
   marketQuestion: string;
   category: string;
   categoryColor: string;
-  side: "yes" | "no";
+  side: "yes" | "no"; // For Binary markets
+  outcomeIndex?: number; // For CrowdWisdom markets
+  outcomeLabel?: string; // For CrowdWisdom markets (fetched separately)
   stake: number;
   potentialWin: number;
   actualWin?: number;
@@ -42,6 +46,7 @@ export interface UserPrediction {
   noPercent: number;
   pool: string;
   isCreator: boolean; // Whether user created this market
+  marketType?: MarketType; // Binary or CrowdWisdom
 }
 
 // Category color mapping
@@ -74,8 +79,11 @@ function useUserPredictionForMarket(
   const { address: contractAddress, abi } = usePredictionMarket();
 
   const { data: prediction, isLoading } = useContractRead<{
+    user: Address;
+    side: number; // 0 = Yes, 1 = No (for Binary)
+    outcomeIndex: bigint; // For CrowdWisdom markets
     amount: bigint;
-    side: number; // 0 = Yes, 1 = No
+    timestamp: bigint;
   }>({
     address: contractAddress,
     abi,
@@ -300,6 +308,11 @@ export function useUserPredictions() {
         const categoryDisplay =
           categoryDisplayNames[categoryKey] || market.category.toUpperCase();
 
+        // Get outcomeIndex for CrowdWisdom markets
+        const outcomeIndex = prediction?.outcomeIndex !== undefined
+          ? Number(prediction.outcomeIndex)
+          : undefined;
+
         results.push({
           id: `pred-${market.id}`,
           marketId: market.id,
@@ -307,6 +320,7 @@ export function useUserPredictions() {
           category: categoryDisplay,
           categoryColor,
           side,
+          outcomeIndex,
           stake,
           potentialWin,
           actualWin,
@@ -317,6 +331,7 @@ export function useUserPredictions() {
           noPercent: market.noPercent,
           pool: market.poolFormatted,
           isCreator,
+          marketType: market.marketType,
         });
       }
     });

@@ -24,7 +24,7 @@ export function Hero() {
   };
 
   return (
-    <section className="pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 sm:px-6 lg:px-8 min-h-screen flex flex-col">
+    <section className="pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 sm:px-6 lg:px-8 h-screen overflow-hidden flex flex-col">
       <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col justify-center items-center">
         {/* Text Content - Takes natural space */}
         <div className="text-center flex flex-col items-center justify-center mb-6 sm:mb-8">
@@ -42,15 +42,16 @@ export function Hero() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 sm:mb-12 w-full sm:w-auto px-4 sm:px-0">
             {isConnected ? (
-              <Link href="/dashboard" className="w-full sm:w-auto">
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3 text-sm sm:text-base"
-                >
+              <Button
+                asChild
+                size="lg"
+                className="w-full sm:w-auto bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3 text-sm sm:text-base"
+              >
+                <Link href="/dashboard">
                   Start Predicting
                   <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 ml-2 bg-black rounded-full p-1 text-white" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             ) : (
               <Button
                 size="lg"

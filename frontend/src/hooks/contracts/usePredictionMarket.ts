@@ -10,6 +10,7 @@ import { Address } from "viem";
 import { useContractRead, useContractWrite } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
+import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 
 /**
  * Get the single PredictionMarket contract address
@@ -32,24 +33,13 @@ export function useMarketDetails(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
   // Fetch market info using getMarketInfo(marketId)
+  // Returns Market struct with MarketType support
   const {
     data: market,
     isLoading,
     isError,
     error,
-  } = useContractRead<{
-    id: bigint;
-    question: string;
-    category: string;
-    creator: Address;
-    yesPool: bigint;
-    noPool: bigint;
-    totalPool: bigint;
-    endTime: bigint;
-    status: number; // 0 = Active, 1 = Resolved, 2 = Cancelled
-    winningOutcome: number; // 0 = Yes, 1 = No (only meaningful if resolved)
-    resolved: boolean;
-  }>({
+  } = useContractRead<MarketStruct>({
     address,
     abi,
     functionName: "getMarketInfo",
@@ -118,7 +108,8 @@ export function useUserPrediction(
 
   return useContractRead<{
     user: Address;
-    side: number; // 0 = Yes, 1 = No
+    side: Outcome; // For Binary markets: 0 = Yes, 1 = No
+    outcomeIndex: bigint; // For CrowdWisdom markets: 0, 1, 2...
     amount: bigint;
     timestamp: bigint;
   }>({
@@ -199,7 +190,8 @@ export function useFees(marketId: bigint | number | undefined) {
 }
 
 /**
- * Hook for making a prediction
+ * Hook for making a prediction (Binary markets only)
+ * For CrowdWisdom markets, use useCommentAndStake or useStakeOnOutcome
  */
 export function usePredict() {
   const { address, abi } = usePredictionMarket();
@@ -208,6 +200,149 @@ export function usePredict() {
     address,
     abi,
     functionName: "predict",
+  });
+}
+
+/**
+ * Hook for commenting and staking on a CrowdWisdom market
+ * Creates a new outcome if it doesn't exist, or stakes on existing one
+ * Args: [marketId, outcomeLabel, amount]
+ */
+export function useCommentAndStake() {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "commentAndStake",
+  });
+}
+
+/**
+ * Hook for staking on an existing outcome in a CrowdWisdom market
+ * Args: [marketId, outcomeIndex, amount]
+ */
+export function useStakeOnOutcome() {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "stakeOnOutcome",
+  });
+}
+
+/**
+ * Get all outcomes for a CrowdWisdom market
+ * Returns tuple: [outcomeLabels: string[], outcomePools: bigint[]]
+ */
+export function useMarketOutcomes(marketId: bigint | number | undefined) {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<[string[], bigint[]]>({
+    address,
+    abi,
+    functionName: "getMarketOutcomes",
+    args: marketId !== undefined ? [BigInt(marketId)] : undefined,
+    enabled: marketId !== undefined && !!address,
+  });
+}
+
+/**
+ * Get outcome label for a specific outcome index
+ * Args: [marketId, outcomeIndex]
+ */
+export function useOutcomeLabel(
+  marketId: bigint | number | undefined,
+  outcomeIndex: bigint | number | undefined
+) {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<string>({
+    address,
+    abi,
+    functionName: "getOutcomeLabel",
+    args:
+      marketId !== undefined && outcomeIndex !== undefined
+        ? [BigInt(marketId), BigInt(outcomeIndex)]
+        : undefined,
+    enabled:
+      marketId !== undefined && outcomeIndex !== undefined && !!address,
+  });
+}
+
+/**
+ * Get odds for a CrowdWisdom outcome (as percentage)
+ * Args: [marketId, outcomeIndex]
+ */
+export function useOutcomeOdds(
+  marketId: bigint | number | undefined,
+  outcomeIndex: bigint | number | undefined
+) {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<bigint>({
+    address,
+    abi,
+    functionName: "getOutcomeOdds",
+    args:
+      marketId !== undefined && outcomeIndex !== undefined
+        ? [BigInt(marketId), BigInt(outcomeIndex)]
+        : undefined,
+    enabled:
+      marketId !== undefined && outcomeIndex !== undefined && !!address,
+  });
+}
+
+/**
+ * Get user's stake on a specific outcome in a CrowdWisdom market
+ * Args: [marketId, user, outcomeIndex]
+ */
+export function useUserOutcomeStake(
+  marketId: bigint | number | undefined,
+  userAddress: string | undefined,
+  outcomeIndex: bigint | number | undefined
+) {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<bigint>({
+    address,
+    abi,
+    functionName: "getUserOutcomeStake",
+    args:
+      marketId !== undefined &&
+      userAddress &&
+      outcomeIndex !== undefined
+        ? [BigInt(marketId), userAddress as Address, BigInt(outcomeIndex)]
+        : undefined,
+    enabled:
+      marketId !== undefined &&
+      !!userAddress &&
+      outcomeIndex !== undefined &&
+      !!address,
+  });
+}
+
+/**
+ * Get pool amount for a specific outcome in a CrowdWisdom market
+ * Args: [marketId, outcomeIndex]
+ */
+export function useOutcomePoolAmount(
+  marketId: bigint | number | undefined,
+  outcomeIndex: bigint | number | undefined
+) {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<bigint>({
+    address,
+    abi,
+    functionName: "getOutcomePoolAmount",
+    args:
+      marketId !== undefined && outcomeIndex !== undefined
+        ? [BigInt(marketId), BigInt(outcomeIndex)]
+        : undefined,
+    enabled:
+      marketId !== undefined && outcomeIndex !== undefined && !!address,
   });
 }
 

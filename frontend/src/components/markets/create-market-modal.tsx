@@ -30,7 +30,8 @@ import {
 import { useState, useEffect } from "react";
 import { useAccount, useBalance } from "wagmi";
 import {
-  useCreateMarket,
+  useCreateBinaryMarket,
+  useCreateCrowdWisdomMarket,
   useCUSDAllowance,
   useApproveCUSD,
 } from "@/hooks/contracts";
@@ -40,6 +41,8 @@ import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
 import { useAIValidator } from "@/hooks/useAIValidator";
+import { MarketType } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface CreateMarketModalProps {
   open: boolean;
@@ -48,11 +51,13 @@ interface CreateMarketModalProps {
 }
 
 export interface MarketData {
+  marketType: MarketType; // Binary (0) or CrowdWisdom (1)
   question: string;
   category: string;
   endDate: string;
   initialStake: number;
-  initialSide: "yes" | "no";
+  initialSide: "yes" | "no"; // For Binary markets only
+  initialOutcomeLabel: string; // For CrowdWisdom markets only
 }
 
 const categories = [
@@ -94,11 +99,13 @@ export function CreateMarketModal({
   onCreateMarket,
 }: CreateMarketModalProps) {
   const [formData, setFormData] = useState<MarketData>({
+    marketType: MarketType.Binary, // Default to Binary
     question: "",
     category: "",
     endDate: "",
     initialStake: 0.25,
     initialSide: "yes",
+    initialOutcomeLabel: "", // For CrowdWisdom markets
   });
 
   const [errors, setErrors] = useState<
@@ -111,6 +118,7 @@ export function CreateMarketModal({
   const [aiCategorySelected, setAiCategorySelected] = useState(false);
   const [aiEndDateSelected, setAiEndDateSelected] = useState(false);
   const [aiQuestionSuggested, setAiQuestionSuggested] = useState(false);
+  const [aiMarketTypeSelected, setAiMarketTypeSelected] = useState(false);
   const [suggestedQuestion, setSuggestedQuestion] = useState<string>("");
   const [originalQuestion, setOriginalQuestion] = useState<string>("");
 
@@ -121,12 +129,27 @@ export function CreateMarketModal({
   });
 
   const { chainId, address } = useAccount();
-  const {
-    write,
-    isPending,
-    isConfirmed,
-    error: writeError,
-  } = useCreateMarket();
+
+  // Use appropriate hook based on market type
+  const binaryMarket = useCreateBinaryMarket();
+  const crowdWisdomMarket = useCreateCrowdWisdomMarket();
+
+  const write =
+    formData.marketType === MarketType.Binary
+      ? binaryMarket.write
+      : crowdWisdomMarket.write;
+  const isPending =
+    formData.marketType === MarketType.Binary
+      ? binaryMarket.isPending
+      : crowdWisdomMarket.isPending;
+  const isConfirmed =
+    formData.marketType === MarketType.Binary
+      ? binaryMarket.isConfirmed
+      : crowdWisdomMarket.isConfirmed;
+  const writeError =
+    formData.marketType === MarketType.Binary
+      ? binaryMarket.error
+      : crowdWisdomMarket.error;
 
   // Check if on correct network
   const isCorrectNetwork = chainId === defaultChain.id;
@@ -200,11 +223,25 @@ export function CreateMarketModal({
         newErrors.endDate = "End date must be in the future";
       }
     }
-    if (!formData.initialStake || formData.initialStake < 0.25) {
-      newErrors.initialStake = "Minimum stake is $0.25 cUSD";
+
+    const minStake =
+      formData.marketType === MarketType.CrowdWisdom ? 1.0 : 0.25;
+    if (!formData.initialStake || formData.initialStake < minStake) {
+      newErrors.initialStake =
+        formData.marketType === MarketType.CrowdWisdom
+          ? "Minimum stake is $1.00 cUSD for CrowdWisdom markets"
+          : "Minimum stake is $0.25 cUSD";
     }
-    if (!formData.initialSide) {
-      newErrors.initialSide = "Please select your prediction side";
+    // Validate based on market type
+    if (formData.marketType === MarketType.Binary) {
+      if (!formData.initialSide) {
+        newErrors.initialSide = "Please select your prediction side";
+      }
+    } else if (formData.marketType === MarketType.CrowdWisdom) {
+      if (!formData.initialOutcomeLabel.trim()) {
+        newErrors.initialOutcomeLabel =
+          "Initial outcome label is required for CrowdWisdom markets";
+      }
     }
     if (cusdBalance && formData.initialStake > Number(cusdBalance.formatted)) {
       newErrors.initialStake = "Insufficient cUSD balance";
@@ -226,13 +263,18 @@ export function CreateMarketModal({
       setNeedsApproval(false);
       refetchAllowance().then(() => {
         // After approval is confirmed and allowance refetched, automatically create market
-        if (write) {
+        const marketWrite =
+          formData.marketType === MarketType.Binary
+            ? binaryMarket.write
+            : crowdWisdomMarket.write;
+
+        if (marketWrite) {
           setIsCreating(true);
           toast.info("Approval confirmed! Creating market...");
 
           // Small delay to ensure allowance is updated
           setTimeout(() => {
-            if (!write) {
+            if (!marketWrite) {
               toast.error("Connection error");
               setIsProcessing(false);
               setIsCreating(false);
@@ -240,18 +282,37 @@ export function CreateMarketModal({
             }
 
             try {
+              if (!address) {
+                toast.error("Wallet not connected");
+                setIsProcessing(false);
+                setIsCreating(false);
+                return;
+              }
+
               const endDate = new Date(formData.endDate);
               const endTime = Math.floor(endDate.getTime() / 1000);
               const stakeInWei = parseEther(formData.initialStake.toString());
-              const initialSide = formData.initialSide === "yes" ? 0 : 1;
 
-              write([
-                formData.question,
-                formData.category,
-                BigInt(endTime),
-                stakeInWei,
-                initialSide,
-              ]);
+              // Use appropriate hook based on market type
+              if (formData.marketType === MarketType.Binary) {
+                const initialSide = formData.initialSide === "yes" ? 0 : 1;
+                binaryMarket.write({
+                  question: formData.question,
+                  category: formData.category,
+                  endTime: BigInt(endTime),
+                  initialStake: stakeInWei,
+                  initialSide: initialSide as 0 | 1,
+                });
+              } else {
+                // CrowdWisdom market
+                crowdWisdomMarket.write({
+                  question: formData.question,
+                  category: formData.category,
+                  endTime: BigInt(endTime),
+                  initialStake: stakeInWei,
+                  initialOutcomeLabel: formData.initialOutcomeLabel,
+                });
+              }
               toast.info("Confirm market creation in your wallet");
             } catch (err) {
               console.error("Error:", err);
@@ -291,11 +352,13 @@ export function CreateMarketModal({
       setIsApproving(false);
       const createdMarketData = { ...formData };
       setFormData({
+        marketType: MarketType.Binary,
         question: "",
         category: "",
         endDate: "",
         initialStake: 0.25,
         initialSide: "yes",
+        initialOutcomeLabel: "",
       });
       setErrors({});
       setNeedsApproval(false);
@@ -326,34 +389,7 @@ export function CreateMarketModal({
     }
   }, [writeError]);
 
-  const handleCreateMarket = () => {
-    if (!write) {
-      toast.error("Connection error");
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      const endDate = new Date(formData.endDate);
-      const endTime = Math.floor(endDate.getTime() / 1000);
-      const stakeInWei = parseEther(formData.initialStake.toString());
-      const initialSide = formData.initialSide === "yes" ? 0 : 1;
-
-      write([
-        formData.question,
-        formData.category,
-        BigInt(endTime),
-        stakeInWei,
-        initialSide,
-      ]);
-      toast.info("Confirm market creation in your wallet");
-    } catch (err) {
-      console.error("Error:", err);
-      toast.error("Failed to create market");
-      setIsProcessing(false);
-      setIsCreating(false);
-    }
-  };
+  // Removed handleCreateMarket - now handled in useEffect with proper market type separation
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,9 +425,86 @@ export function CreateMarketModal({
     } else {
       // No approval needed, create market directly
       setIsCreating(true);
-      handleCreateMarket();
+      const marketWrite =
+        formData.marketType === MarketType.Binary
+          ? binaryMarket.write
+          : crowdWisdomMarket.write;
+
+      if (!marketWrite) {
+        toast.error("Connection error");
+        setIsProcessing(false);
+        setIsCreating(false);
+        return;
+      }
+
+      try {
+        const endDate = new Date(formData.endDate);
+        const endTime = Math.floor(endDate.getTime() / 1000);
+        const stakeInWei = parseEther(formData.initialStake.toString());
+
+        // Use appropriate hook based on market type
+        if (formData.marketType === MarketType.Binary) {
+          const initialSide = formData.initialSide === "yes" ? 0 : 1;
+          binaryMarket.write({
+            question: formData.question,
+            category: formData.category,
+            endTime: BigInt(endTime),
+            initialStake: stakeInWei,
+            initialSide: initialSide as 0 | 1,
+          });
+        } else {
+          // CrowdWisdom market
+          crowdWisdomMarket.write({
+            question: formData.question,
+            category: formData.category,
+            endTime: BigInt(endTime),
+            initialStake: stakeInWei,
+            initialOutcomeLabel: formData.initialOutcomeLabel,
+          });
+        }
+        toast.info("Confirm market creation in your wallet");
+      } catch (err) {
+        console.error("Error:", err);
+        toast.error("Failed to create market");
+        setIsProcessing(false);
+        setIsCreating(false);
+      }
     }
   };
+
+  // Auto-suggest market type from AI validation (only if user hasn't manually set it)
+  useEffect(() => {
+    if (
+      validation?.suggestedMarketType &&
+      !aiMarketTypeSelected &&
+      validation.isValid
+    ) {
+      const suggestedType =
+        validation.suggestedMarketType === "CrowdWisdom"
+          ? MarketType.CrowdWisdom
+          : MarketType.Binary;
+
+      if (formData.marketType !== suggestedType) {
+        setFormData((prev) => {
+          const newData = { ...prev, marketType: suggestedType };
+          // If switching to CrowdWisdom, update minimum stake
+          if (
+            suggestedType === MarketType.CrowdWisdom &&
+            prev.initialStake < 1.0
+          ) {
+            newData.initialStake = 1.0;
+          }
+          return newData;
+        });
+        setAiMarketTypeSelected(true);
+      }
+    }
+  }, [
+    validation?.suggestedMarketType,
+    aiMarketTypeSelected,
+    validation?.isValid,
+    formData.marketType,
+  ]);
 
   // Auto-fill category from AI validation (only if user hasn't manually set it)
   useEffect(() => {
@@ -511,11 +624,13 @@ export function CreateMarketModal({
   useEffect(() => {
     if (!open) {
       setFormData({
+        marketType: MarketType.Binary,
         question: "",
         category: "",
         endDate: "",
         initialStake: 0.25,
         initialSide: "yes",
+        initialOutcomeLabel: "",
       });
       setErrors({});
       setIsProcessing(false);
@@ -538,22 +653,22 @@ export function CreateMarketModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="bg-[#1E293B] border-dark-700 text-white 
-  w-full sm:max-w-lg p-0 gap-0 rounded-2xl overflow-hidden"
+  w-full max-w-[calc(100%-1rem)] sm:max-w-lg md:max-w-xl lg:max-w-2xl p-0 gap-0 rounded-xl sm:rounded-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col"
       >
         {/* Header */}
-        <div className="bg-[#0F172A] border-b border-dark-700 px-3 py-3 sticky top-0 z-10">
+        <div className="bg-[#0F172A] border-b border-dark-700 px-3 py-3 sm:px-4 sm:py-4 sticky top-0 z-10 shrink-0">
           <DialogHeader className="space-y-1.5">
-            <DialogTitle className="text-base font-bold">
+            <DialogTitle className="text-base sm:text-lg font-bold">
               Create Market
             </DialogTitle>
-            <DialogDescription className="text-xs text-gray-400 leading-tight">
+            <DialogDescription className="text-xs sm:text-sm text-gray-400 leading-tight">
               Start your own prediction market
             </DialogDescription>
           </DialogHeader>
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto max-h-[calc(100vh-160px)] px-3">
+        <div className="overflow-y-auto flex-1 px-3 sm:px-4 md:px-6 min-h-0">
           {/* Balance Info */}
           {cusdBalance && (
             <div className="mt-3 p-2.5 bg-[#0F172A] border border-dark-700 rounded-xl">
@@ -566,7 +681,10 @@ export function CreateMarketModal({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-3 sm:space-y-4 py-3 sm:py-4 md:py-6"
+          >
             {/* Question */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -583,6 +701,13 @@ export function CreateMarketModal({
                       <>
                         <CheckCircle2 className="w-3 h-3 text-green-400" />
                         <span className="text-green-400">Valid market</span>
+                      </>
+                    ) : validation.rejectionReason ? (
+                      <>
+                        <XCircle className="w-3 h-3 text-red-400" />
+                        <span className="text-red-400">
+                          Invalid: {validation.rejectionReason}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -605,6 +730,7 @@ export function CreateMarketModal({
                       setAiCategorySelected(false);
                       setAiEndDateSelected(false);
                       setAiQuestionSuggested(false);
+                      setAiMarketTypeSelected(false);
                       setSuggestedQuestion("");
                       setOriginalQuestion("");
                     } else if (
@@ -689,13 +815,55 @@ export function CreateMarketModal({
 
               {/* AI Validation Info */}
               {validation && !isValidating && (
-                <div className="p-2.5 bg-[#0F172A] border border-dark-700 rounded-lg space-y-2">
-                  {validation.reasoning && (
+                <div
+                  className={cn(
+                    "p-2.5 border rounded-lg space-y-2",
+                    validation.isValid
+                      ? "bg-[#0F172A] border-dark-700"
+                      : "bg-red-500/10 border-red-500/30"
+                  )}
+                >
+                  {!validation.isValid && validation.rejectionReason && (
+                    <div className="flex items-start gap-2">
+                      <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-red-300 leading-relaxed">
+                          <strong>Market Rejected:</strong>{" "}
+                          {validation.rejectionReason}
+                        </p>
+                        {validation.reasoning && (
+                          <p className="text-xs text-red-200/80 leading-relaxed mt-1">
+                            {validation.reasoning}
+                          </p>
+                        )}
+                        {validation.improvedQuestion && (
+                          <div className="mt-2 pt-2 border-t border-red-500/20">
+                            <p className="text-[10px] text-red-300/80 mb-1 font-medium">
+                              Suggested Alternative:
+                            </p>
+                            <p className="text-xs text-red-200 italic">
+                              &ldquo;{validation.improvedQuestion}&rdquo;
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {validation.isValid && validation.reasoning && (
                     <div className="flex items-start gap-2">
                       <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                      <p className="text-xs text-gray-300 leading-relaxed">
-                        {validation.reasoning}
-                      </p>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-300 leading-relaxed">
+                          {validation.reasoning}
+                        </p>
+                        {validation.suggestedMarketType && (
+                          <p className="text-[10px] text-blue-300 mt-1.5">
+                            💡 AI suggests:{" "}
+                            <strong>{validation.suggestedMarketType}</strong>{" "}
+                            market type
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                   {validation.verificationSource && (
@@ -859,6 +1027,74 @@ export function CreateMarketModal({
               )}
             </div>
 
+            {/* Market Type */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Market Type</Label>
+                {validation?.suggestedMarketType && aiMarketTypeSelected && (
+                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    AI suggested
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      marketType: MarketType.Binary,
+                      initialOutcomeLabel: "", // Clear outcome label when switching to Binary
+                      initialStake:
+                        prev.initialStake < 0.25 ? 0.25 : prev.initialStake, // Ensure minimum $0.25 for Binary
+                    }));
+                    setAiMarketTypeSelected(false); // User manually changed
+                  }}
+                  disabled={isProcessing}
+                  className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
+                    formData.marketType === MarketType.Binary
+                      ? "border-blue-500 bg-blue-500/10"
+                      : "border-dark-700 bg-[#0F172A]"
+                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <div className="text-blue-400 font-semibold">Binary</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Yes/No</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      marketType: MarketType.CrowdWisdom,
+                      initialSide: "yes", // Reset side when switching to CrowdWisdom
+                      initialStake:
+                        prev.initialStake < 1.0 ? 1.0 : prev.initialStake, // Ensure minimum $1 for CrowdWisdom
+                    }));
+                    setAiMarketTypeSelected(false); // User manually changed
+                  }}
+                  disabled={isProcessing}
+                  className={`p-2.5 sm:p-3 rounded-xl border-2 text-center text-xs sm:text-sm transition-all touch-manipulation min-h-[60px] sm:min-h-[70px] ${
+                    formData.marketType === MarketType.CrowdWisdom
+                      ? "border-purple-500 bg-purple-500/10"
+                      : "border-dark-700 bg-[#0F172A]"
+                  } ${
+                    isProcessing
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:border-purple-500/50 active:scale-[0.98]"
+                  }`}
+                >
+                  <div className="text-purple-400 font-semibold">
+                    CrowdWisdom
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    Multi-Outcome
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Stake */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium flex items-center gap-1.5">
@@ -869,7 +1105,11 @@ export function CreateMarketModal({
                   id="initialStake"
                   name="initialStake"
                   type="number"
-                  min="0.25"
+                  min={
+                    formData.marketType === MarketType.CrowdWisdom
+                      ? "1"
+                      : "0.25"
+                  }
                   step="0.25"
                   value={formData.initialStake || ""}
                   onChange={(e) =>
@@ -879,7 +1119,7 @@ export function CreateMarketModal({
                     }))
                   }
                   disabled={isProcessing}
-                  className="bg-[#0F172A] border-dark-700 h-10 text-sm pr-12 disabled:opacity-50"
+                  className="bg-[#0F172A] border-dark-700 h-11 sm:h-12 text-sm sm:text-base pr-12 disabled:opacity-50 touch-manipulation min-h-[44px]"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   cUSD
@@ -892,44 +1132,90 @@ export function CreateMarketModal({
                 </p>
               )}
 
-              <p className="text-[10px] text-gray-400">Min: $0.25 • Max: $20</p>
+              <p className="text-[10px] text-gray-400">
+                Min: $
+                {formData.marketType === MarketType.CrowdWisdom
+                  ? "1.00"
+                  : "0.25"}{" "}
+                • Max: $20
+              </p>
             </div>
 
-            {/* Prediction Buttons */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Your Prediction</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, initialSide: "yes" }))
-                  }
-                  disabled={isProcessing}
-                  className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
-                    formData.initialSide === "yes"
-                      ? "border-green-500 bg-green-500/10"
-                      : "border-dark-700 bg-[#0F172A]"
-                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <div className="text-green-400 font-semibold">YES</div>
-                </button>
+            {/* Binary Market: Prediction Buttons */}
+            {formData.marketType === MarketType.Binary && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Your Prediction</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, initialSide: "yes" }))
+                    }
+                    disabled={isProcessing}
+                    className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
+                      formData.initialSide === "yes"
+                        ? "border-green-500 bg-green-500/10"
+                        : "border-dark-700 bg-[#0F172A]"
+                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="text-green-400 font-semibold">YES</div>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, initialSide: "no" }))
-                  }
-                  disabled={isProcessing}
-                  className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
-                    formData.initialSide === "no"
-                      ? "border-red-500 bg-red-500/10"
-                      : "border-dark-700 bg-[#0F172A]"
-                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <div className="text-red-400 font-semibold">NO</div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, initialSide: "no" }))
+                    }
+                    disabled={isProcessing}
+                    className={`p-2.5 sm:p-3 rounded-xl border-2 text-center text-xs sm:text-sm transition-all touch-manipulation min-h-[60px] sm:min-h-[70px] ${
+                      formData.initialSide === "no"
+                        ? "border-red-500 bg-red-500/10"
+                        : "border-dark-700 bg-[#0F172A]"
+                    } ${
+                      isProcessing
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:border-red-500/50 active:scale-[0.98]"
+                    }`}
+                  >
+                    <div className="text-red-400 font-semibold">NO</div>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* CrowdWisdom Market: Initial Outcome Label */}
+            {formData.marketType === MarketType.CrowdWisdom && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">
+                  Initial Outcome Label
+                </Label>
+                <Input
+                  id="initialOutcomeLabel"
+                  name="initialOutcomeLabel"
+                  type="text"
+                  placeholder="e.g., Obi, Atiku, Tinubu..."
+                  value={formData.initialOutcomeLabel}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      initialOutcomeLabel: e.target.value,
+                    }))
+                  }
+                  disabled={isProcessing}
+                  className="bg-[#0F172A] border-dark-700 h-10 text-sm disabled:opacity-50"
+                />
+                {errors.initialOutcomeLabel && (
+                  <p className="text-xs text-red-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />{" "}
+                    {errors.initialOutcomeLabel}
+                  </p>
+                )}
+                <p className="text-[10px] text-gray-400">
+                  This will be the first outcome option. Others can add more
+                  outcomes by commenting.
+                </p>
+              </div>
+            )}
 
             {/* Info message when processing */}
             {isProcessing && (
@@ -976,7 +1262,12 @@ export function CreateMarketModal({
                 isLoadingAllowance ||
                 !formData.question ||
                 !formData.category ||
-                !formData.endDate
+                !formData.endDate ||
+                (formData.marketType === MarketType.CrowdWisdom &&
+                  (!formData.initialOutcomeLabel.trim() ||
+                    formData.initialStake < 1.0)) ||
+                (formData.marketType === MarketType.Binary &&
+                  (!formData.initialSide || formData.initialStake < 0.25))
               }
               className="flex-1 bg-[#2563EB] hover:bg-blue-600 h-10 text-sm disabled:opacity-50"
             >

@@ -13,6 +13,8 @@ export {
   useMarketAddress,
   useAllMarketIds,
   useCreateMarket,
+  useCreateBinaryMarket,
+  useCreateCrowdWisdomMarket,
 } from "./useMarketFactory";
 
 // ReputationSystem hooks
@@ -40,6 +42,13 @@ export {
   usePotentialWinnings,
   useFees,
   usePredict,
+  useCommentAndStake,
+  useStakeOnOutcome,
+  useMarketOutcomes,
+  useOutcomeLabel,
+  useOutcomeOdds,
+  useUserOutcomeStake,
+  useOutcomePoolAmount,
   useClaimPayout,
   useHasClaimed,
 } from "./usePredictionMarket";

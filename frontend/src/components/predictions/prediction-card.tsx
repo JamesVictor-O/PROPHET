@@ -17,12 +17,15 @@ import {
 import { UserPrediction } from "@/hooks/contracts";
 import { ShareButton } from "@/components/social/share-button";
 import { useContractWrite, useContractRead } from "@/hooks/contracts";
+import { useOutcomeLabel, useMarketOutcomes } from "@/hooks/contracts";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
 import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 import { Address } from "viem";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MarketType } from "@/lib/types";
+import { formatEther } from "viem";
 
 interface PredictionCardProps {
   prediction: UserPrediction;
@@ -33,11 +36,32 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
   const isWon = prediction.status === "won";
   const isLost = prediction.status === "lost";
   const isActive = prediction.status === "active";
+  const isCrowdWisdom = prediction.marketType === MarketType.CrowdWisdom;
   const [isClaiming, setIsClaiming] = useState(false);
 
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
   ) as Address;
+
+  // Fetch outcome label for CrowdWisdom markets
+  const { data: outcomeLabel } = useOutcomeLabel(
+    isCrowdWisdom && prediction.outcomeIndex !== undefined && prediction.marketId
+      ? BigInt(prediction.marketId)
+      : undefined,
+    isCrowdWisdom && prediction.outcomeIndex !== undefined
+      ? BigInt(prediction.outcomeIndex)
+      : undefined
+  );
+
+  // Fetch all outcomes for CrowdWisdom markets to show a chart
+  const { data: marketOutcomesData } = useMarketOutcomes(
+    isCrowdWisdom && prediction.marketId ? BigInt(prediction.marketId) : undefined
+  );
+
+  // Calculate outcome data for CrowdWisdom
+  const outcomes = marketOutcomesData?.[0] || [];
+  const poolAmounts = marketOutcomesData?.[1] || [];
+  const totalPoolAmount = poolAmounts.reduce((sum, amt) => sum + amt, BigInt(0));
 
   // Check if user has already claimed payout
   const { data: hasClaimed } = useContractRead<boolean>({
@@ -121,6 +145,11 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
                 Created
               </Badge>
             )}
+            {isCrowdWisdom && (
+              <Badge className="text-[10px] md:text-xs font-semibold bg-purple-500/10 text-purple-400 border-purple-500/20">
+                CrowdWisdom
+              </Badge>
+            )}
           </div>
 
           {isActive && prediction.timeLeft && (
@@ -152,21 +181,34 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
                 Your Prediction
               </span>
               <div className="flex items-center space-x-2">
-                {prediction.side === "yes" ? (
-                  <TrendingUp className="w-4 h-4 text-green-400" />
+                {isCrowdWisdom ? (
+                  <>
+                    <span className="text-sm md:text-sm font-semibold text-purple-400">
+                      {outcomeLabel || `Outcome #${prediction.outcomeIndex || 0}`}
+                    </span>
+                    <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">
+                      CrowdWisdom
+                    </Badge>
+                  </>
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-red-400" />
+                  <>
+                    {prediction.side === "yes" ? (
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-sm md:text-sm font-semibold uppercase",
+                        prediction.side === "yes"
+                          ? "text-green-400"
+                          : "text-red-400"
+                      )}
+                    >
+                      {prediction.side}
+                    </span>
+                  </>
                 )}
-                <span
-                  className={cn(
-                    "text-sm md:text-sm font-semibold uppercase",
-                    prediction.side === "yes"
-                      ? "text-green-400"
-                      : "text-red-400"
-                  )}
-                >
-                  {prediction.side}
-                </span>
               </div>
             </div>
           )}
@@ -222,20 +264,88 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
 
         {/* Market Stats */}
         <div className="pt-3 border-t border-[#334155]">
-          <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
-            <div className="text-center">
-              <div className="text-lg md:text-xl font-bold text-green-400 mb-1">
-                {prediction.yesPercent}%
+          {!isCrowdWisdom ? (
+            <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
+              <div className="text-center">
+                <div className="text-lg md:text-xl font-bold text-green-400 mb-1">
+                  {prediction.yesPercent}%
+                </div>
+                <div className="text-xs text-gray-400">YES</div>
               </div>
-              <div className="text-xs text-gray-400">YES</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg md:text-xl font-bold text-red-400 mb-1">
-                {prediction.noPercent}%
+              <div className="text-center">
+                <div className="text-lg md:text-xl font-bold text-red-400 mb-1">
+                  {prediction.noPercent}%
+                </div>
+                <div className="text-xs text-gray-400">NO</div>
               </div>
-              <div className="text-xs text-gray-400">NO</div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-3 space-y-2">
+              <div className="text-xs text-gray-400 mb-2">Top Outcomes</div>
+              {outcomes.length > 0 ? (
+                <div className="space-y-1.5">
+                  {outcomes.slice(0, 3).map((label, index) => {
+                    const poolAmount = poolAmounts[index] || BigInt(0);
+                    const percentage = totalPoolAmount > BigInt(0)
+                      ? Number((poolAmount * BigInt(10000)) / totalPoolAmount) / 100
+                      : 0;
+                    const isUserOutcome = prediction.outcomeIndex === index;
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={cn(
+                          "bg-[#0F172A] border rounded-lg p-2",
+                          isUserOutcome
+                            ? "border-purple-500/50 bg-purple-500/5"
+                            : "border-[#334155]"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={cn(
+                            "text-xs font-medium truncate flex-1 mr-2",
+                            isUserOutcome ? "text-purple-300" : "text-white"
+                          )}>
+                            {label}
+                            {isUserOutcome && (
+                              <Badge className="ml-1 bg-purple-500/20 text-purple-300 text-[8px] px-1">
+                                Your stake
+                              </Badge>
+                            )}
+                          </span>
+                          <span className="text-xs text-purple-400 font-semibold shrink-0">
+                            {percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-[#1E293B] rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              isUserOutcome
+                                ? "bg-gradient-to-r from-purple-500 to-purple-600"
+                                : "bg-purple-500/40"
+                            )}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {outcomes.length > 3 && (
+                    <div className="text-center">
+                      <span className="text-[10px] text-gray-500">
+                        +{outcomes.length - 3} more outcomes
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 text-center py-2">
+                  No outcomes yet
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
             <span className="truncate">Pool: {prediction.pool}</span>

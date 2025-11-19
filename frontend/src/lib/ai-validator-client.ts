@@ -1,5 +1,7 @@
 export interface MarketValidation {
   isValid: boolean;
+  rejectionReason?: string; // Present if isValid is false
+  suggestedMarketType?: "Binary" | "CrowdWisdom"; // AI suggestion for market type
   category: string;
   suggestedEndDate?: string;
   verificationSource: string;

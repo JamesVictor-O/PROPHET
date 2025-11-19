@@ -133,6 +133,7 @@ export default function DashboardPage() {
         noPercent: Math.round(market.noPercent),
         predictions: 0, // TODO: Fetch actual prediction count
         pool: market.poolFormatted,
+        marketType: market.marketType,
       };
     });
   }, [marketsData]);
@@ -297,6 +298,7 @@ export default function DashboardPage() {
                 yesPercent: selectedMarket.yesPercent,
                 noPercent: selectedMarket.noPercent,
                 pool: selectedMarket.pool,
+                marketType: selectedMarket.marketType, // Include marketType to differentiate Binary vs CrowdWisdom
               }
             : null
         }

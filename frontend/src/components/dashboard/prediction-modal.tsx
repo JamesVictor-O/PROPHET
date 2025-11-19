@@ -18,19 +18,25 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAccount, useBalance } from "wagmi";
 import {
   usePredict,
   useCUSDAllowance,
   useApproveCUSD,
   usePotentialWinnings,
+  useCommentAndStake,
+  useStakeOnOutcome,
+  useMarketOutcomes,
+  useUserPrediction,
 } from "@/hooks/contracts";
 import { toast } from "sonner";
 import { parseEther, maxUint256, formatEther } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
+import { MarketType } from "@/lib/types";
+import { MessageSquare } from "lucide-react";
 
 interface PredictionModalProps {
   open: boolean;
@@ -42,6 +48,7 @@ interface PredictionModalProps {
     yesPercent: number;
     noPercent: number;
     pool: string;
+    marketType?: MarketType; // Binary (0) or CrowdWisdom (1)
   } | null;
   selectedSide?: "yes" | "no";
 }
@@ -54,9 +61,15 @@ export function PredictionModal({
 }: PredictionModalProps) {
   const [stake, setStake] = useState("");
   const [side, setSide] = useState<"yes" | "no">(selectedSide || "yes");
+  // CrowdWisdom specific state
+  const [outcomeComment, setOutcomeComment] = useState("");
+  const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<
+    number | null
+  >(null);
   const [errors, setErrors] = useState<{
     stake?: string;
     side?: string;
+    outcomeComment?: string;
   }>({});
   const [needsApproval, setNeedsApproval] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -64,7 +77,99 @@ export function PredictionModal({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const { chainId, address } = useAccount();
-  const { write, isPending, isConfirmed, error: writeError } = usePredict();
+
+  // Determine market type (default to Binary for backward compatibility)
+  const marketType = market?.marketType ?? MarketType.Binary;
+  const isCrowdWisdom = marketType === MarketType.CrowdWisdom;
+
+  // Debug: Log market type to console
+  useEffect(() => {
+    if (open && market) {
+      console.log("🔍 PredictionModal Debug:", {
+        marketId: market.id,
+        question: market.question,
+        marketTypeRaw: market.marketType,
+        marketTypeProcessed: marketType,
+        isCrowdWisdom,
+        MarketTypeEnum: {
+          Binary: MarketType.Binary,
+          CrowdWisdom: MarketType.CrowdWisdom,
+        },
+        willShowBinaryUI: !isCrowdWisdom,
+        willShowCrowdWisdomUI: isCrowdWisdom,
+      });
+    }
+  }, [open, market, marketType, isCrowdWisdom]);
+
+  // Hooks for Binary market
+  const {
+    write: writePredict,
+    isPending: isPredictPending,
+    isConfirmed: isPredictConfirmed,
+    error: predictError,
+  } = usePredict();
+
+  // Hooks for CrowdWisdom market
+  const {
+    write: writeCommentAndStake,
+    isPending: isCommentPending,
+    isConfirmed: isCommentConfirmed,
+    error: commentError,
+  } = useCommentAndStake();
+  const {
+    write: writeStakeOnOutcome,
+    isPending: isStakeOnOutcomePending,
+    isConfirmed: isStakeOnOutcomeConfirmed,
+    error: stakeOnOutcomeError,
+  } = useStakeOnOutcome();
+
+  // Get existing outcomes for CrowdWisdom markets
+  const { data: marketOutcomesData } = useMarketOutcomes(
+    market?.id && isCrowdWisdom ? BigInt(market.id) : undefined
+  );
+
+  // Get user's existing prediction for CrowdWisdom markets
+  const { data: userPrediction } = useUserPrediction(
+    market?.id && isCrowdWisdom ? BigInt(market.id) : undefined,
+    address
+  );
+
+  // Check if user has already staked on an outcome
+  const hasExistingPrediction =
+    userPrediction && userPrediction.amount > BigInt(0);
+  const existingOutcomeIndex =
+    hasExistingPrediction && userPrediction
+      ? Number(userPrediction.outcomeIndex)
+      : null;
+  const existingOutcomeLabel =
+    hasExistingPrediction &&
+    existingOutcomeIndex !== null &&
+    marketOutcomesData?.[0]
+      ? marketOutcomesData[0][existingOutcomeIndex]
+      : null;
+
+  // Use appropriate status based on market type and whether user has existing prediction
+  // For CrowdWisdom with existing prediction, always use stakeOnOutcome
+  const effectiveOutcomeIndex =
+    isCrowdWisdom && hasExistingPrediction && existingOutcomeIndex !== null
+      ? existingOutcomeIndex
+      : selectedOutcomeIndex;
+
+  const isPending = isCrowdWisdom
+    ? effectiveOutcomeIndex !== null
+      ? isStakeOnOutcomePending
+      : isCommentPending
+    : isPredictPending;
+  const isConfirmed = isCrowdWisdom
+    ? effectiveOutcomeIndex !== null
+      ? isStakeOnOutcomeConfirmed
+      : isCommentConfirmed
+    : isPredictConfirmed;
+  const writeError = isCrowdWisdom
+    ? effectiveOutcomeIndex !== null
+      ? stakeOnOutcomeError
+      : commentError
+    : predictError;
 
   // Check if on correct network
   const isCorrectNetwork = chainId === defaultChain.id;
@@ -112,20 +217,123 @@ export function PredictionModal({
     stakeInWei
   );
 
+  // Handle placing prediction - must be defined before useEffect that uses it
+  const handlePlacePrediction = useCallback(() => {
+    if (!market) {
+      toast.error("Connection error");
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      const stakeInWei = parseEther(stake);
+
+      if (isCrowdWisdom) {
+        // If user has existing prediction, must use existing outcome index
+        if (hasExistingPrediction && existingOutcomeIndex !== null) {
+          // User already staked - can only add to existing outcome
+          // Always use existing outcome index, ignore selectedOutcomeIndex
+          if (!writeStakeOnOutcome) {
+            toast.error("Staking function not available");
+            setIsProcessing(false);
+            return;
+          }
+          writeStakeOnOutcome([
+            BigInt(market.id),
+            BigInt(existingOutcomeIndex),
+            stakeInWei,
+          ]);
+        } else if (selectedOutcomeIndex !== null) {
+          // Stake on existing outcome (user has no previous stake)
+          if (!writeStakeOnOutcome) {
+            toast.error("Staking function not available");
+            setIsProcessing(false);
+            return;
+          }
+          writeStakeOnOutcome([
+            BigInt(market.id),
+            BigInt(selectedOutcomeIndex),
+            stakeInWei,
+          ]);
+        } else {
+          // Comment and stake (creates new outcome or stakes on existing)
+          if (!writeCommentAndStake) {
+            toast.error("Comment function not available");
+            setIsProcessing(false);
+            return;
+          }
+          writeCommentAndStake([
+            BigInt(market.id),
+            outcomeComment.trim(),
+            stakeInWei,
+          ]);
+        }
+      } else {
+        // Binary market
+        if (!writePredict) {
+          toast.error("Prediction function not available");
+          setIsProcessing(false);
+          return;
+        }
+        const sideUint8 = side === "yes" ? 0 : 1;
+        writePredict([BigInt(market.id), sideUint8, stakeInWei]);
+      }
+
+      toast.info("Confirm prediction in your wallet");
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Failed to place prediction");
+      setIsProcessing(false);
+      setIsStaking(false);
+    }
+  }, [
+    market,
+    stake,
+    isCrowdWisdom,
+    selectedOutcomeIndex,
+    outcomeComment,
+    side,
+    writeStakeOnOutcome,
+    writeCommentAndStake,
+    writePredict,
+    hasExistingPrediction,
+    existingOutcomeIndex,
+    setIsProcessing,
+    setIsStaking,
+  ]);
+
   // Reset form when modal opens/closes
   useEffect(() => {
     if (open && selectedSide) {
       setSide(selectedSide);
     }
+    // Auto-select existing outcome when modal opens for CrowdWisdom
+    if (
+      open &&
+      isCrowdWisdom &&
+      hasExistingPrediction &&
+      existingOutcomeIndex !== null
+    ) {
+      setSelectedOutcomeIndex(existingOutcomeIndex);
+      setOutcomeComment(""); // Clear comment input
+    }
     if (!open) {
       setStake("");
+      setOutcomeComment("");
+      setSelectedOutcomeIndex(null);
       setErrors({});
       setNeedsApproval(false);
       setIsApproving(false);
       setIsStaking(false);
       setIsProcessing(false);
     }
-  }, [open, selectedSide]);
+  }, [
+    open,
+    selectedSide,
+    isCrowdWisdom,
+    hasExistingPrediction,
+    existingOutcomeIndex,
+  ]);
 
   // Update needsApproval state when allowance check completes
   useEffect(() => {
@@ -141,31 +349,20 @@ export function PredictionModal({
       setNeedsApproval(false);
       refetchAllowance().then(() => {
         // After approval is confirmed and allowance refetched, automatically place prediction
-        if (write && market) {
+        if (market) {
           setIsStaking(true);
           toast.info("Approval confirmed! Placing prediction...");
 
           // Small delay to ensure allowance is updated
           setTimeout(() => {
-            if (!write || !market) {
+            if (!market) {
               toast.error("Connection error");
               setIsProcessing(false);
               setIsStaking(false);
               return;
             }
 
-            try {
-              const stakeInWei = parseEther(stake);
-              const sideUint8 = side === "yes" ? 0 : 1;
-
-              write([BigInt(market.id), sideUint8, stakeInWei]);
-              toast.info("Confirm prediction in your wallet");
-            } catch (err) {
-              console.error("Error:", err);
-              toast.error("Failed to place prediction");
-              setIsProcessing(false);
-              setIsStaking(false);
-            }
+            handlePlacePrediction();
           }, 500);
         }
       });
@@ -174,10 +371,13 @@ export function PredictionModal({
     isApprovalConfirmed,
     refetchAllowance,
     isProcessing,
-    write,
     market,
     stake,
     side,
+    outcomeComment,
+    selectedOutcomeIndex,
+    isCrowdWisdom,
+    handlePlacePrediction,
   ]);
 
   // Handle approval errors
@@ -251,10 +451,18 @@ export function PredictionModal({
   }, [writeError]);
 
   const validateForm = (): boolean => {
-    const newErrors: { stake?: string; side?: string } = {};
+    const newErrors: {
+      stake?: string;
+      side?: string;
+      outcomeComment?: string;
+    } = {};
 
-    if (!stake || parseFloat(stake) < 0.25) {
-      newErrors.stake = "Minimum stake is $0.25 cUSD";
+    // Validate stake amount
+    const minStake = isCrowdWisdom ? 1.0 : 0.25;
+    if (!stake || parseFloat(stake) < minStake) {
+      newErrors.stake = isCrowdWisdom
+        ? "Minimum stake is $1.00 cUSD for CrowdWisdom markets"
+        : "Minimum stake is $0.25 cUSD";
     }
     if (parseFloat(stake) > 20) {
       newErrors.stake = "Maximum stake is $20.00 cUSD";
@@ -263,29 +471,21 @@ export function PredictionModal({
       newErrors.stake = "Insufficient cUSD balance";
     }
 
+    // Validate Binary market side
+    if (!isCrowdWisdom && !side) {
+      newErrors.side = "Please select your prediction side";
+    }
+
+    // Validate CrowdWisdom outcome
+    if (isCrowdWisdom) {
+      if (selectedOutcomeIndex === null && !outcomeComment.trim()) {
+        newErrors.outcomeComment =
+          "Please comment an outcome or select an existing one";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handlePlacePrediction = () => {
-    if (!write || !market) {
-      toast.error("Connection error");
-      setIsProcessing(false);
-      return;
-    }
-
-    try {
-      const stakeInWei = parseEther(stake);
-      const sideUint8 = side === "yes" ? 0 : 1;
-
-      write([BigInt(market.id), sideUint8, stakeInWei]);
-      toast.info("Confirm prediction in your wallet");
-    } catch (err) {
-      console.error("Error:", err);
-      toast.error("Failed to place prediction");
-      setIsProcessing(false);
-      setIsStaking(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -342,89 +542,256 @@ export function PredictionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#1E293B] border-dark-700 text-white w-full max-w-lg p-0 gap-0 rounded-2xl overflow-hidden">
+      <DialogContent className="bg-[#1E293B] border-dark-700 text-white w-full max-w-[calc(100%-1rem)] sm:max-w-lg md:max-w-xl lg:max-w-2xl p-0 gap-0 rounded-xl sm:rounded-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         {/* Header - Fixed */}
-        <div className="bg-[#0F172A] border-b border-dark-700 px-4 py-4 sticky top-0 z-10">
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="text-lg font-bold">
+        <div className="bg-[#0F172A] border-b border-dark-700 px-3 py-3 sm:px-4 sm:py-4 sticky top-0 z-10 shrink-0">
+          <DialogHeader className="space-y-1.5 sm:space-y-2">
+            <DialogTitle className="text-base sm:text-lg font-bold">
               Place Prediction
             </DialogTitle>
-            <DialogDescription className="text-xs text-gray-400 line-clamp-2">
+            <DialogDescription className="text-xs sm:text-sm text-gray-400 line-clamp-2">
               {market.question}
             </DialogDescription>
           </DialogHeader>
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto max-h-[calc(100vh-180px)] px-4">
+        <div className="overflow-y-auto flex-1 px-3 sm:px-4 md:px-6 min-h-0">
           {/* Balance Info */}
           {cusdBalance && (
-            <div className="mt-4 p-3 bg-[#0F172A] border border-dark-700 rounded-xl">
+            <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-[#0F172A] border border-dark-700 rounded-xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Your Balance</span>
-                <span className="text-sm font-semibold">
+                <span className="text-xs sm:text-sm text-gray-400">
+                  Your Balance
+                </span>
+                <span className="text-sm sm:text-base font-semibold">
                   {Number(cusdBalance.formatted).toFixed(2)} cUSD
                 </span>
               </div>
             </div>
           )}
 
-          {/* Category Badge */}
-          <div className="mt-4">
+          {/* Category Badge and Market Type */}
+          <div className="mt-3 sm:mt-4 flex items-center gap-2 flex-wrap">
             <Badge className="bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20 text-xs">
               {market.category}
             </Badge>
+            <Badge
+              className={
+                isCrowdWisdom
+                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20 text-xs"
+                  : "bg-blue-500/10 text-blue-400 border-blue-500/20 text-xs"
+              }
+            >
+              {isCrowdWisdom ? "CrowdWisdom" : "Binary"}
+            </Badge>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Side Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Your Prediction</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSide("yes")}
-                  disabled={isProcessing}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    side === "yes"
-                      ? "border-green-500 bg-green-500/10"
-                      : "border-dark-700 bg-[#0F172A]"
-                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <TrendingUp className="w-4 h-4 text-green-400" />
-                    <span className="text-xl font-bold text-green-400">
-                      {market.yesPercent}%
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400">YES</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSide("no")}
-                  disabled={isProcessing}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    side === "no"
-                      ? "border-red-500 bg-red-500/10"
-                      : "border-dark-700 bg-[#0F172A]"
-                  } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <TrendingDown className="w-4 h-4 text-red-400" />
-                    <span className="text-xl font-bold text-red-400">
-                      {market.noPercent}%
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400">NO</div>
-                </button>
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-3 sm:space-y-4 py-3 sm:py-4 md:py-6"
+          >
+            {/* Binary Market: Side Selection */}
+            {!isCrowdWisdom && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Your Prediction</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSide("yes")}
+                    disabled={isProcessing}
+                    className={`p-3 sm:p-4 rounded-xl border-2 transition-all touch-manipulation min-h-[60px] sm:min-h-[80px] ${
+                      side === "yes"
+                        ? "border-green-500 bg-green-500/10"
+                        : "border-dark-700 bg-[#0F172A]"
+                    } ${
+                      isProcessing
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:border-green-500/50 active:scale-[0.98]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                      <span className="text-xl font-bold text-green-400">
+                        {market.yesPercent}%
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">YES</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSide("no")}
+                    disabled={isProcessing}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      side === "no"
+                        ? "border-red-500 bg-red-500/10"
+                        : "border-dark-700 bg-[#0F172A]"
+                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                      <span className="text-xl font-bold text-red-400">
+                        {market.noPercent}%
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">NO</div>
+                  </button>
+                </div>
+                {errors.side && (
+                  <p className="text-xs text-red-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.side}
+                  </p>
+                )}
               </div>
-              {errors.side && (
-                <p className="text-xs text-red-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.side}
+            )}
+
+            {/* CrowdWisdom Market: Existing Outcomes */}
+            {isCrowdWisdom && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">
+                    Existing Outcomes
+                  </Label>
+                  {hasExistingPrediction && existingOutcomeLabel && (
+                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">
+                      You staked on: {existingOutcomeLabel}
+                    </Badge>
+                  )}
+                </div>
+                {hasExistingPrediction && existingOutcomeIndex !== null && (
+                  <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                    <p className="text-xs text-green-400">
+                      You already staked on &quot;
+                      <strong>{existingOutcomeLabel}</strong>&quot;. You can
+                      only add more stake to this outcome. Selecting a different
+                      outcome is not allowed.
+                    </p>
+                  </div>
+                )}
+                {marketOutcomesData &&
+                marketOutcomesData[0] &&
+                marketOutcomesData[0].length > 0 ? (
+                  <div className="space-y-2">
+                    {marketOutcomesData[0].map((outcomeLabel, index) => {
+                      const poolAmount =
+                        marketOutcomesData[1]?.[index] || BigInt(0);
+                      const totalPool =
+                        marketOutcomesData[1]?.reduce(
+                          (sum, amt) => sum + amt,
+                          BigInt(0)
+                        ) || BigInt(1);
+                      const odds =
+                        totalPool > BigInt(0)
+                          ? Number((poolAmount * BigInt(10000)) / totalPool) /
+                            100
+                          : 0;
+
+                      // Check if this is user's existing outcome
+                      const isExistingOutcome =
+                        hasExistingPrediction && existingOutcomeIndex === index;
+                      // Disable if user has existing prediction on different outcome
+                      const isDisabled =
+                        hasExistingPrediction && existingOutcomeIndex !== index;
+
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => {
+                            if (!isDisabled) {
+                              setSelectedOutcomeIndex(index);
+                              setOutcomeComment(""); // Clear comment when selecting existing
+                            }
+                          }}
+                          disabled={isProcessing || isDisabled}
+                          className={`w-full p-3 rounded-xl border-2 transition-all text-left ${
+                            selectedOutcomeIndex === index
+                              ? "border-purple-500 bg-purple-500/10"
+                              : isExistingOutcome
+                              ? "border-green-500/50 bg-green-500/5"
+                              : "border-dark-700 bg-[#0F172A] hover:border-purple-500/50"
+                          } ${
+                            isProcessing || isDisabled
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <div className="font-semibold text-white flex items-center gap-2">
+                                  {outcomeLabel}
+                                  {isExistingOutcome && (
+                                    <Badge className="bg-green-500/20 text-green-300 text-[10px] px-1.5 py-0">
+                                      Your stake
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                  Pool: $
+                                  {Number(formatEther(poolAmount)).toFixed(2)}{" "}
+                                  cUSD
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-purple-400">
+                                {odds.toFixed(1)}%
+                              </div>
+                              <div className="text-xs text-gray-400">Odds</div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-[#0F172A] border border-dark-700 rounded-xl text-center">
+                    <p className="text-xs text-gray-400">
+                      No outcomes yet. Be the first to comment!
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CrowdWisdom Market: Comment New Outcome */}
+            {isCrowdWisdom && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  Comment New Outcome
+                </Label>
+                <Input
+                  placeholder="e.g., Obi, Atiku, Peter Obi..."
+                  value={outcomeComment}
+                  onChange={(e) => {
+                    setOutcomeComment(e.target.value);
+                    setSelectedOutcomeIndex(null); // Clear selection when typing
+                    if (errors.outcomeComment) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        outcomeComment: undefined,
+                      }));
+                    }
+                  }}
+                  disabled={isProcessing || selectedOutcomeIndex !== null}
+                  className="bg-[#0F172A] border-dark-700 text-white h-11 sm:h-12 text-sm sm:text-base disabled:opacity-50 touch-manipulation min-h-[44px]"
+                />
+                {errors.outcomeComment && (
+                  <p className="text-xs text-red-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.outcomeComment}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400">
+                  {selectedOutcomeIndex !== null
+                    ? "Select an existing outcome above, or clear selection to comment new"
+                    : "Comment an outcome to create it or stake on it if it already exists"}
                 </p>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Stake Input */}
             <div className="space-y-2">
@@ -440,8 +807,8 @@ export function PredictionModal({
                   id="stake"
                   name="stake"
                   type="number"
-                  placeholder="0.25"
-                  min="0.25"
+                  placeholder={isCrowdWisdom ? "1.00" : "0.25"}
+                  min={isCrowdWisdom ? "1" : "0.25"}
                   max="20"
                   step="0.25"
                   value={stake}
@@ -452,7 +819,7 @@ export function PredictionModal({
                     }
                   }}
                   disabled={isProcessing}
-                  className="bg-[#0F172A] border-dark-700 text-white h-11 text-sm pr-14 placeholder:text-gray-500 disabled:opacity-50"
+                  className="bg-[#0F172A] border-dark-700 text-white h-11 sm:h-12 text-sm sm:text-base pr-14 placeholder:text-gray-500 disabled:opacity-50 touch-manipulation min-h-[44px]"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   cUSD
@@ -465,12 +832,12 @@ export function PredictionModal({
                 </p>
               )}
               <p className="text-xs text-gray-400">
-                Minimum: $0.25 • Maximum: $20.00
+                Minimum: ${isCrowdWisdom ? "1.00" : "0.25"} • Maximum: $20.00
               </p>
             </div>
 
-            {/* Potential Win Preview */}
-            {stake && parseFloat(stake) > 0 && (
+            {/* Potential Win Preview - Only for Binary markets */}
+            {!isCrowdWisdom && stake && parseFloat(stake) > 0 && (
               <div className="bg-[#0F172A] border border-dark-700 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">Your Stake</span>
@@ -484,6 +851,28 @@ export function PredictionModal({
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-dark-700">
                   <span className="text-xs text-gray-400">Current Pool</span>
+                  <span className="text-sm font-semibold">{market.pool}</span>
+                </div>
+              </div>
+            )}
+
+            {/* CrowdWisdom Preview */}
+            {isCrowdWisdom && stake && parseFloat(stake) > 0 && (
+              <div className="bg-[#0F172A] border border-dark-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Your Stake</span>
+                  <span className="text-sm font-semibold">${stake} cUSD</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Outcome</span>
+                  <span className="text-sm font-semibold text-purple-400">
+                    {selectedOutcomeIndex !== null
+                      ? marketOutcomesData?.[0]?.[selectedOutcomeIndex] || "N/A"
+                      : outcomeComment.trim() || "New outcome"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-dark-700">
+                  <span className="text-xs text-gray-400">Total Pool</span>
                   <span className="text-sm font-semibold">{market.pool}</span>
                 </div>
               </div>
@@ -515,13 +904,13 @@ export function PredictionModal({
         </div>
 
         {/* Footer - Fixed */}
-        <div className="bg-[#0F172A] border-t border-dark-700 p-4 sticky bottom-0">
-          <div className="flex gap-2">
+        <div className="bg-[#0F172A] border-t border-dark-700 p-3 sm:p-4 sticky bottom-0 shrink-0">
+          <div className="flex gap-2 sm:gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1 bg-transparent border-dark-700 hover:bg-[#1E293B] h-11 text-sm rounded-lg"
+              className="flex-1 bg-transparent border-dark-700 hover:bg-[#1E293B] h-11 sm:h-12 text-sm rounded-lg touch-manipulation min-h-[44px]"
             >
               Cancel
             </Button>
@@ -532,9 +921,13 @@ export function PredictionModal({
                 isProcessing ||
                 isLoadingAllowance ||
                 !stake ||
-                parseFloat(stake) < 0.25
+                parseFloat(stake) < (isCrowdWisdom ? 1.0 : 0.25) ||
+                (isCrowdWisdom &&
+                  selectedOutcomeIndex === null &&
+                  !outcomeComment.trim()) ||
+                (!isCrowdWisdom && !side)
               }
-              className="flex-1 bg-[#2563EB] hover:bg-blue-600 text-white h-11 text-sm rounded-lg disabled:opacity-50"
+              className="flex-1 bg-[#2563EB] hover:bg-blue-600 text-white h-11 sm:h-12 text-sm rounded-lg disabled:opacity-50 touch-manipulation min-h-[44px]"
             >
               {isProcessing ? (
                 <>

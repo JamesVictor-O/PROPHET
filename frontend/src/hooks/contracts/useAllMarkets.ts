@@ -7,22 +7,26 @@ import { useMemo } from "react";
 import { Address } from "viem";
 import { useAllMarketIds } from "./useMarketFactory";
 import { useMarketDetails, usePredictionMarket } from "./usePredictionMarket";
+import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 
 export interface MarketInfo {
   id: string;
   address: Address | undefined;
+  marketType: MarketType; // Binary (0) or CrowdWisdom (1)
   question: string;
   category: string;
   creator: Address;
-  yesPool: bigint;
-  noPool: bigint;
+  yesPool: bigint; // For Binary markets
+  noPool: bigint; // For Binary markets
   totalPool: bigint;
   endTime: bigint;
-  status: number;
+  status: MarketStatus;
   resolved: boolean;
-  winningOutcome?: number; // 0 = Yes, 1 = No (only present if resolved)
-  yesPercent: number;
-  noPercent: number;
+  winningOutcome?: Outcome; // For Binary markets: 0 = Yes, 1 = No (only present if resolved)
+  winningOutcomeIndex?: bigint; // For CrowdWisdom markets: outcome index (only present if resolved)
+  outcomeCount?: bigint; // For CrowdWisdom markets: number of outcomes
+  yesPercent: number; // For Binary markets
+  noPercent: number; // For Binary markets
   timeLeft: string;
   poolFormatted: string;
   isLoading: boolean;
@@ -34,26 +38,14 @@ export interface MarketInfo {
 function formatMarketData(
   marketId: bigint,
   address: Address | undefined,
-  marketDetails:
-    | {
-        totalPool?: bigint;
-        yesPool?: bigint;
-        noPool?: bigint;
-        endTime?: bigint;
-        question?: string;
-        category?: string;
-        creator?: Address;
-        status?: number;
-        resolved?: boolean;
-        winningOutcome?: number; // 0 = Yes, 1 = No
-      }
-    | undefined,
+  marketDetails: MarketStruct | undefined,
   isLoading: boolean
 ): MarketInfo | null {
   if (!address || !marketDetails) {
     return {
       id: marketId.toString(),
       address: undefined,
+      marketType: MarketType.Binary,
       question: "",
       category: "",
       creator: "0x" as Address,
@@ -61,7 +53,7 @@ function formatMarketData(
       noPool: BigInt(0),
       totalPool: BigInt(0),
       endTime: BigInt(0),
-      status: 0,
+      status: MarketStatus.Active,
       resolved: false,
       yesPercent: 50,
       noPercent: 50,
@@ -74,16 +66,15 @@ function formatMarketData(
   const totalPool = marketDetails.totalPool || BigInt(0);
   const yesPool = marketDetails.yesPool || BigInt(0);
   const noPool = marketDetails.noPool || BigInt(0);
+  const marketType = marketDetails.marketType ?? MarketType.Binary;
 
-  // Calculate percentages
-  const yesPercent =
-    totalPool > BigInt(0)
-      ? Number((yesPool * BigInt(10000)) / totalPool) / 100
-      : 50;
-  const noPercent =
-    totalPool > BigInt(0)
-      ? Number((noPool * BigInt(10000)) / totalPool) / 100
-      : 50;
+  // Calculate percentages (only for Binary markets)
+  let yesPercent = 50;
+  let noPercent = 50;
+  if (marketType === MarketType.Binary && totalPool > BigInt(0)) {
+    yesPercent = Number((yesPool * BigInt(10000)) / totalPool) / 100;
+    noPercent = Number((noPool * BigInt(10000)) / totalPool) / 100;
+  }
 
   // Calculate time left
   const endTime = Number(marketDetails.endTime);
@@ -112,16 +103,19 @@ function formatMarketData(
   return {
     id: marketId.toString(),
     address,
+    marketType,
     question: marketDetails.question || "",
     category: marketDetails.category || "",
-    creator: marketDetails.creator || ("0x" as Address),
+    creator: (marketDetails.creator || "0x") as Address,
     yesPool,
     noPool,
     totalPool,
     endTime: BigInt(endTime),
-    status: marketDetails.status || 0,
+    status: marketDetails.status ?? MarketStatus.Active,
     resolved: marketDetails.resolved || false,
     winningOutcome: marketDetails.winningOutcome,
+    winningOutcomeIndex: marketDetails.winningOutcomeIndex,
+    outcomeCount: marketDetails.outcomeCount,
     yesPercent,
     noPercent,
     timeLeft,

@@ -164,16 +164,16 @@ export function UsernameModal({ open, onComplete }: UsernameModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-full max-w-[calc(100%-1rem)] sm:max-w-md md:max-w-lg p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Choose Your Username</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-lg">Choose Your Username</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Set a unique username to get started. This will be displayed instead
             of your wallet address.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 mt-4 sm:mt-6">
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input
@@ -219,7 +219,7 @@ export function UsernameModal({ open, onComplete }: UsernameModalProps) {
             </p>
           </div>
 
-          <Button type="submit" disabled={!canSubmit} className="w-full">
+          <Button type="submit" disabled={!canSubmit} className="w-full h-11 sm:h-12 text-sm sm:text-base touch-manipulation min-h-[44px]">
             {isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

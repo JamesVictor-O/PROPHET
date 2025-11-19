@@ -4,9 +4,26 @@ import { Toaster } from "@/components/ui/sonner";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
 import "./globals.css";
 
+// Configure Inter font with comprehensive fallbacks
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+  fallback: [
+    "-apple-system",
+    "BlinkMacSystemFont",
+    "Segoe UI",
+    "Roboto",
+    "Oxygen",
+    "Ubuntu",
+    "Cantarell",
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    "sans-serif",
+  ],
+  adjustFontFallback: true,
+  preload: false, // Disable preload to avoid build-time fetching
 });
 
 export const metadata: Metadata = {

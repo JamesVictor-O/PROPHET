@@ -1,16 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Get API key from environment
+// Prefer GEMINI_API_KEY (server-side only) over NEXT_PUBLIC_GEMINI_API_KEY (exposed to client)
 function getApiKey(): string {
-  const apiKey =
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  // Try server-side key first (more secure)
+  const rawApiKey =
+    process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-  if (!apiKey) {
+  if (!rawApiKey || rawApiKey.trim() === "") {
+    console.error("❌ [Server] API Key missing:");
+    console.error(
+      "   - Check if GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is set in .env.local"
+    );
+    console.error("   - Location: frontend/.env.local");
+    console.error("   - Current env vars:", {
+      hasGEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      hasNEXT_PUBLIC_GEMINI_API_KEY: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+      GEMINI_API_KEY_length: process.env.GEMINI_API_KEY?.length || 0,
+      NEXT_PUBLIC_GEMINI_API_KEY_length:
+        process.env.NEXT_PUBLIC_GEMINI_API_KEY?.length || 0,
+    });
     throw new Error(
-      "GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is not set. Please add it to your .env.local file."
+      "GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is not set or is empty. Please add a valid API key to your .env.local file in the frontend directory."
     );
   }
 
+  // Trim whitespace (common issue)
+  const apiKey = rawApiKey.trim();
+
+  // Basic validation - API keys usually start with AIza
+  if (!apiKey.startsWith("AIza")) {
+    console.error("❌ [Server] API key format is incorrect:");
+    console.error(`   - API key starts with: "${apiKey.substring(0, 4)}"`);
+    console.error(`   - Expected to start with: "AIza"`);
+    console.error(`   - API key length: ${apiKey.length}`);
+    console.error(
+      "   - Get a new API key from: https://makersuite.google.com/app/apikey"
+    );
+    throw new Error(
+      `Invalid API key format. API key should start with "AIza". Current key starts with "${apiKey.substring(
+        0,
+        4
+      )}". Please get a valid API key from https://makersuite.google.com/app/apikey`
+    );
+  }
+
+  // Check minimum length (API keys are usually 39 characters)
+  if (apiKey.length < 30) {
+    console.warn(
+      `⚠️ [Server] API key seems too short (${apiKey.length} chars). Expected ~39 characters.`
+    );
+  }
+
+  console.log(
+    `✅ [Server] API key format looks valid (length: ${apiKey.length}, starts with: AIza)`
+  );
   return apiKey;
 }
 
@@ -168,13 +212,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API key
-    const apiKey = getApiKey();
-    console.log(`🔑 API Key found (${apiKey.substring(0, 10)}...)`);
-    console.log(
-      `📝 Validating question: "${question.substring(0, 50)}${
-        question.length > 50 ? "..." : ""
-      }"`
-    );
+    let apiKey: string;
+    try {
+      apiKey = getApiKey();
+      console.log(`🔑 API Key found (${apiKey.substring(0, 10)}...)`);
+      console.log(
+        `📝 Validating question: "${question.substring(0, 50)}${
+          question.length > 50 ? "..." : ""
+        }"`
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ [Server] Failed to get API key:", errorMsg);
+      throw error; // Re-throw to be caught by outer catch
+    }
 
     // Get working model name using v1 API directly
     const modelName = await getWorkingModelName(apiKey);
@@ -183,57 +234,199 @@ export async function POST(request: NextRequest) {
     // Use REST API v1 directly (not v1beta)
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
 
-    const prompt = `You are an expert at analyzing prediction market questions.
+    const prompt = `You are an expert at analyzing prediction market questions. Your job is to:
+1. Validate questions and detect invalid market types that should be REJECTED
+2. Determine the appropriate market type: Binary (yes/no) or CrowdWisdom (multiple outcomes)
 
 Analyze this prediction market question: "${question}"
 
+CRITICAL: The question is INVALID and should be REJECTED (isValid: false) if it describes:
+
+1. **Past Events**: Events that have already happened or been determined
+   - Binary Example: "Will Rema release an album in October 2023?" (if it's now November 2023 or later)
+   - CrowdWisdom Example: "Who won the Grammy for Best African Album in 2023?" (if 2023 Grammy has already happened)
+   - Example: "Did Wizkid win the Grammy in 2023?" (past event)
+   - Example: "Will King of Thieves movie release on January 26, 2024?" (if that date has passed)
+
+2. **Already Announced**: Events that have been officially announced or confirmed
+   - Binary Example: "Will Burna Boy release an album in Q4 2024?" (if it's already officially announced)
+   - CrowdWisdom Example: "Who will win the Best Actor award?" (if the winner is already announced)
+   - Example: "Will there be a Big Brother Nigeria 2025?" (if it's already confirmed)
+
+3. **Fixed Results**: Events with predetermined or guaranteed outcomes
+   - Binary Example: "Will the sun rise tomorrow?" (100% certain)
+   - CrowdWisdom Example: "What day of the week will tomorrow be?" (known calendar fact)
+   - Example: "Will a clock tick after 1 second?" (guaranteed)
+   - Example: "Will Nigeria have a president in 2025?" (constitutional requirement)
+
+4. **100% Certainty Outcomes**: Outcomes that are already determined or impossible to change
+   - Binary Example: "Will a movie that already premiered have a sequel?" (if sequel is confirmed)
+   - CrowdWisdom Example: "Which candidate won the 2023 election?" (if election results are already declared)
+   - Example: "Will an artist who already released an album release it?" (past event)
+
+5. **Known Release Dates**: Events where the release date/outcome is already publicly known
+   - Binary Example: "Will a movie release on January 1, 2024?" (if it's already known to release then)
+   - CrowdWisdom Example: "What date will the movie premiere?" (if premiere date is already announced)
+   - Example: "Will an album release in December?" (if December date is already announced)
+
+6. **Markets After Event**: Markets that go live after the real-life event has already been determined
+   - Binary Example: Creating a market in January 2025 asking "Will X win in December 2024 awards?" (event already happened)
+   - CrowdWisdom Example: "Who will be the next president?" (if election has already occurred and results are known)
+
+7. **CrowdWisdom-Specific Invalid Cases**:
+   - Questions about past events with known outcomes: "Who won Big Brother Naija 2023?" (already determined)
+   - Questions about already-announced winners: "Who will host the 2024 event?" (if host already announced)
+   - Questions with fixed, known answers: "What is 2+2?" (mathematical certainty)
+   - Historical facts: "Who was Nigeria's first president?" (historical fact)
+   - Questions about events that already concluded: "Which team won the World Cup 2022?" (already happened)
+
+MARKET TYPE DETECTION:
+Determine if this question is better suited for:
+- **Binary** (yes/no questions): Questions with two clear outcomes (Yes/No, Will/Won't, etc.)
+  - Example: "Will Burna Boy release an album in 2024?"
+  - Example: "Will Wizkid's song hit 10M streams?"
+  
+- **CrowdWisdom** (multiple outcomes): Questions where multiple different outcomes are possible
+  - Example: "Who will win Big Brother Naija 2024?" (multiple contestants)
+  - Example: "Which artist will have the biggest hit in Q4 2024?" (multiple artists possible)
+  - Example: "What will be the highest-grossing Nollywood movie in 2024?" (multiple movies)
+  - Example: "Which country will win the next AFCON?" (multiple countries)
+
+IMPORTANT RULES:
+- If the question describes ANY of the above invalid types, set isValid: false
+- Check the current date context: If the question refers to events that should have happened by now (based on the question's timeframe), it may be invalid
+- If an event is already officially announced or confirmed, set isValid: false
+- If the outcome is 100% certain or predetermined, set isValid: false
+- For CrowdWisdom questions, ensure the question asks about FUTURE outcomes with multiple possibilities, not past events with known results
+- For Binary questions, ensure there are two clear opposing outcomes
+
 Return a JSON object with:
 {
-  "isValid": boolean (can this be verified objectively?),
+  "isValid": boolean (false if it's a past event, already announced, fixed result, or has 100% certainty. true only if it's a valid future prediction),
+  "rejectionReason": string (only present if isValid is false, explain why it was rejected - e.g., "Past event", "Already announced", "Fixed result", "100% certainty", "CrowdWisdom: Past event with known outcome", etc.),
+  "suggestedMarketType": string (either "Binary" or "CrowdWisdom" - suggest the most appropriate market type for this question),
   "category": string (one of: "music", "movies", "reality-tv", "awards", "sports", "other"),
   "suggestedEndDate": string (ISO date string, estimate when this should resolve, or null if unclear),
   "verificationSource": string (where can we verify the outcome?),
   "confidence": string (one of: "high", "medium", "low"),
-  "reasoning": string (brief explanation),
-  "improvedQuestion": string (MUST be a complete, reformulated prediction market question starting with a question word like "Will", "Does", "Is", etc. It should be a full question, NOT a suggestion or tip. If the original question is already well-formatted, return the original question unchanged),
+  "reasoning": string (brief explanation, include date context if relevant, and explain why Binary or CrowdWisdom is suggested),
+  "improvedQuestion": string (MUST be a complete, reformulated prediction market question starting with a question word like "Will", "Does", "Is", "Who", "Which", etc. It should be a full question, NOT a suggestion or tip. If the original question is invalid, suggest a valid alternative question. If the original question is already well-formatted, return it unchanged),
   "suggestions": array of strings (optional improvement tips like "Specify exact date" or "Add release date", these are separate from improvedQuestion)
 }
 
-Examples:
+Examples of VALID Binary questions:
 
-Question: "Will Burna Boy drop an album in Q4 2024?"
+Question: "Will Burna Boy drop an album in Q4 2024?" (assuming we're in early 2024)
 {
   "isValid": true,
+  "suggestedMarketType": "Binary",
   "category": "music",
   "suggestedEndDate": "2024-12-31T23:59:59Z",
   "verificationSource": "Spotify, Apple Music, artist social media",
   "confidence": "high",
-  "reasoning": "Album releases are publicly verifiable",
+  "reasoning": "Album releases are publicly verifiable and future event. Binary market type because there are two clear outcomes: Yes (album released) or No (album not released)",
   "improvedQuestion": "Will Burna Boy release an album before December 31, 2024?",
   "suggestions": ["Specify exact date range"]
 }
 
-Question: "Will Wizkid's song hit 10M Spotify streams in first week?"
+Question: "Will Wizkid's next song hit 10M Spotify streams in first week?"
 {
   "isValid": true,
+  "suggestedMarketType": "Binary",
   "category": "music",
   "suggestedEndDate": null,
   "verificationSource": "Spotify Charts API / Chartmetric",
   "confidence": "high",
-  "reasoning": "Spotify stream counts are publicly available and precisely measurable",
+  "reasoning": "Spotify stream counts are publicly available and precisely measurable, future event. Binary market because outcome is Yes (reaches 10M) or No (doesn't reach 10M)",
   "improvedQuestion": "Will Wizkid's next single reach 10 million Spotify streams within 7 days of its release date?",
   "suggestions": ["Specify which song", "Define exact date range for 'first week'"]
 }
 
-Question: "Will King of Thieves 2 make ₦50M opening weekend?"
+Examples of VALID CrowdWisdom questions:
+
+Question: "Who will win Big Brother Naija 2024?"
 {
   "isValid": true,
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "reality-tv",
+  "suggestedEndDate": "2024-12-31T23:59:59Z",
+  "verificationSource": "Official BBNaija announcement, verified social media accounts",
+  "confidence": "high",
+  "reasoning": "Multiple contestants can win, making this a CrowdWisdom market. Outcome is verifiable from official sources",
+  "improvedQuestion": "Who will win Big Brother Naija 2024?",
+  "suggestions": []
+}
+
+Question: "Which Nollywood movie will have the highest box office in 2024?"
+{
+  "isValid": true,
+  "suggestedMarketType": "CrowdWisdom",
   "category": "movies",
-  "suggestedEndDate": null,
+  "suggestedEndDate": "2025-01-31T23:59:59Z",
   "verificationSource": "Cinema Pointer Nigeria, FilmOne box office reports",
   "confidence": "medium",
-  "reasoning": "Box office numbers are reported but may have delays or estimation",
-  "suggestions": ["Specify release date", "Note: Box office reporting may not be real-time"]
+  "reasoning": "Multiple movies can be the highest-grossing, making this suitable for CrowdWisdom where users can stake on different movie titles",
+  "improvedQuestion": "Which Nollywood movie will have the highest box office revenue in 2024?",
+  "suggestions": ["Consider extending end date to allow for late-year releases"]
+}
+
+Examples of INVALID Binary questions (should be rejected):
+
+Question: "Will Rema release an album in October 2023?" (if it's now December 2023 or later)
+{
+  "isValid": false,
+  "rejectionReason": "Past event - October 2023 has already passed",
+  "suggestedMarketType": "Binary",
+  "category": "music",
+  "reasoning": "This refers to an event in October 2023, which is in the past",
+  "improvedQuestion": "Will Rema release an album in Q1 2024?",
+  "suggestions": ["Use a future date"]
+}
+
+Question: "Will the sun rise tomorrow?"
+{
+  "isValid": false,
+  "rejectionReason": "Fixed result - 100% certainty",
+  "suggestedMarketType": "Binary",
+  "category": "other",
+  "reasoning": "The sun rising is a guaranteed natural event with 100% certainty",
+  "improvedQuestion": null,
+  "suggestions": ["Predictions must have uncertainty"]
+}
+
+Examples of INVALID CrowdWisdom questions (should be rejected):
+
+Question: "Who won Big Brother Naija 2023?" (if 2023 season already ended)
+{
+  "isValid": false,
+  "rejectionReason": "CrowdWisdom: Past event with known outcome - The 2023 winner has already been announced",
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "reality-tv",
+  "reasoning": "This asks about a past event where the winner is already known. CrowdWisdom markets need future, uncertain outcomes",
+  "improvedQuestion": "Who will win Big Brother Naija 2024?",
+  "suggestions": ["Use future events only"]
+}
+
+Question: "Which artist won the Grammy for Best African Album in 2023?" (if 2023 Grammy already happened)
+{
+  "isValid": false,
+  "rejectionReason": "CrowdWisdom: Past event with known outcome - The 2023 Grammy winners have been announced",
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "awards",
+  "reasoning": "Grammy winners for 2023 have already been determined and announced publicly",
+  "improvedQuestion": "Which artist will win the Grammy for Best African Album in 2024?",
+  "suggestions": ["Use future award shows"]
+}
+
+Question: "Who will host the 2024 Oscars?" (if host already announced)
+{
+  "isValid": false,
+  "rejectionReason": "Already announced - The host has been officially confirmed",
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "awards",
+  "reasoning": "The show's host has been officially announced, removing uncertainty",
+  "improvedQuestion": "Who will host the 2025 Oscars?",
+  "suggestions": ["Predict future events that haven't been announced"]
 }
 
 IMPORTANT:
@@ -269,14 +462,45 @@ Return ONLY valid JSON, no markdown.`;
 
     if (!response.ok) {
       const errorText = await response.text();
+      let errorMessage = `Gemini API error: ${response.status}`;
+
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message) {
+          errorMessage = `Gemini API error: ${response.status} - ${errorJson.error.message}`;
+
+          // Check for specific API key errors
+          if (
+            errorJson.error.message.includes("API key not valid") ||
+            errorJson.error.message.includes("INVALID_ARGUMENT")
+          ) {
+            console.error("❌ [Server] INVALID API KEY ERROR:");
+            console.error(
+              "   1. Check that GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is set in .env.local"
+            );
+            console.error("   2. Verify the API key starts with 'AIza'");
+            console.error(
+              "   3. Get a new API key from: https://makersuite.google.com/app/apikey"
+            );
+            console.error("   4. Make sure the API key has proper permissions");
+            errorMessage = `Invalid API key. Please check your GEMINI_API_KEY in .env.local file. Error: ${errorJson.error.message}`;
+          }
+        }
+      } catch {
+        // If parsing fails, use the raw error text
+        errorMessage = `Gemini API error: ${
+          response.status
+        } - ${errorText.substring(0, 200)}`;
+      }
+
       console.error(`❌ [Server] Gemini API error:`, {
         status: response.status,
         statusText: response.statusText,
         body: errorText.substring(0, 500),
+        errorMessage,
       });
-      throw new Error(
-        `Gemini API error: ${response.status} - ${errorText.substring(0, 200)}`
-      );
+
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
