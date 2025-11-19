@@ -18,7 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, DollarSign, Loader2, AlertCircle } from "lucide-react";
+import {
+  Calendar,
+  DollarSign,
+  Loader2,
+  AlertCircle,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAccount, useBalance } from "wagmi";
 import {
@@ -31,6 +39,7 @@ import { parseEther, maxUint256 } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
+import { useAIValidator } from "@/hooks/useAIValidator";
 
 interface CreateMarketModalProps {
   open: boolean;
@@ -99,6 +108,17 @@ export function CreateMarketModal({
   const [isApproving, setIsApproving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiCategorySelected, setAiCategorySelected] = useState(false);
+  const [aiEndDateSelected, setAiEndDateSelected] = useState(false);
+  const [aiQuestionSuggested, setAiQuestionSuggested] = useState(false);
+  const [suggestedQuestion, setSuggestedQuestion] = useState<string>("");
+  const [originalQuestion, setOriginalQuestion] = useState<string>("");
+
+  // AI Validation - only enabled when question is long enough
+  const { validation, isValidating } = useAIValidator(formData.question, {
+    enabled: formData.question.trim().length >= 10,
+    debounceMs: 1000,
+  });
 
   const { chainId, address } = useAccount();
   const {
@@ -373,6 +393,120 @@ export function CreateMarketModal({
     }
   };
 
+  // Auto-fill category from AI validation (only if user hasn't manually set it)
+  useEffect(() => {
+    if (validation?.category && !aiCategorySelected) {
+      const categoryExists = categories.some(
+        (cat) => cat.value === validation.category
+      );
+      if (categoryExists && formData.category !== validation.category) {
+        setFormData((prev) => ({ ...prev, category: validation.category }));
+        setAiCategorySelected(true);
+      }
+    }
+  }, [validation?.category, aiCategorySelected, formData.category]);
+
+  // Auto-fill end date from AI validation (only if user hasn't manually set it)
+  useEffect(() => {
+    if (validation?.suggestedEndDate && !aiEndDateSelected) {
+      try {
+        const suggestedDate = new Date(validation.suggestedEndDate);
+        if (suggestedDate > new Date()) {
+          // Format as datetime-local (YYYY-MM-DDTHH:mm)
+          const year = suggestedDate.getFullYear();
+          const month = String(suggestedDate.getMonth() + 1).padStart(2, "0");
+          const day = String(suggestedDate.getDate()).padStart(2, "0");
+          const hours = String(suggestedDate.getHours()).padStart(2, "0");
+          const minutes = String(suggestedDate.getMinutes()).padStart(2, "0");
+          const formattedDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+          // Only auto-fill if end date is empty or different from suggested
+          if (!formData.endDate || formData.endDate !== formattedDate) {
+            setFormData((prev) => ({ ...prev, endDate: formattedDate }));
+            setAiEndDateSelected(true);
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing suggested end date:", err);
+      }
+    }
+  }, [validation?.suggestedEndDate, aiEndDateSelected, formData.endDate]);
+
+  // Generate suggested question when AI validation completes with improved question
+  useEffect(() => {
+    if (
+      validation?.improvedQuestion &&
+      validation.improvedQuestion.trim().length > 0 &&
+      formData.question.trim().length >= 10 &&
+      !aiQuestionSuggested &&
+      !isValidating
+    ) {
+      const improved = validation.improvedQuestion.trim();
+      const original = formData.question.trim();
+
+      // Validate that improvedQuestion is actually a question, not a suggestion/tip
+      const suggestionKeywords = [
+        "correct",
+        "specify",
+        "add",
+        "remove",
+        "change",
+        "improve",
+        "consider",
+        "note:",
+        "define",
+        "explicitly",
+      ];
+
+      const isSuggestion =
+        suggestionKeywords.some((keyword) =>
+          improved.toLowerCase().startsWith(keyword)
+        ) || improved.length < 10; // Too short to be a question
+
+      // Check if it's a proper question (starts with question words or is a proper sentence)
+      const questionWords = [
+        "will",
+        "does",
+        "do",
+        "is",
+        "are",
+        "was",
+        "were",
+        "can",
+        "could",
+        "should",
+        "would",
+        "has",
+        "have",
+        "had",
+      ];
+      const startsWithQuestionWord = questionWords.some((word) =>
+        improved.toLowerCase().startsWith(word)
+      );
+      if (
+        improved.toLowerCase() !== original.toLowerCase() &&
+        !isSuggestion &&
+        improved.length >= 10 &&
+        (startsWithQuestionWord || improved.includes("?"))
+      ) {
+        // Store original question
+        if (!originalQuestion) {
+          setOriginalQuestion(original);
+        }
+
+        // Use the improved question from AI
+        setSuggestedQuestion(improved);
+        setAiQuestionSuggested(true);
+      }
+    }
+  }, [
+    validation?.improvedQuestion,
+    formData.question,
+    aiQuestionSuggested,
+    isValidating,
+    originalQuestion,
+  ]);
+
   // Reset form when modal closes
   useEffect(() => {
     if (!open) {
@@ -388,6 +522,11 @@ export function CreateMarketModal({
       setIsApproving(false);
       setIsCreating(false);
       setNeedsApproval(false);
+      setAiCategorySelected(false);
+      setAiEndDateSelected(false);
+      setAiQuestionSuggested(false);
+      setSuggestedQuestion("");
+      setOriginalQuestion("");
     }
   }, [open]);
 
@@ -398,11 +537,11 @@ export function CreateMarketModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="bg-[#1E293B] border-[#334155] text-white 
+        className="bg-[#1E293B] border-dark-700 text-white 
   w-full sm:max-w-lg p-0 gap-0 rounded-2xl overflow-hidden"
       >
         {/* Header */}
-        <div className="bg-[#0F172A] border-b border-[#334155] px-3 py-3 sticky top-0 z-10">
+        <div className="bg-[#0F172A] border-b border-dark-700 px-3 py-3 sticky top-0 z-10">
           <DialogHeader className="space-y-1.5">
             <DialogTitle className="text-base font-bold">
               Create Market
@@ -417,7 +556,7 @@ export function CreateMarketModal({
         <div className="overflow-y-auto max-h-[calc(100vh-160px)] px-3">
           {/* Balance Info */}
           {cusdBalance && (
-            <div className="mt-3 p-2.5 bg-[#0F172A] border border-[#334155] rounded-xl">
+            <div className="mt-3 p-2.5 bg-[#0F172A] border border-dark-700 rounded-xl">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">Your Balance</span>
                 <span className="text-sm font-semibold">
@@ -430,35 +569,208 @@ export function CreateMarketModal({
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
             {/* Question */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Market Question</Label>
-              <Input
-                id="question"
-                name="question"
-                value={formData.question}
-                onChange={handleChange}
-                placeholder="Will Burna Boy drop an album in Q4?"
-                disabled={isProcessing}
-                className="bg-[#0F172A] border-[#334155] h-10 text-sm disabled:opacity-50"
-              />
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Market Question</Label>
+                {isValidating && formData.question.trim().length >= 10 && (
+                  <div className="flex items-center gap-1 text-xs text-blue-400">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>AI validating...</span>
+                  </div>
+                )}
+                {validation && !isValidating && (
+                  <div className="flex items-center gap-1 text-xs">
+                    {validation.isValid ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-green-400" />
+                        <span className="text-green-400">Valid market</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3 h-3 text-yellow-400" />
+                        <span className="text-yellow-400">Needs review</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <Input
+                  id="question"
+                  name="question"
+                  value={formData.question}
+                  onChange={(e) => {
+                    handleChange(e);
+                    // Reset AI selections when question changes significantly
+                    if (e.target.value.trim().length < 10) {
+                      setAiCategorySelected(false);
+                      setAiEndDateSelected(false);
+                      setAiQuestionSuggested(false);
+                      setSuggestedQuestion("");
+                      setOriginalQuestion("");
+                    } else if (
+                      e.target.value !== suggestedQuestion &&
+                      e.target.value !== originalQuestion
+                    ) {
+                      // User is manually editing, reset suggestion flags
+                      setAiQuestionSuggested(false);
+                      setOriginalQuestion("");
+                    }
+                  }}
+                  placeholder="Will Burna Boy drop an album in Q4?"
+                  disabled={isProcessing}
+                  className="bg-[#0F172A] border-dark-700 h-10 text-sm disabled:opacity-50 pr-10"
+                />
+                {formData.question.trim().length >= 10 &&
+                  !isValidating &&
+                  validation && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {validation.isValid ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-yellow-400" />
+                      )}
+                    </div>
+                  )}
+              </div>
               {errors.question && (
                 <p className="text-xs text-red-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> {errors.question}
                 </p>
               )}
+
+              {/* AI Suggested Question */}
+              {suggestedQuestion &&
+                suggestedQuestion !== formData.question &&
+                aiQuestionSuggested &&
+                validation &&
+                !isValidating && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <div className="flex items-start gap-2 mb-2">
+                      <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-blue-400 mb-1">
+                          AI Improved Question:
+                        </p>
+                        <p className="text-sm text-gray-200 leading-relaxed mb-2">
+                          &ldquo;{suggestedQuestion}&rdquo;
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                question: suggestedQuestion,
+                              }));
+                              setAiQuestionSuggested(false);
+                            }}
+                            className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAiQuestionSuggested(false);
+                              setSuggestedQuestion("");
+                            }}
+                            className="h-7 text-xs border-dark-700 hover:bg-[#1E293B]"
+                          >
+                            Edit Original
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {/* AI Validation Info */}
+              {validation && !isValidating && (
+                <div className="p-2.5 bg-[#0F172A] border border-dark-700 rounded-lg space-y-2">
+                  {validation.reasoning && (
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-gray-300 leading-relaxed">
+                        {validation.reasoning}
+                      </p>
+                    </div>
+                  )}
+                  {validation.verificationSource && (
+                    <div className="text-[10px] text-gray-400">
+                      <span className="font-medium">Verification:</span>{" "}
+                      {validation.verificationSource}
+                    </div>
+                  )}
+                  {validation.confidence && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400">
+                        Confidence:
+                      </span>
+                      <Badge
+                        className={`text-[10px] ${
+                          validation.confidence === "high"
+                            ? "bg-green-500/10 text-green-400 border-green-500/20"
+                            : validation.confidence === "medium"
+                            ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                            : "bg-red-500/10 text-red-400 border-red-500/20"
+                        }`}
+                      >
+                        {validation.confidence.toUpperCase()}
+                      </Badge>
+                    </div>
+                  )}
+                  {validation.suggestions &&
+                    validation.suggestions.length > 0 && (
+                      <div className="pt-1.5 border-t border-dark-700">
+                        <p className="text-[10px] text-gray-400 mb-1.5 font-medium">
+                          Suggestions:
+                        </p>
+                        <ul className="space-y-1">
+                          {validation.suggestions.map((suggestion, idx) => (
+                            <li
+                              key={idx}
+                              className="text-[10px] text-gray-400 flex items-start gap-1.5"
+                            >
+                              <span className="text-blue-400">•</span>
+                              <span>{suggestion}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
 
             {/* Category */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Category</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Category</Label>
+                {validation?.category && aiCategorySelected && (
+                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    AI detected
+                  </span>
+                )}
+              </div>
               <Select
                 value={formData.category}
-                onValueChange={handleCategoryChange}
+                onValueChange={(value) => {
+                  handleCategoryChange(value);
+                  // Only mark as manually changed if it's different from AI suggestion
+                  if (validation?.category && value !== validation.category) {
+                    setAiCategorySelected(false); // User manually changed
+                  }
+                }}
                 disabled={isProcessing}
               >
-                <SelectTrigger className="bg-[#0F172A] border-[#334155] h-10 disabled:opacity-50">
+                <SelectTrigger className="bg-[#0F172A] border-dark-700 h-10 disabled:opacity-50">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1E293B] border-[#334155]">
+                <SelectContent className="bg-[#1E293B] border-dark-700">
                   {categories.map((cat) => (
                     <SelectItem
                       key={cat.value}
@@ -486,17 +798,59 @@ export function CreateMarketModal({
 
             {/* End Date */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium flex items-center gap-1.5">
-                <Calendar className="w-3 h-3" /> End Date
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <Calendar className="w-3 h-3" /> End Date
+                </Label>
+                {validation?.suggestedEndDate && aiEndDateSelected && (
+                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    AI suggested
+                  </span>
+                )}
+              </div>
               <Input
                 id="endDate"
                 name="endDate"
                 type="datetime-local"
                 value={formData.endDate}
-                onChange={handleChange}
+                onChange={(e) => {
+                  // Only mark as manually changed if it's different from AI suggestion
+                  if (validation?.suggestedEndDate) {
+                    try {
+                      const suggestedDate = new Date(
+                        validation.suggestedEndDate
+                      );
+                      const year = suggestedDate.getFullYear();
+                      const month = String(
+                        suggestedDate.getMonth() + 1
+                      ).padStart(2, "0");
+                      const day = String(suggestedDate.getDate()).padStart(
+                        2,
+                        "0"
+                      );
+                      const hours = String(suggestedDate.getHours()).padStart(
+                        2,
+                        "0"
+                      );
+                      const minutes = String(
+                        suggestedDate.getMinutes()
+                      ).padStart(2, "0");
+                      const formattedSuggested = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+                      if (e.target.value !== formattedSuggested) {
+                        setAiEndDateSelected(false); // User manually changed
+                      }
+                    } catch {
+                      setAiEndDateSelected(false);
+                    }
+                  } else {
+                    setAiEndDateSelected(false);
+                  }
+                  handleChange(e);
+                }}
                 disabled={isProcessing}
-                className="bg-[#0F172A] border-[#334155] h-10 text-sm disabled:opacity-50"
+                className="bg-[#0F172A] border-dark-700 h-10 text-sm disabled:opacity-50"
               />
               {errors.endDate && (
                 <p className="text-xs text-red-400 flex items-center gap-1">
@@ -525,7 +879,7 @@ export function CreateMarketModal({
                     }))
                   }
                   disabled={isProcessing}
-                  className="bg-[#0F172A] border-[#334155] h-10 text-sm pr-12 disabled:opacity-50"
+                  className="bg-[#0F172A] border-dark-700 h-10 text-sm pr-12 disabled:opacity-50"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   cUSD
@@ -554,7 +908,7 @@ export function CreateMarketModal({
                   className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
                     formData.initialSide === "yes"
                       ? "border-green-500 bg-green-500/10"
-                      : "border-[#334155] bg-[#0F172A]"
+                      : "border-dark-700 bg-[#0F172A]"
                   } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <div className="text-green-400 font-semibold">YES</div>
@@ -569,7 +923,7 @@ export function CreateMarketModal({
                   className={`p-3 rounded-xl border-2 text-center text-sm transition-all ${
                     formData.initialSide === "no"
                       ? "border-red-500 bg-red-500/10"
-                      : "border-[#334155] bg-[#0F172A]"
+                      : "border-dark-700 bg-[#0F172A]"
                   } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <div className="text-red-400 font-semibold">NO</div>
@@ -581,7 +935,7 @@ export function CreateMarketModal({
             {isProcessing && (
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                 <div className="flex items-start gap-2">
-                  <Loader2 className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5 animate-spin" />
                   <div className="flex-1">
                     <p className="text-xs text-blue-400 font-medium">
                       {isApproving
@@ -603,13 +957,13 @@ export function CreateMarketModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-[#0F172A] border-t border-[#334155] p-3 sticky bottom-0">
+        <div className="bg-[#0F172A] border-t border-dark-700 p-3 sticky bottom-0">
           <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1 bg-transparent border-[#334155] hover:bg-[#1E293B] h-10 text-sm"
+              className="flex-1 bg-transparent border-dark-700 hover:bg-[#1E293B] h-10 text-sm"
             >
               Cancel
             </Button>
