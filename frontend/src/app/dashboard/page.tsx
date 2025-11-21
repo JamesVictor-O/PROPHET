@@ -131,7 +131,7 @@ export default function DashboardPage() {
         question: market.question,
         yesPercent: Math.round(market.yesPercent),
         noPercent: Math.round(market.noPercent),
-        predictions: 0, // TODO: Fetch actual prediction count
+        predictions: market.predictionCount || 0,
         pool: market.poolFormatted,
         marketType: market.marketType,
       };
@@ -181,7 +181,9 @@ export default function DashboardPage() {
           <div className="mb-4 sm:mb-6 md:mb-8 flex flex-col gap-3 sm:gap-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Markets</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">
+                  Markets
+                </h1>
                 <p className="text-sm sm:text-base text-gray-400">
                   Predict entertainment outcomes and earn rewards
                 </p>
@@ -203,7 +205,9 @@ export default function DashboardPage() {
               <div className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                 <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400 shrink-0 mt-0.5 sm:mt-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-orange-400 font-semibold text-sm sm:text-base">Wrong Network</p>
+                  <p className="text-orange-400 font-semibold text-sm sm:text-base">
+                    Wrong Network
+                  </p>
                   <p className="text-gray-400 text-xs sm:text-sm">
                     Please switch to Celo Sepolia (Chain ID: 11142220) to use
                     this app
@@ -231,11 +235,15 @@ export default function DashboardPage() {
           {isLoadingMarkets ? (
             <div className="text-center py-8 sm:py-12">
               <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-3 sm:mb-4 text-[#2563EB]" />
-              <p className="text-gray-400 text-sm sm:text-base md:text-lg">Loading markets...</p>
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg">
+                Loading markets...
+              </p>
             </div>
           ) : isError ? (
             <div className="text-center py-8 sm:py-12">
-              <p className="text-red-400 text-base sm:text-lg mb-2">Error loading markets</p>
+              <p className="text-red-400 text-base sm:text-lg mb-2">
+                Error loading markets
+              </p>
               <p className="text-gray-400 text-xs sm:text-sm mb-4 px-4">
                 The contract may not be deployed or you&apos;re on the wrong
                 network.

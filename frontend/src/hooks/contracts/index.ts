@@ -51,6 +51,7 @@ export {
   useOutcomePoolAmount,
   useClaimPayout,
   useHasClaimed,
+  usePredictionCount,
 } from "./usePredictionMarket";
 
 // All markets hook

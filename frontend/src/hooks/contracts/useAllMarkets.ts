@@ -6,7 +6,11 @@
 import { useMemo } from "react";
 import { Address } from "viem";
 import { useAllMarketIds } from "./useMarketFactory";
-import { useMarketDetails, usePredictionMarket } from "./usePredictionMarket";
+import {
+  useMarketDetails,
+  usePredictionMarket,
+  usePredictionCount,
+} from "./usePredictionMarket";
 import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 
 export interface MarketInfo {
@@ -29,6 +33,7 @@ export interface MarketInfo {
   noPercent: number; // For Binary markets
   timeLeft: string;
   poolFormatted: string;
+  predictionCount: number; // Number of unique participants
   isLoading: boolean;
 }
 
@@ -59,6 +64,7 @@ function formatMarketData(
       noPercent: 50,
       timeLeft: "Loading...",
       poolFormatted: "$0.00",
+      predictionCount: 0,
       isLoading,
     };
   }
@@ -120,6 +126,7 @@ function formatMarketData(
     noPercent,
     timeLeft,
     poolFormatted,
+    predictionCount: 0, // Will be set in useAllMarkets hook
     isLoading: false,
   };
 }
@@ -187,71 +194,133 @@ export function useAllMarkets() {
     limitedIds[9] ? Number(limitedIds[9]) : undefined
   );
 
+  // Fetch prediction counts for each market
+  const predictionCount1 = usePredictionCount(
+    limitedIds[0] ? Number(limitedIds[0]) : undefined
+  );
+  const predictionCount2 = usePredictionCount(
+    limitedIds[1] ? Number(limitedIds[1]) : undefined
+  );
+  const predictionCount3 = usePredictionCount(
+    limitedIds[2] ? Number(limitedIds[2]) : undefined
+  );
+  const predictionCount4 = usePredictionCount(
+    limitedIds[3] ? Number(limitedIds[3]) : undefined
+  );
+  const predictionCount5 = usePredictionCount(
+    limitedIds[4] ? Number(limitedIds[4]) : undefined
+  );
+  const predictionCount6 = usePredictionCount(
+    limitedIds[5] ? Number(limitedIds[5]) : undefined
+  );
+  const predictionCount7 = usePredictionCount(
+    limitedIds[6] ? Number(limitedIds[6]) : undefined
+  );
+  const predictionCount8 = usePredictionCount(
+    limitedIds[7] ? Number(limitedIds[7]) : undefined
+  );
+  const predictionCount9 = usePredictionCount(
+    limitedIds[8] ? Number(limitedIds[8]) : undefined
+  );
+  const predictionCount10 = usePredictionCount(
+    limitedIds[9] ? Number(limitedIds[9]) : undefined
+  );
+
   const markets = useMemo(() => {
     // All markets use the same contract address in refactored architecture
     const marketAddress = predictionMarketAddress as Address | undefined;
 
     const results = [
-      formatMarketData(
-        limitedIds[0] || BigInt(0),
-        marketAddress,
-        details1.data,
-        details1.isLoading
-      ),
-      formatMarketData(
-        limitedIds[1] || BigInt(0),
-        marketAddress,
-        details2.data,
-        details2.isLoading
-      ),
-      formatMarketData(
-        limitedIds[2] || BigInt(0),
-        marketAddress,
-        details3.data,
-        details3.isLoading
-      ),
-      formatMarketData(
-        limitedIds[3] || BigInt(0),
-        marketAddress,
-        details4.data,
-        details4.isLoading
-      ),
-      formatMarketData(
-        limitedIds[4] || BigInt(0),
-        marketAddress,
-        details5.data,
-        details5.isLoading
-      ),
-      formatMarketData(
-        limitedIds[5] || BigInt(0),
-        marketAddress,
-        details6.data,
-        details6.isLoading
-      ),
-      formatMarketData(
-        limitedIds[6] || BigInt(0),
-        marketAddress,
-        details7.data,
-        details7.isLoading
-      ),
-      formatMarketData(
-        limitedIds[7] || BigInt(0),
-        marketAddress,
-        details8.data,
-        details8.isLoading
-      ),
-      formatMarketData(
-        limitedIds[8] || BigInt(0),
-        marketAddress,
-        details9.data,
-        details9.isLoading
-      ),
-      formatMarketData(
-        limitedIds[9] || BigInt(0),
-        marketAddress,
-        details10.data,
-        details10.isLoading
-      ),
+      {
+        ...formatMarketData(
+          limitedIds[0] || BigInt(0),
+          marketAddress,
+          details1.data,
+          details1.isLoading
+        ),
+        predictionCount: predictionCount1.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[1] || BigInt(0),
+          marketAddress,
+          details2.data,
+          details2.isLoading
+        ),
+        predictionCount: predictionCount2.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[2] || BigInt(0),
+          marketAddress,
+          details3.data,
+          details3.isLoading
+        ),
+        predictionCount: predictionCount3.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[3] || BigInt(0),
+          marketAddress,
+          details4.data,
+          details4.isLoading
+        ),
+        predictionCount: predictionCount4.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[4] || BigInt(0),
+          marketAddress,
+          details5.data,
+          details5.isLoading
+        ),
+        predictionCount: predictionCount5.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[5] || BigInt(0),
+          marketAddress,
+          details6.data,
+          details6.isLoading
+        ),
+        predictionCount: predictionCount6.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[6] || BigInt(0),
+          marketAddress,
+          details7.data,
+          details7.isLoading
+        ),
+        predictionCount: predictionCount7.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[7] || BigInt(0),
+          marketAddress,
+          details8.data,
+          details8.isLoading
+        ),
+        predictionCount: predictionCount8.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[8] || BigInt(0),
+          marketAddress,
+          details9.data,
+          details9.isLoading
+        ),
+        predictionCount: predictionCount9.data ?? 0,
+      },
+      {
+        ...formatMarketData(
+          limitedIds[9] || BigInt(0),
+          marketAddress,
+          details10.data,
+          details10.isLoading
+        ),
+        predictionCount: predictionCount10.data ?? 0,
+      },
     ];
 
     return results.filter(
@@ -271,6 +340,16 @@ export function useAllMarkets() {
     details8,
     details9,
     details10,
+    predictionCount1.data,
+    predictionCount2.data,
+    predictionCount3.data,
+    predictionCount4.data,
+    predictionCount5.data,
+    predictionCount6.data,
+    predictionCount7.data,
+    predictionCount8.data,
+    predictionCount9.data,
+    predictionCount10.data,
   ]);
 
   const isLoading = isLoadingIds || markets.some((m) => m.isLoading);

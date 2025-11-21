@@ -11,6 +11,8 @@ import { useContractRead, useContractWrite } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
 import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
+import { usePublicClient } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
 
 /**
  * Get the single PredictionMarket contract address
@@ -377,5 +379,58 @@ export function useHasClaimed(
         ? [BigInt(marketId), userAddress as Address]
         : undefined,
     enabled: marketId !== undefined && !!userAddress && !!address,
+  });
+}
+
+/**
+ * Get prediction count (number of unique participants) for a market
+ * This queries PredictionMade events to count unique users
+ */
+export function usePredictionCount(marketId: bigint | number | undefined) {
+  const { address } = usePredictionMarket();
+  const publicClient = usePublicClient();
+
+  return useQuery({
+    queryKey: ["predictionCount", address, marketId],
+    queryFn: async () => {
+      if (!marketId || !address || !publicClient) return 0;
+
+      try {
+        // Query PredictionMade events for this market using the ABI
+        const logs = await publicClient.getLogs({
+          address,
+          event: {
+            type: "event",
+            name: "PredictionMade",
+            inputs: [
+              { type: "uint256", indexed: true, name: "marketId" },
+              { type: "address", indexed: true, name: "user" },
+              { type: "uint8", indexed: false, name: "side" },
+              { type: "uint256", indexed: false, name: "outcomeIndex" },
+              { type: "uint256", indexed: false, name: "amount" },
+            ],
+          },
+          args: {
+            marketId: BigInt(marketId),
+          },
+          fromBlock: 0n,
+        });
+
+        // Count unique users
+        const uniqueUsers = new Set<string>();
+        logs.forEach((log: { args?: { user?: Address } }) => {
+          if (log.args?.user) {
+            uniqueUsers.add(log.args.user.toLowerCase());
+          }
+        });
+
+        return uniqueUsers.size;
+      } catch (error) {
+        console.error("Error fetching prediction count:", error);
+        return 0;
+      }
+    },
+    enabled: !!marketId && !!address && !!publicClient,
+    staleTime: 30000, // Cache for 30 seconds
   });
 }

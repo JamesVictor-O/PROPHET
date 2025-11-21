@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Home, BarChart3, Trophy, User } from "lucide-react";
+import { useUserStats, useUserPredictions } from "@/hooks/contracts";
+import { formatEther } from "viem";
+import { useMemo } from "react";
 
 interface SidebarProps {
   onCreateMarket?: () => void;
@@ -11,6 +15,37 @@ interface SidebarProps {
 
 export function DashboardSidebar({ onCreateMarket }: SidebarProps) {
   const pathname = usePathname();
+  const { address } = useAccount();
+  const { data: userStats } = useUserStats(address);
+  const { data: userPredictions } = useUserPredictions();
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    if (!userStats) {
+      return {
+        winRate: 0,
+        totalEarned: 0,
+        activePredictions: 0,
+      };
+    }
+
+    const totalPredictions = Number(userStats.totalPredictions);
+    const wins = Number(userStats.correctPredictions);
+    const winRate =
+      totalPredictions > 0 ? Math.round((wins / totalPredictions) * 100) : 0;
+    const totalEarned = Number(formatEther(userStats.totalWinnings || BigInt(0)));
+    
+    // Count active predictions
+    const activePredictions = userPredictions
+      ? userPredictions.filter((p) => p.status === "active").length
+      : 0;
+
+    return {
+      winRate,
+      totalEarned,
+      activePredictions,
+    };
+  }, [userStats, userPredictions]);
 
   const navItems = [
     { id: "markets", label: "Markets", icon: Home, href: "/dashboard" },
@@ -65,12 +100,14 @@ export function DashboardSidebar({ onCreateMarket }: SidebarProps) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-gray-400">Win Rate</span>
-                  <span className="text-sm font-semibold">87%</span>
+                  <span className="text-sm font-semibold">
+                    {stats.winRate}%
+                  </span>
                 </div>
                 <div className="w-full bg-dark-700 rounded-full h-1.5">
                   <div
                     className="bg-green-400 h-1.5 rounded-full transition-all"
-                    style={{ width: "87%" }}
+                    style={{ width: `${Math.min(stats.winRate, 100)}%` }}
                   ></div>
                 </div>
               </div>
@@ -78,7 +115,7 @@ export function DashboardSidebar({ onCreateMarket }: SidebarProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">Total Earned</span>
                   <span className="text-sm font-semibold text-green-400">
-                    $1,500
+                    ${stats.totalEarned.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -87,7 +124,9 @@ export function DashboardSidebar({ onCreateMarket }: SidebarProps) {
                   <span className="text-xs text-gray-400">
                     Active Predictions
                   </span>
-                  <span className="text-sm font-semibold">12</span>
+                  <span className="text-sm font-semibold">
+                    {stats.activePredictions}
+                  </span>
                 </div>
               </div>
             </div>

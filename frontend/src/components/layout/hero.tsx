@@ -35,19 +35,22 @@ export function Hero() {
             Into
             <span className="text-[#2563EB]"> Earnings.</span>
           </h1>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-400 mb-6 sm:mb-8 leading-relaxed text-center max-w-4xl px-4">
-            Turn your entertainment knowledge into earnings. Predict music
-            drops, movie success, and pop culture moments. Get rewarded for
-            being right.
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 mb-6 sm:mb-8 leading-relaxed text-center max-w-4xl px-4">
+            Monetize your cultural knowledge. Predict Afrobeats releases,
+            Nollywood hits, and reality TV outcomes. Start with $0.25. Earn when
+            you&apos;re right.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 sm:mb-12 w-full sm:w-auto px-4 sm:px-0">
-            {isConnected ? (
+            {typeof window !== "undefined" && isConnected ? (
               <Button
                 asChild
                 size="lg"
                 className="w-full sm:w-auto bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3 text-sm sm:text-base"
               >
-                <Link href="/dashboard">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center"
+                >
                   Start Predicting
                   <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 ml-2 bg-black rounded-full p-1 text-white" />
                 </Link>
@@ -63,7 +66,7 @@ export function Hero() {
                   "Connecting..."
                 ) : (
                   <>
-                    {isMiniPayAvailable()
+                    {typeof window !== "undefined" && isMiniPayAvailable()
                       ? "Connect MiniPay"
                       : "Connect Wallet"}
                     <Wallet className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />

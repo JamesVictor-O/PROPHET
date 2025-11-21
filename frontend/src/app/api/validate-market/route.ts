@@ -280,6 +280,13 @@ CRITICAL: The question is INVALID and should be REJECTED (isValid: false) if it 
    - Historical facts: "Who was Nigeria's first president?" (historical fact)
    - Questions about events that already concluded: "Which team won the World Cup 2022?" (already happened)
 
+8. **Valid Question Types** (These should be ACCEPTED):
+   - Future events: "Will [Artist] release a song in [future date]?"
+   - Social media trends: "What hashtag will be trending on X tomorrow?" (CrowdWisdom - multiple hashtags possible)
+   - Entertainment predictions: "Who will win [award show]?" (CrowdWisdom)
+   - Market predictions: "Which movie will have the highest box office in Q4?" (CrowdWisdom)
+   - Any question about uncertain future events that can be verified
+
 MARKET TYPE DETECTION:
 Determine if this question is better suited for:
 - **Binary** (yes/no questions): Questions with two clear outcomes (Yes/No, Will/Won't, etc.)
@@ -291,6 +298,8 @@ Determine if this question is better suited for:
   - Example: "Which artist will have the biggest hit in Q4 2024?" (multiple artists possible)
   - Example: "What will be the highest-grossing Nollywood movie in 2024?" (multiple movies)
   - Example: "Which country will win the next AFCON?" (multiple countries)
+  - Example: "What hashtag will be trending on X tomorrow?" (multiple hashtags possible)
+  - Example: "What will be the top trending topic on Twitter this week?" (multiple topics possible)
 
 IMPORTANT RULES:
 - If the question describes ANY of the above invalid types, set isValid: false
@@ -370,6 +379,32 @@ Question: "Which Nollywood movie will have the highest box office in 2024?"
   "suggestions": ["Consider extending end date to allow for late-year releases"]
 }
 
+Question: "What hashtag will be trending on X tomorrow?"
+{
+  "isValid": true,
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "other",
+  "suggestedEndDate": null,
+  "verificationSource": "X (Twitter) trending topics, Twitter API, social media analytics",
+  "confidence": "high",
+  "reasoning": "Multiple hashtags can trend, making this a CrowdWisdom market where users can stake on different hashtag options. This is a valid future prediction about social media trends",
+  "improvedQuestion": "What hashtag will be trending on X (Twitter) tomorrow?",
+  "suggestions": ["Specify timezone for 'tomorrow'", "Consider extending to 'this week' for better prediction window"]
+}
+
+Question: "What will be the top trending topic on Twitter this week?"
+{
+  "isValid": true,
+  "suggestedMarketType": "CrowdWisdom",
+  "category": "other",
+  "suggestedEndDate": null,
+  "verificationSource": "Twitter trending topics, Twitter API, social media analytics platforms",
+  "confidence": "medium",
+  "reasoning": "Multiple topics can trend, making this suitable for CrowdWisdom where users can stake on different trending topics",
+  "improvedQuestion": "What will be the top trending topic on X (Twitter) this week?",
+  "suggestions": ["Specify exact date range for 'this week'"]
+}
+
 Examples of INVALID Binary questions (should be rejected):
 
 Question: "Will Rema release an album in October 2023?" (if it's now December 2023 or later)
@@ -441,23 +476,79 @@ Now analyze: "${question}"
 Return ONLY valid JSON, no markdown.`;
 
     console.log(`🔵 [Server] Calling Gemini API v1: ${modelName}...`);
+    console.log(
+      `🔵 [Server] API URL: ${apiUrl.replace(apiKey, "***REDACTED***")}`
+    );
+    console.log(
+      `🔵 [Server] Request body size: ${
+        JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1024,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_ONLY_HIGH",
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_ONLY_HIGH",
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_ONLY_HIGH",
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_ONLY_HIGH",
+            },
+          ],
+        }).length
+      } chars`
+    );
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 2048, // Increased from 1024
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_ONLY_HIGH",
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_ONLY_HIGH",
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_ONLY_HIGH",
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_ONLY_HIGH",
+        },
+      ],
+    };
 
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1024,
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -504,20 +595,270 @@ Return ONLY valid JSON, no markdown.`;
     }
 
     const result = await response.json();
-    console.log(`✅ [Server] Gemini API response received`);
+    console.log(
+      `✅ [Server] Gemini API response received (status: ${response.status})`
+    );
+    console.log(
+      `📋 [Server] Full response structure (first 3000 chars):`,
+      JSON.stringify(result, null, 2).substring(0, 3000)
+    );
+    console.log(`📋 [Server] Response type:`, typeof result);
+    console.log(`📋 [Server] Response keys:`, Object.keys(result || {}));
 
-    // Extract text from response
-    const text =
-      result.candidates?.[0]?.content?.parts?.[0]?.text ||
-      result.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "";
-
-    if (!text) {
+    // Check if candidates array exists and has items
+    if (!result.candidates || result.candidates.length === 0) {
+      console.error(`❌ [Server] CRITICAL: No candidates in response!`);
       console.error(
-        `❌ [Server] No text in response:`,
-        JSON.stringify(result).substring(0, 500)
+        `❌ [Server] Full response:`,
+        JSON.stringify(result, null, 2)
       );
-      throw new Error("No text in Gemini response");
+      throw new Error(
+        "Gemini API returned empty candidates array - check API key permissions or model availability"
+      );
+    }
+
+    // Extract text from response - check multiple possible response structures
+    let text = "";
+
+    // Debug: Log candidate structure in detail
+    if (result.candidates) {
+      console.log(
+        `🔍 [Server] Found candidates array, length: ${result.candidates.length}`
+      );
+      if (result.candidates[0]) {
+        console.log(
+          `🔍 [Server] First candidate keys:`,
+          Object.keys(result.candidates[0])
+        );
+        console.log(
+          `🔍 [Server] First candidate:`,
+          JSON.stringify(result.candidates[0], null, 2).substring(0, 1500)
+        );
+
+        if (result.candidates[0].content) {
+          console.log(
+            `🔍 [Server] Content keys:`,
+            Object.keys(result.candidates[0].content)
+          );
+          console.log(
+            `🔍 [Server] Content:`,
+            JSON.stringify(result.candidates[0].content, null, 2).substring(
+              0,
+              1500
+            )
+          );
+
+          if (result.candidates[0].content.parts) {
+            console.log(
+              `🔍 [Server] Parts array length: ${result.candidates[0].content.parts.length}`
+            );
+            result.candidates[0].content.parts.forEach(
+              (part: { text?: string }, index: number) => {
+                console.log(
+                  `🔍 [Server] Part ${index}:`,
+                  JSON.stringify(part, null, 2).substring(0, 500)
+                );
+                if (part.text) {
+                  console.log(
+                    `🔍 [Server] Part ${index} has text, length: ${part.text.length}`
+                  );
+                  console.log(
+                    `🔍 [Server] Part ${index} text (first 200 chars):`,
+                    part.text.substring(0, 200)
+                  );
+                }
+              }
+            );
+          }
+        }
+
+        if (result.candidates[0].finishReason) {
+          console.log(
+            `🔍 [Server] Finish reason: ${result.candidates[0].finishReason}`
+          );
+        }
+
+        if (result.candidates[0].safetyRatings) {
+          console.log(
+            `🔍 [Server] Safety ratings:`,
+            JSON.stringify(result.candidates[0].safetyRatings, null, 2)
+          );
+        }
+      }
+    }
+
+    // Try different response structures
+    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+      text = result.candidates[0].content.parts[0].text;
+      console.log(
+        `✅ [Server] Found text in result.candidates[0].content.parts[0].text (length: ${text.length})`
+      );
+    } else if (result.candidates?.[0]?.content?.parts) {
+      // Try to find text in any part
+      for (let i = 0; i < result.candidates[0].content.parts.length; i++) {
+        const part = result.candidates[0].content.parts[i];
+        if (part?.text) {
+          text = part.text;
+          console.log(
+            `✅ [Server] Found text in result.candidates[0].content.parts[${i}].text (length: ${text.length})`
+          );
+          break;
+        }
+      }
+    } else if (result.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      text = result.response.candidates[0].content.parts[0].text;
+      console.log(
+        `✅ [Server] Found text in result.response.candidates[0].content.parts[0].text (length: ${text.length})`
+      );
+    } else if (result.text) {
+      text = result.text;
+      console.log(
+        `✅ [Server] Found text in result.text (length: ${text.length})`
+      );
+    } else if (result.content?.parts?.[0]?.text) {
+      text = result.content.parts[0].text;
+      console.log(
+        `✅ [Server] Found text in result.content.parts[0].text (length: ${text.length})`
+      );
+    } else if (result.candidates?.[0]?.text) {
+      text = result.candidates[0].text;
+      console.log(
+        `✅ [Server] Found text in result.candidates[0].text (length: ${text.length})`
+      );
+    }
+
+    // Check if response was blocked by safety filters
+    if (result.candidates?.[0]?.finishReason) {
+      const finishReason = result.candidates[0].finishReason;
+      console.log(`📋 [Server] Finish reason: ${finishReason}`);
+
+      if (
+        finishReason === "SAFETY" ||
+        finishReason === "RECITATION" ||
+        finishReason === "OTHER"
+      ) {
+        console.warn(
+          `⚠️ [Server] Response blocked by safety filters: ${finishReason}`
+        );
+        if (result.candidates[0].safetyRatings) {
+          console.warn(
+            `⚠️ [Server] Safety ratings:`,
+            JSON.stringify(result.candidates[0].safetyRatings, null, 2)
+          );
+        }
+        // Even if blocked, sometimes there's still partial text
+        if (!text && result.candidates[0].content?.parts) {
+          console.warn(
+            `⚠️ [Server] Trying to extract text despite finishReason: ${finishReason}`
+          );
+          for (let i = 0; i < result.candidates[0].content.parts.length; i++) {
+            const part = result.candidates[0].content.parts[i];
+            if (part?.text) {
+              text = part.text;
+              console.warn(
+                `⚠️ [Server] Found text despite finishReason: ${finishReason}`
+              );
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Check prompt feedback for issues
+    if (result.promptFeedback) {
+      console.log(
+        `📋 [Server] Prompt feedback:`,
+        JSON.stringify(result.promptFeedback, null, 2)
+      );
+      if (result.promptFeedback.blockReason) {
+        console.warn(
+          `⚠️ [Server] Prompt was blocked: ${result.promptFeedback.blockReason}`
+        );
+      }
+    }
+
+    if (!text || text.trim() === "") {
+      console.error(`❌ [Server] ========== TEXT EXTRACTION FAILED ==========`);
+      console.error(`❌ [Server] Question that failed: "${question}"`);
+      console.error(
+        `❌ [Server] Full response:`,
+        JSON.stringify(result, null, 2)
+      );
+      console.error(`❌ [Server] Response keys:`, Object.keys(result || {}));
+
+      // Check if it's a safety filter issue
+      const finishReason = result.candidates?.[0]?.finishReason;
+      const safetyRatings = result.candidates?.[0]?.safetyRatings;
+      const promptFeedback = result.promptFeedback;
+
+      if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+        console.error(
+          `❌ [Server] Response blocked by safety filters. Finish reason: ${finishReason}`
+        );
+        if (safetyRatings) {
+          console.error(
+            `❌ [Server] Safety ratings:`,
+            JSON.stringify(safetyRatings, null, 2)
+          );
+        }
+        // Return a more helpful error message
+        throw new Error(
+          `Question may have triggered safety filters. Try rephrasing: "${question.substring(
+            0,
+            100
+          )}"`
+        );
+      }
+
+      if (promptFeedback?.blockReason) {
+        console.error(
+          `❌ [Server] Prompt was blocked: ${promptFeedback.blockReason}`
+        );
+        throw new Error(
+          `Question was blocked by content filters. Try rephrasing your question.`
+        );
+      }
+
+      if (result.candidates) {
+        console.error(
+          `❌ [Server] Candidates array length: ${result.candidates.length}`
+        );
+        if (result.candidates[0]) {
+          console.error(
+            `❌ [Server] First candidate:`,
+            JSON.stringify(result.candidates[0], null, 2)
+          );
+          if (result.candidates[0].finishReason) {
+            console.error(
+              `❌ [Server] Finish reason: ${result.candidates[0].finishReason}`
+            );
+          }
+          if (result.candidates[0].safetyRatings) {
+            console.error(
+              `❌ [Server] Safety ratings:`,
+              JSON.stringify(result.candidates[0].safetyRatings, null, 2)
+            );
+          }
+          if (result.candidates[0].content) {
+            console.error(
+              `❌ [Server] Content:`,
+              JSON.stringify(result.candidates[0].content, null, 2)
+            );
+          }
+        }
+      }
+
+      if (result.promptFeedback) {
+        console.error(
+          `❌ [Server] Prompt feedback:`,
+          JSON.stringify(result.promptFeedback, null, 2)
+        );
+      }
+
+      throw new Error(
+        "No text in Gemini response - check server logs for full response structure"
+      );
     }
 
     // Clean response
@@ -526,8 +867,30 @@ Return ONLY valid JSON, no markdown.`;
       .replace(/```\n?/g, "")
       .trim();
 
-    const validation = JSON.parse(cleanedText);
-    console.log(`✅ [Server] Validation parsed successfully`);
+    console.log(
+      `📝 [Server] Extracted text (first 500 chars):`,
+      cleanedText.substring(0, 500)
+    );
+
+    let validation;
+    try {
+      validation = JSON.parse(cleanedText);
+      console.log(
+        `✅ [Server] Validation parsed successfully:`,
+        JSON.stringify(validation, null, 2).substring(0, 500)
+      );
+    } catch (parseError) {
+      console.error(`❌ [Server] Failed to parse JSON:`, parseError);
+      console.error(
+        `❌ [Server] Text that failed to parse:`,
+        cleanedText.substring(0, 1000)
+      );
+      throw new Error(
+        `Failed to parse Gemini response as JSON: ${
+          parseError instanceof Error ? parseError.message : String(parseError)
+        }`
+      );
+    }
 
     return NextResponse.json(validation);
   } catch (error: unknown) {

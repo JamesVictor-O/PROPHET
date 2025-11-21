@@ -175,7 +175,8 @@ export function MarketCard({ market, onPredict }: MarketCardProps) {
         <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
           <div className="flex items-center gap-1">
             <Users size={12} />
-            {market.predictions.toLocaleString()} predictions
+            {market.predictions.toLocaleString()} participant
+            {market.predictions !== 1 ? "s" : ""}
           </div>
 
           <div className="flex items-center gap-1">
