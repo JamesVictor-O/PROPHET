@@ -37,7 +37,7 @@ export function Hero() {
           </h1>
           <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 mb-6 sm:mb-8 leading-relaxed text-center max-w-4xl px-4">
             Monetize your cultural knowledge. Predict Afrobeats releases,
-            Nollywood hits, and reality TV outcomes. Start with $0.25. Earn when
+            Nollywood hits, and reality TV outcomes. Earn when
             you&apos;re right.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 sm:mb-12 w-full sm:w-auto px-4 sm:px-0">
