@@ -812,6 +812,7 @@ export function PredictionModal({
                   max="20"
                   step="0.25"
                   value={stake}
+                  style={{ fontSize: "16px" }} // Prevent auto-zoom on mobile iOS
                   onChange={(e) => {
                     setStake(e.target.value);
                     if (errors.stake) {
@@ -819,7 +820,7 @@ export function PredictionModal({
                     }
                   }}
                   disabled={isProcessing}
-                  className="bg-[#0F172A] border-dark-700 text-white h-11 sm:h-12 text-sm sm:text-base pr-14 placeholder:text-gray-500 disabled:opacity-50 touch-manipulation min-h-[44px]"
+                  className="bg-[#0F172A] border-dark-700 text-white h-11 sm:h-12 text-base pr-14 placeholder:text-gray-500 disabled:opacity-50 touch-manipulation min-h-[44px]"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   cUSD

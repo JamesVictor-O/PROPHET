@@ -7,7 +7,6 @@ import {
   useBalance,
   useSwitchChain,
 } from "wagmi";
-import { Button } from "@/components/ui/button";
 import {
   formatCurrency,
   isMiniPayAvailable,
@@ -15,31 +14,23 @@ import {
   addCeloSepoliaToMetaMask,
 } from "@/lib/wallet-config";
 import { formatAddress } from "@/lib/wallet-config";
-import { Wallet, LogOut, AlertTriangle } from "lucide-react";
+import { Wallet, LogOut, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
 
 interface WalletConnectProps {
-  variant?: "default" | "outline" | "ghost";
+  variant?: "default" | "outline" | "ghost"; // Kept for backward compatibility
   showBalance?: boolean;
   showAddress?: boolean;
 }
 
 export function WalletConnect({
-  variant = "outline",
   showBalance = true,
   showAddress = false,
 }: WalletConnectProps) {
-  const [mounted, setMounted] = useState(false);
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
-
-  // Prevent hydration mismatch by only rendering wallet state after mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Check if on correct network (Celo Sepolia)
   const isCorrectNetwork = chainId === defaultChain.id;
@@ -52,6 +43,9 @@ export function WalletConnect({
     address: address,
     chainId: isCorrectNetwork ? defaultChain.id : currentChainId,
   });
+
+  // Prevent hydration mismatch - check if we're on client side
+  const isClient = typeof window !== "undefined";
 
   const handleSwitchNetwork = async () => {
     try {
@@ -111,16 +105,15 @@ export function WalletConnect({
   };
 
   // Prevent hydration mismatch - show connect button during SSR and initial render
-  if (!mounted) {
+  if (!isClient) {
     return (
-      <Button
+      <button
         disabled
-        variant={variant}
-        className="bg-[#2563EB] hover:bg-blue-700 text-white"
+        className="h-9 px-4 text-gray-300 bg-transparent border-none disabled:opacity-50 font-medium text-sm transition-opacity flex items-center"
       >
-        <Wallet className="w-4 h-4 mr-2" />
+        <Wallet className="w-4 h-4 mr-2 text-gray-400" />
         Connect Wallet
-      </Button>
+      </button>
     );
   }
 
@@ -129,44 +122,35 @@ export function WalletConnect({
 
   if (isConnected && address) {
     return (
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center gap-3">
         {isWrongNetwork && (
-          <Button
+          <button
             onClick={handleSwitchNetwork}
             disabled={isSwitching}
-            className="bg-orange-500 hover:bg-orange-600 text-white text-sm"
+            className="h-9 px-4 text-sm font-medium text-amber-400 bg-transparent border-none hover:opacity-80 disabled:opacity-50 transition-opacity flex items-center"
           >
-            <AlertTriangle className="w-4 h-4 mr-2" />
-            {isSwitching ? "Switching..." : "Switch to Sepolia"}
-          </Button>
+            <AlertTriangle className="w-4 h-4 mr-1.5" />
+            {isSwitching ? "Switching..." : "Switch Network"}
+          </button>
         )}
         {showBalance && balance && balance.formatted && isCorrectNetwork && (
-          <div className="hidden sm:flex items-center space-x-2 bg-[#1E293B] border border-[#334155] rounded-lg px-4 py-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium">
-              {formatCurrency(parseFloat(balance.formatted))}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-sm font-medium text-gray-300">
+              {formatCurrency(parseFloat(balance.formatted))} cUSD
             </span>
           </div>
         )}
-        <Button
-          variant={variant}
+        <button
           onClick={handleDisconnect}
-          className="bg-[#1E293B] border-[#334155] hover:bg-[#334155]"
+          className="h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 transition-opacity flex items-center gap-2"
         >
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                isCorrectNetwork ? "bg-[#2563EB]" : "bg-orange-500"
-              }`}
-            >
-              <Wallet className="w-3 h-3 text-white" />
-            </div>
-            <span className={`text-sm font-medium ${showAddress ? "" : "hidden sm:inline"}`}>
-              {address ? formatAddress(address) : "..."}
-            </span>
-            <LogOut className={`w-4 h-4 ${showAddress ? "" : "hidden sm:inline"}`} />
-          </div>
-        </Button>
+          <Wallet className="w-4 h-4 text-gray-400" />
+          <span className={showAddress ? "" : "hidden sm:inline"}>
+            {address ? formatAddress(address) : "..."}
+          </span>
+          {showAddress && <LogOut className="w-3.5 h-3.5 text-gray-400" />}
+        </button>
       </div>
     );
   }
@@ -175,14 +159,13 @@ export function WalletConnect({
   // Show a loading state while connecting
   if (isMiniPay && isPending) {
     return (
-      <Button
+      <button
         disabled
-        variant={variant}
-        className="bg-[#2563EB] hover:bg-blue-700 text-white"
+        className="h-9 px-4 text-sm font-medium text-gray-400 bg-transparent border-none disabled:opacity-50 flex items-center"
       >
         <Wallet className="w-4 h-4 mr-2" />
         Connecting...
-      </Button>
+      </button>
     );
   }
 
@@ -194,14 +177,13 @@ export function WalletConnect({
 
   // For non-MiniPay environments, show the connect button
   return (
-    <Button
+    <button
       onClick={handleConnect}
       disabled={isPending}
-      variant={variant}
-      className="bg-[#2563EB] hover:bg-blue-700 text-white"
+      className="h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 disabled:opacity-50 transition-opacity flex items-center"
     >
-      <Wallet className="w-4 h-4 mr-2" />
+      <Wallet className="w-4 h-4 mr-2 text-gray-400" />
       {isPending ? "Connecting..." : "Connect Wallet"}
-    </Button>
+    </button>
   );
 }

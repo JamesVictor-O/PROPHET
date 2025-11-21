@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAccount, useBalance } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateBinaryMarket,
   useCreateCrowdWisdomMarket,
@@ -98,6 +99,7 @@ export function CreateMarketModal({
   onOpenChange,
   onCreateMarket,
 }: CreateMarketModalProps) {
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<MarketData>({
     marketType: MarketType.Binary, // Default to Binary
     question: "",
@@ -351,6 +353,14 @@ export function CreateMarketModal({
       setIsCreating(false);
       setIsApproving(false);
       const createdMarketData = { ...formData };
+
+      // Invalidate queries to refresh markets list
+      queryClient.invalidateQueries({ queryKey: ["marketCount"] });
+      queryClient.invalidateQueries({ queryKey: ["allMarketIds"] });
+      queryClient.invalidateQueries({ queryKey: ["allMarkets"] });
+      queryClient.invalidateQueries({ queryKey: ["marketDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["predictionCount"] });
+
       setFormData({
         marketType: MarketType.Binary,
         question: "",
@@ -368,7 +378,7 @@ export function CreateMarketModal({
       }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConfirmed]);
+  }, [isConfirmed, queryClient, onOpenChange, onCreateMarket]);
 
   useEffect(() => {
     if (writeError) {
@@ -1119,7 +1129,8 @@ export function CreateMarketModal({
                     }))
                   }
                   disabled={isProcessing}
-                  className="bg-[#0F172A] border-dark-700 h-11 sm:h-12 text-sm sm:text-base pr-12 disabled:opacity-50 touch-manipulation min-h-[44px]"
+                  style={{ fontSize: "16px" }} // Prevent auto-zoom on mobile iOS
+                  className="bg-[#0F172A] border-dark-700 h-11 sm:h-12 text-base pr-12 disabled:opacity-50 touch-manipulation min-h-[44px]"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                   cUSD
