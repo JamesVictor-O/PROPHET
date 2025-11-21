@@ -221,8 +221,17 @@ export function CreateMarketModal({
       const endDate = new Date(formData.endDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
+      // Check if end date is in the past
       if (endDate <= today) {
         newErrors.endDate = "End date must be in the future";
+      }
+
+      // Check if end date is more than 365 days in the future (contract limit)
+      const maxEndDate = new Date();
+      maxEndDate.setDate(maxEndDate.getDate() + 365); // 365 days from now
+      if (endDate > maxEndDate) {
+        newErrors.endDate = `End date cannot be more than 365 days in the future. Maximum date: ${maxEndDate.toLocaleDateString()}`;
       }
     }
 
@@ -992,6 +1001,21 @@ export function CreateMarketModal({
                 name="endDate"
                 type="datetime-local"
                 value={formData.endDate}
+                min={(() => {
+                  // Minimum date is today
+                  const now = new Date();
+                  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                  return now.toISOString().slice(0, 16);
+                })()}
+                max={(() => {
+                  // Maximum date is 365 days from now (contract limit)
+                  const maxDate = new Date();
+                  maxDate.setDate(maxDate.getDate() + 365);
+                  maxDate.setMinutes(
+                    maxDate.getMinutes() - maxDate.getTimezoneOffset()
+                  );
+                  return maxDate.toISOString().slice(0, 16);
+                })()}
                 onChange={(e) => {
                   // Only mark as manually changed if it's different from AI suggestion
                   if (validation?.suggestedEndDate) {

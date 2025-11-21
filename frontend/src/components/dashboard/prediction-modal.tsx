@@ -18,7 +18,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount, useBalance } from "wagmi";
 import {
   usePredict,
@@ -75,6 +75,15 @@ export function PredictionModal({
   const [isApproving, setIsApproving] = useState(false);
   const [isStaking, setIsStaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processedApprovalHash, setProcessedApprovalHash] = useState<
+    string | null
+  >(null);
+  const [processedPredictionHash, setProcessedPredictionHash] = useState<
+    string | null
+  >(null);
+
+  // Use ref to prevent multiple prediction triggers after approval
+  const isPlacingPredictionRef = useRef<boolean>(false);
 
   const { chainId, address } = useAccount();
 
@@ -104,6 +113,7 @@ export function PredictionModal({
   // Hooks for Binary market
   const {
     write: writePredict,
+    hash: predictHash,
     isPending: isPredictPending,
     isConfirmed: isPredictConfirmed,
     error: predictError,
@@ -112,12 +122,14 @@ export function PredictionModal({
   // Hooks for CrowdWisdom market
   const {
     write: writeCommentAndStake,
+    hash: commentHash,
     isPending: isCommentPending,
     isConfirmed: isCommentConfirmed,
     error: commentError,
   } = useCommentAndStake();
   const {
     write: writeStakeOnOutcome,
+    hash: stakeOnOutcomeHash,
     isPending: isStakeOnOutcomePending,
     isConfirmed: isStakeOnOutcomeConfirmed,
     error: stakeOnOutcomeError,
@@ -171,15 +183,17 @@ export function PredictionModal({
       : commentError
     : predictError;
 
-  // Check if on correct network
-  const isCorrectNetwork = chainId === defaultChain.id;
+  // Get the current prediction transaction hash
+  const currentPredictionHash = isCrowdWisdom
+    ? effectiveOutcomeIndex !== null
+      ? stakeOnOutcomeHash
+      : commentHash
+    : predictHash;
 
-  // Get PredictionMarket address for approval
+  const isCorrectNetwork = chainId === defaultChain.id;
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
   ) as Address;
-
-  // Calculate stake amount in wei
   const stakeInWei =
     stake && parseFloat(stake) > 0 ? parseEther(stake) : undefined;
 
@@ -193,6 +207,7 @@ export function PredictionModal({
   // Approval hook
   const {
     write: approve,
+    hash: approvalHash,
     isPending: isApprovalPending,
     isConfirmed: isApprovalConfirmed,
     error: approvalError,
@@ -219,11 +234,23 @@ export function PredictionModal({
 
   // Handle placing prediction - must be defined before useEffect that uses it
   const handlePlacePrediction = useCallback(() => {
+    // Prevent multiple calls - guard against duplicate triggers
+    if (isPlacingPredictionRef.current) {
+      console.log(
+        "⚠️ handlePlacePrediction: Already placing prediction, skipping duplicate call"
+      );
+      return;
+    }
+
     if (!market) {
       toast.error("Connection error");
       setIsProcessing(false);
+      isPlacingPredictionRef.current = false; // Reset flag on early return
       return;
     }
+
+    // Mark that we're placing a prediction
+    isPlacingPredictionRef.current = true;
 
     try {
       const stakeInWei = parseEther(stake);
@@ -236,6 +263,7 @@ export function PredictionModal({
           if (!writeStakeOnOutcome) {
             toast.error("Staking function not available");
             setIsProcessing(false);
+            isPlacingPredictionRef.current = false; // Reset flag on early return
             return;
           }
           writeStakeOnOutcome([
@@ -248,6 +276,7 @@ export function PredictionModal({
           if (!writeStakeOnOutcome) {
             toast.error("Staking function not available");
             setIsProcessing(false);
+            isPlacingPredictionRef.current = false; // Reset flag on early return
             return;
           }
           writeStakeOnOutcome([
@@ -260,6 +289,7 @@ export function PredictionModal({
           if (!writeCommentAndStake) {
             toast.error("Comment function not available");
             setIsProcessing(false);
+            isPlacingPredictionRef.current = false; // Reset flag on early return
             return;
           }
           writeCommentAndStake([
@@ -273,6 +303,7 @@ export function PredictionModal({
         if (!writePredict) {
           toast.error("Prediction function not available");
           setIsProcessing(false);
+          isPlacingPredictionRef.current = false; // Reset flag on early return
           return;
         }
         const sideUint8 = side === "yes" ? 0 : 1;
@@ -285,6 +316,7 @@ export function PredictionModal({
       toast.error("Failed to place prediction");
       setIsProcessing(false);
       setIsStaking(false);
+      isPlacingPredictionRef.current = false; // Reset on error
     }
   }, [
     market,
@@ -326,6 +358,9 @@ export function PredictionModal({
       setIsApproving(false);
       setIsStaking(false);
       setIsProcessing(false);
+      setProcessedApprovalHash(null); // Reset approval hash tracking when modal closes
+      setProcessedPredictionHash(null); // Reset prediction hash tracking when modal closes
+      isPlacingPredictionRef.current = false; // Reset flag when modal closes
     }
   }, [
     open,
@@ -344,39 +379,59 @@ export function PredictionModal({
 
   // Handle successful approval - automatically trigger staking
   useEffect(() => {
-    if (isApprovalConfirmed && isProcessing) {
+    // Only process if:
+    // 1. Approval is confirmed
+    // 2. We have an approval hash
+    // 3. We're currently processing
+    // 4. We haven't processed this specific approval hash yet
+    // 5. We're not already placing a prediction
+    if (
+      isApprovalConfirmed &&
+      approvalHash &&
+      isProcessing &&
+      processedApprovalHash !== approvalHash &&
+      !isPlacingPredictionRef.current
+    ) {
+      // Mark this approval hash as processed to prevent re-triggering
+      setProcessedApprovalHash(approvalHash);
       setIsApproving(false);
       setNeedsApproval(false);
+
       refetchAllowance().then(() => {
         // After approval is confirmed and allowance refetched, automatically place prediction
-        if (market) {
+        // Double-check we're still processing and haven't started placing yet
+        if (market && isProcessing && !isPlacingPredictionRef.current) {
           setIsStaking(true);
           toast.info("Approval confirmed! Placing prediction...");
 
-          // Small delay to ensure allowance is updated
+          // Small delay to ensure allowance is updated, then place prediction
           setTimeout(() => {
-            if (!market) {
-              toast.error("Connection error");
+            // Final check before calling
+            if (!market || !isProcessing || isPlacingPredictionRef.current) {
+              if (!market) {
+                toast.error("Connection error");
+              }
               setIsProcessing(false);
               setIsStaking(false);
+              isPlacingPredictionRef.current = false;
               return;
             }
 
+            // Place the prediction
             handlePlacePrediction();
-          }, 500);
+          }, 300); // Reduced delay for faster flow
+        } else {
+          isPlacingPredictionRef.current = false;
         }
       });
     }
   }, [
     isApprovalConfirmed,
-    refetchAllowance,
+    approvalHash,
     isProcessing,
     market,
-    stake,
-    side,
-    outcomeComment,
-    selectedOutcomeIndex,
-    isCrowdWisdom,
+    processedApprovalHash,
+    refetchAllowance,
     handlePlacePrediction,
   ]);
 
@@ -384,13 +439,14 @@ export function PredictionModal({
   useEffect(() => {
     if (approvalError) {
       console.error("Approval error:", approvalError);
+      isPlacingPredictionRef.current = false; // Reset flag on error
       toast.error("Failed to approve cUSD");
       setIsApproving(false);
       setIsProcessing(false);
+      setProcessedApprovalHash(null); // Reset on error
     }
   }, [approvalError]);
 
-  // Sync isApproving state with approval transaction status
   useEffect(() => {
     if (isApprovalPending) {
       setIsApproving(true);
@@ -399,7 +455,6 @@ export function PredictionModal({
     }
   }, [isApprovalPending, isApprovalConfirmed, approvalError]);
 
-  // Sync isStaking state with prediction transaction status
   useEffect(() => {
     if (isPending) {
       setIsStaking(true);
@@ -408,7 +463,13 @@ export function PredictionModal({
 
   // Handle successful prediction
   useEffect(() => {
-    if (isConfirmed) {
+    if (
+      isConfirmed &&
+      currentPredictionHash &&
+      processedPredictionHash !== currentPredictionHash
+    ) {
+      setProcessedPredictionHash(currentPredictionHash);
+      isPlacingPredictionRef.current = false; // Reset flag on success
       toast.success("Prediction placed successfully!");
       setStake("");
       setErrors({});
@@ -416,16 +477,25 @@ export function PredictionModal({
       setIsApproving(false);
       setIsStaking(false);
       setIsProcessing(false);
+      setProcessedApprovalHash(null);
       onOpenChange(false);
     }
-  }, [isConfirmed, onOpenChange]);
+  }, [
+    isConfirmed,
+    currentPredictionHash,
+    processedPredictionHash,
+    onOpenChange,
+  ]);
 
   // Handle errors
   useEffect(() => {
     if (writeError) {
       console.error("Error placing prediction:", writeError);
+      isPlacingPredictionRef.current = false; // Reset flag on error
       setIsProcessing(false);
       setIsStaking(false);
+      setProcessedApprovalHash(null); // Reset on error
+      setProcessedPredictionHash(null); // Reset on error
       let errorMessage = "Failed to place prediction";
       if (writeError.message) {
         if (writeError.message.includes("user rejected")) {
@@ -498,9 +568,42 @@ export function PredictionModal({
     }
 
     setIsProcessing(true);
+    setProcessedApprovalHash(null); // Reset when starting new submission
+    setProcessedPredictionHash(null); // Reset when starting new submission
+    isPlacingPredictionRef.current = false; // Reset flag when starting new submission
 
-    // Check if approval is needed
-    if (needsApproval || checkNeedsApproval) {
+    // Wait for allowance check to complete if still loading
+    if (isLoadingAllowance) {
+      toast.info("Checking allowance...");
+      // Wait a bit for the check to complete
+      setTimeout(() => {
+        handleSubmit(e); // Retry after allowance check completes
+      }, 500);
+      return;
+    }
+    const allowanceData = await refetchAllowance();
+    const currentAllowance = allowanceData.data as bigint | undefined | null;
+    const stakeAmount = parseEther(stake);
+    const actuallyNeedsApproval =
+      currentAllowance === undefined ||
+      currentAllowance === null ||
+      checkNeedsApproval === true ||
+      needsApproval === true ||
+      (currentAllowance !== undefined &&
+        currentAllowance !== null &&
+        currentAllowance < stakeAmount);
+
+    console.log("🔍 Approval Check:", {
+      currentAllowance: currentAllowance?.toString(),
+      stakeAmount: stakeAmount.toString(),
+      needsApproval,
+      checkNeedsApproval,
+      actuallyNeedsApproval,
+      isLoadingAllowance,
+      allowanceFromHook: allowanceData,
+    });
+
+    if (actuallyNeedsApproval) {
       // Automatically trigger approval
       if (!approve || !predictionMarketAddress) {
         toast.error("Approval not available");
@@ -518,6 +621,8 @@ export function PredictionModal({
         toast.error("Approval failed");
         setIsApproving(false);
         setIsProcessing(false);
+        setProcessedApprovalHash(null);
+        isPlacingPredictionRef.current = false;
       }
     } else {
       // No approval needed, place prediction directly

@@ -76,29 +76,26 @@ export function useContractWrite(
           (error as { code?: number; details?: { code?: number } })?.code ||
           (error as { details?: { code?: number } })?.details?.code;
 
-        // Don't retry on RPC errors (likely transient issues):
-        // - 400 Bad Request
-        // - -32019 "block is out of range" (common on Celo Sepolia)
-        // - Other HTTP errors
-        if (
+        // RPC errors on Celo Sepolia are transient - continue retrying
+        // These don't mean the transaction failed, just that the RPC node is syncing
+        const isRpcError =
           errorMessage.includes("400") ||
           errorMessage.includes("Bad Request") ||
           errorMessage.includes("block is out of range") ||
+          errorMessage.includes("HttpRequestError") ||
+          errorMessage.includes("CallExecutionError") ||
           errorCode === -32019 ||
-          errorCode === 400
-        ) {
-          console.warn(
-            "RPC error during receipt polling (transaction may still succeed). Check explorer for transaction hash:",
-            hash,
-            "Error:",
-            error
-          );
-          return false; // Don't retry on RPC errors
+          errorCode === 400;
+
+        if (isRpcError) {
+          return failureCount < 20;
         }
-        // Retry up to 3 times for other errors
+        // Retry up to 3 times for real errors
         return failureCount < 3;
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+      retryDelay: (attemptIndex) => {
+        return Math.min(2000 * (attemptIndex + 1), 10000);
+      },
     },
   });
 

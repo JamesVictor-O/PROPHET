@@ -49,9 +49,14 @@ export function useCUSDAllowance(spender: Address | undefined, amount: bigint | 
     enabled: !!owner && !!spender && !!cusdAddress,
   });
 
-  const needsApproval = allowance !== undefined && amount !== undefined 
-    ? allowance < amount 
-    : undefined;
+  // Determine if approval is needed
+  // If allowance or amount is undefined, return undefined (unknown)
+  // If allowance is less than amount, approval is needed (true)
+  // If allowance is >= amount, approval is not needed (false)
+  const needsApproval = 
+    allowance !== undefined && amount !== undefined 
+      ? allowance < amount 
+      : undefined;
 
   return {
     allowance,

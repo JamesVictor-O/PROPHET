@@ -1,9 +1,9 @@
 export const CONTRACTS = {
   celoSepolia: {
-    factory: "0xEe608D11EfEC619Df33ff571c80FAad704037f75",
-    oracle: "0xa33bE09908844118B4420387F3DbeCBc86Bf1604",
-    reputationSystem: "0xe3C4Ba993d7b07EF7771D6061fC9928C1fAEc89B",
-    predictionMarket: "0xe38b7cD2Ac963b89d41bD3e14681252e95ef3eDe", // Single contract for all markets
+    factory: "0x8376D1Ba26B481A730c78f3aEe658dEa17595f71",
+    oracle: "0x474F99826c16008BB20cF2365aB66ac1b66A9313",
+    reputationSystem: "0x6C8Dc0D7d9812Da01c38456202E4cee23675D99B",
+    predictionMarket: "0x684DFe6Dcee60974529A8838D1ce02f8dc3ACD8b", // Single contract for all markets
     cUSD: "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b", // Celo Sepolia cUSD
     chainId: 11142220, // Celo Sepolia chain ID (EIP-155 format) - matches deployed contracts
     explorer: "https://sepolia.celoscan.xyz",
