@@ -268,8 +268,7 @@ export function useOutcomeLabel(
       marketId !== undefined && outcomeIndex !== undefined
         ? [BigInt(marketId), BigInt(outcomeIndex)]
         : undefined,
-    enabled:
-      marketId !== undefined && outcomeIndex !== undefined && !!address,
+    enabled: marketId !== undefined && outcomeIndex !== undefined && !!address,
   });
 }
 
@@ -291,8 +290,7 @@ export function useOutcomeOdds(
       marketId !== undefined && outcomeIndex !== undefined
         ? [BigInt(marketId), BigInt(outcomeIndex)]
         : undefined,
-    enabled:
-      marketId !== undefined && outcomeIndex !== undefined && !!address,
+    enabled: marketId !== undefined && outcomeIndex !== undefined && !!address,
   });
 }
 
@@ -312,9 +310,7 @@ export function useUserOutcomeStake(
     abi,
     functionName: "getUserOutcomeStake",
     args:
-      marketId !== undefined &&
-      userAddress &&
-      outcomeIndex !== undefined
+      marketId !== undefined && userAddress && outcomeIndex !== undefined
         ? [BigInt(marketId), userAddress as Address, BigInt(outcomeIndex)]
         : undefined,
     enabled:
@@ -343,8 +339,7 @@ export function useOutcomePoolAmount(
       marketId !== undefined && outcomeIndex !== undefined
         ? [BigInt(marketId), BigInt(outcomeIndex)]
         : undefined,
-    enabled:
-      marketId !== undefined && outcomeIndex !== undefined && !!address,
+    enabled: marketId !== undefined && outcomeIndex !== undefined && !!address,
   });
 }
 
@@ -413,7 +408,7 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
           args: {
             marketId: BigInt(marketId),
           },
-          fromBlock: 0n,
+          fromBlock: BigInt(0),
         });
 
         // Count unique users
