@@ -13,7 +13,7 @@ export function HowItWorks() {
       number: "2",
       title: "Choose & Predict",
       description:
-        "Browse active markets. Pick your prediction. Stake from $0.25 to $20 per market.",
+        "Browse active markets. Pick your prediction. Stake from $0.0025 to $20 per market.",
     },
     {
       number: "3",

@@ -23,11 +23,8 @@ const celo = {
   },
 } as const;
 
-// Celo Sepolia Testnet
-// NOTE: Contracts are deployed on chain ID 11142220 (EIP-155 format)
-// This is the correct chain ID where the contracts exist
 const celoSepolia = {
-  id: 11142220, // Celo Sepolia chain ID (EIP-155 format) - matches deployed contracts
+  id: 11142220,
   name: "Celo Sepolia Testnet",
   nativeCurrency: {
     decimals: 18,
@@ -49,20 +46,17 @@ const celoSepolia = {
 
 // Celo network configuration
 export const config = createConfig({
-  chains: [celoSepolia, celo], // Sepolia first as default
-  connectors: [
-    injected(), // MiniPay will be detected automatically
-  ],
+  chains: [celo, celoSepolia],
+  connectors: [injected()],
   transports: {
-    [celoSepolia.id]: http(),
     [celo.id]: http(),
+    [celoSepolia.id]: http(),
   },
 });
 
-// Default chain (Celo Sepolia for testing)
-export const defaultChain = celoSepolia;
+// Default chain (Celo Mainnet)
+export const defaultChain = celo;
 
-// MiniPay detection
 export function isMiniPayAvailable(): boolean {
   if (typeof window === "undefined") return false;
 
@@ -70,7 +64,6 @@ export function isMiniPayAvailable(): boolean {
   const isOpera = /OPR|OPX|Opera/.test(navigator.userAgent);
   const hasEthereum = typeof window.ethereum !== "undefined";
 
-  // MiniPay typically exposes itself via window.ethereum
   return isOpera && hasEthereum;
 }
 
@@ -117,7 +110,7 @@ export async function addCeloSepoliaToMetaMask(): Promise<boolean> {
       };
     }
   ).ethereum;
-  const chainIdHex = `0x${celoSepolia.id.toString(16)}`; // Convert to hex (0xAA147C = 11142220)
+  const chainIdHex = `0x${celoSepolia.id.toString(16)}`;
 
   try {
     await ethereum.request({
@@ -140,9 +133,8 @@ export async function addCeloSepoliaToMetaMask(): Promise<boolean> {
   } catch (error: unknown) {
     console.error("Error adding network to MetaMask:", error);
     const err = error as { code?: number };
-    // Error code 4902 means the network already exists
+
     if (err?.code === 4902) {
-      // Try to switch to it instead
       try {
         await ethereum.request({
           method: "wallet_switchEthereumChain",

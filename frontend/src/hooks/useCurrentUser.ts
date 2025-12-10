@@ -1,7 +1,4 @@
-/**
- * Hook to get current user's username
- * Convenience hook for getting the connected user's username
- */
+
 
 import { useAccount } from "wagmi";
 import { useUsername } from "./contracts";

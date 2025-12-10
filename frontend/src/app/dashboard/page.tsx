@@ -55,14 +55,14 @@ export default function DashboardPage() {
     try {
       // First try to switch using wagmi
       await switchChain({ chainId: defaultChain.id });
-      toast.success("Switched to Celo Sepolia");
+      toast.success("Switched to Celo Mainnet");
     } catch (error: unknown) {
       console.error("Error switching network:", error);
       const err = error as { code?: number };
 
       // If network doesn't exist (4902), try to add it
       if (err?.code === 4902) {
-        toast.info("Adding Celo Sepolia network to your wallet...");
+        toast.info("Adding Celo Mainnet network to your wallet...");
         const added = await addCeloSepoliaToMetaMask();
         if (added) {
           toast.success("Network added! Please try again.");
@@ -76,7 +76,7 @@ export default function DashboardPage() {
         try {
           const added = await addCeloSepoliaToMetaMask();
           if (added) {
-            toast.success("Switched to Celo Sepolia");
+            toast.success("Switched to Celo Mainnet");
           } else {
             toast.error(
               "Failed to switch network. Please switch manually in MetaMask."
@@ -105,7 +105,7 @@ export default function DashboardPage() {
     console.error("Possible issues:");
     console.error("1. Contract not deployed at the configured address");
     console.error(
-      "2. Wrong network (should be Celo Sepolia - chain ID 11142220)"
+      "2. Wrong network (should be Celo Mainnet - chain ID 42220)"
     );
     console.error("3. RPC endpoint issues");
     console.error("4. Contract address mismatch");
@@ -209,7 +209,7 @@ export default function DashboardPage() {
                     Wrong Network
                   </p>
                   <p className="text-gray-400 text-xs sm:text-sm">
-                    Please switch to Celo Sepolia (Chain ID: 11142220) to use
+                    Please switch to Celo Mainnet (Chain ID: 42220) to use
                     this app
                   </p>
                 </div>
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                 <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
                   <li>
                     Ensure you&apos;re connected to{" "}
-                    <strong>Celo Sepolia</strong> (Chain ID: 11142220)
+                    <strong>Celo Mainnet</strong> (Chain ID: 42220)
                   </li>
                   <li>
                     Check that contracts are deployed at the configured

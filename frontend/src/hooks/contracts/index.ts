@@ -17,7 +17,7 @@ export {
   useCreateCrowdWisdomMarket,
 } from "./useMarketFactory";
 
-// ReputationSystem hooks
+
 export {
   useReputationSystem,
   useUsername,

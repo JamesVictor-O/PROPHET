@@ -1,7 +1,4 @@
-/**
- * Base hook for interacting with smart contracts
- * Provides a clean, reusable pattern for contract interactions
- */
+
 
 import {
   useReadContract,
@@ -17,9 +14,7 @@ interface UseContractOptions {
   enabled?: boolean;
 }
 
-/**
- * Hook for reading from a contract
- */
+
 export function useContractRead<T = unknown>(
   options: UseContractOptions & {
     functionName: string;
@@ -60,8 +55,8 @@ export function useContractWrite(
 
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
-  // Wait for transaction receipt - with error handling
-  // Only wait if hash exists to avoid unnecessary polling
+ 
+  
   const {
     isLoading: isConfirming,
     isSuccess: isConfirmed,
@@ -76,8 +71,6 @@ export function useContractWrite(
           (error as { code?: number; details?: { code?: number } })?.code ||
           (error as { details?: { code?: number } })?.details?.code;
 
-        // RPC errors on Celo Sepolia are transient - continue retrying
-        // These don't mean the transaction failed, just that the RPC node is syncing
         const isRpcError =
           errorMessage.includes("400") ||
           errorMessage.includes("Bad Request") ||
@@ -111,7 +104,6 @@ export function useContractWrite(
     });
   };
 
-  // Filter out RPC receipt polling errors (they don't indicate transaction failure)
   const isRpcReceiptError =
     receiptError &&
     (receiptError.message?.includes("400") ||

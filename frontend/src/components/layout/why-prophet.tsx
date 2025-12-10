@@ -13,7 +13,7 @@ export function WhyProphet() {
       icon: DollarSign,
       title: "Low Entry, High Rewards",
       description:
-        "Start predicting with as little as $0.25. No huge stakes required. Everyone can play and win.",
+        "Start predicting with as little as $0.0025. No huge stakes required. Everyone can play and win.",
     },
     {
       icon: Shield,

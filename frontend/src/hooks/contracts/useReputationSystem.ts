@@ -1,7 +1,4 @@
-/**
- * Hook for interacting with ReputationSystem contract
- * Handles user stats, usernames, and leaderboard
- */
+
 
 import { Address } from "viem";
 import { useContractRead, useContractWrite } from "./useContract";
@@ -17,9 +14,7 @@ export function useReputationSystem() {
   };
 }
 
-/**
- * Get username for an address
- */
+
 export function useUsername(address: Address | undefined) {
   const { address: contractAddress, abi } = useReputationSystem();
   return useContractRead<string>({
@@ -31,9 +26,7 @@ export function useUsername(address: Address | undefined) {
   });
 }
 
-/**
- * Check if username is available
- */
+
 export function useIsUsernameAvailable(username: string | undefined) {
   const { address, abi } = useReputationSystem();
   return useContractRead<boolean>({
@@ -45,9 +38,7 @@ export function useIsUsernameAvailable(username: string | undefined) {
   });
 }
 
-/**
- * Hook for setting username
- */
+
 export function useSetUsername() {
   const { address, abi } = useReputationSystem();
   return useContractWrite({

@@ -1,11 +1,3 @@
-/**
- * Hook for interacting with PredictionMarket contract
- * Handles market data fetching and predictions
- *
- * NOTE: In the refactored architecture, all markets are stored in a single
- * PredictionMarket contract. We use marketId to fetch specific market data.
- */
-
 import { Address } from "viem";
 import { useContractRead, useContractWrite } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
@@ -14,9 +6,7 @@ import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 import { usePublicClient } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 
-/**
- * Get the single PredictionMarket contract address
- */
+
 export function usePredictionMarket() {
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
@@ -27,15 +17,8 @@ export function usePredictionMarket() {
   };
 }
 
-/**
- * Get market details by marketId
- * In the refactored architecture, all markets are in one contract
- */
 export function useMarketDetails(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
-
-  // Fetch market info using getMarketInfo(marketId)
-  // Returns Market struct with MarketType support
   const {
     data: market,
     isLoading,
@@ -57,9 +40,7 @@ export function useMarketDetails(marketId: bigint | number | undefined) {
   };
 }
 
-/**
- * Get resolved status by marketId
- */
+
 export function useIsResolved(marketId: bigint | number | undefined) {
   const { data: market } = useMarketDetails(marketId);
 
@@ -69,10 +50,6 @@ export function useIsResolved(marketId: bigint | number | undefined) {
   };
 }
 
-/**
- * Get pool amounts by marketId
- * In refactored architecture, pools are stored per marketId
- */
 export function usePoolAmounts(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
@@ -80,7 +57,7 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
     address,
     abi,
     functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined, // [marketId, Outcome.Yes = 0]
+    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined, 
     enabled: marketId !== undefined && !!address,
   });
 
@@ -88,7 +65,7 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
     address,
     abi,
     functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined, // [marketId, Outcome.No = 1]
+    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined, 
     enabled: marketId !== undefined && !!address,
   });
 
@@ -99,9 +76,7 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
   };
 }
 
-/**
- * Get user's prediction for a specific market
- */
+
 export function useUserPrediction(
   marketId: bigint | number | undefined,
   userAddress: string | undefined
@@ -147,9 +122,6 @@ export function useOdds(
   });
 }
 
-/**
- * Calculate potential winnings for a prediction
- */
 export function usePotentialWinnings(
   marketId: bigint | number | undefined,
   side: 0 | 1 | undefined, // 0 = Yes, 1 = No
@@ -173,9 +145,6 @@ export function usePotentialWinnings(
   });
 }
 
-/**
- * Get fees for a market
- */
 export function useFees(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
@@ -191,10 +160,6 @@ export function useFees(marketId: bigint | number | undefined) {
   });
 }
 
-/**
- * Hook for making a prediction (Binary markets only)
- * For CrowdWisdom markets, use useCommentAndStake or useStakeOnOutcome
- */
 export function usePredict() {
   const { address, abi } = usePredictionMarket();
 
@@ -321,10 +286,7 @@ export function useUserOutcomeStake(
   });
 }
 
-/**
- * Get pool amount for a specific outcome in a CrowdWisdom market
- * Args: [marketId, outcomeIndex]
- */
+
 export function useOutcomePoolAmount(
   marketId: bigint | number | undefined,
   outcomeIndex: bigint | number | undefined
@@ -377,10 +339,6 @@ export function useHasClaimed(
   });
 }
 
-/**
- * Get prediction count (number of unique participants) for a market
- * This queries PredictionMade events to count unique users
- */
 export function usePredictionCount(marketId: bigint | number | undefined) {
   const { address } = usePredictionMarket();
   const publicClient = usePublicClient();
@@ -391,6 +349,22 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
       if (!marketId || !address || !publicClient) return 0;
 
       try {
+
+        let fromBlock: bigint;
+        try {
+          const currentBlock = await publicClient.getBlockNumber();
+          
+          const lookback = BigInt(500000);
+          fromBlock =
+            currentBlock > lookback ? currentBlock - lookback : BigInt(0);
+        } catch {
+          fromBlock = BigInt(30000000); 
+          console.warn(
+            "Could not get current block, using fallback:",
+            fromBlock
+          );
+        }
+
         // Query PredictionMade events for this market using the ABI
         const logs = await publicClient.getLogs({
           address,
@@ -408,7 +382,7 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
           args: {
             marketId: BigInt(marketId),
           },
-          fromBlock: BigInt(0),
+          fromBlock,
         });
 
         // Count unique users
@@ -426,6 +400,7 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
       }
     },
     enabled: !!marketId && !!address && !!publicClient,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 30000, 
+    retry: 1,
   });
 }

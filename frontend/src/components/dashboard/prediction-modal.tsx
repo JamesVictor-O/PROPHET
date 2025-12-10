@@ -528,11 +528,11 @@ export function PredictionModal({
     } = {};
 
     // Validate stake amount
-    const minStake = isCrowdWisdom ? 1.0 : 0.25;
+    const minStake = isCrowdWisdom ? 1.0 : 0.0025;
     if (!stake || parseFloat(stake) < minStake) {
       newErrors.stake = isCrowdWisdom
         ? "Minimum stake is $1.00 cUSD for CrowdWisdom markets"
-        : "Minimum stake is $0.25 cUSD";
+        : "Minimum stake is $0.0025 cUSD";
     }
     if (parseFloat(stake) > 20) {
       newErrors.stake = "Maximum stake is $20.00 cUSD";
@@ -563,7 +563,7 @@ export function PredictionModal({
     if (!validateForm()) return;
 
     if (!isCorrectNetwork) {
-      toast.error(`Switch to Celo Sepolia (Chain ID: ${defaultChain.id})`);
+      toast.error(`Switch to Celo Mainnet (Chain ID: ${defaultChain.id})`);
       return;
     }
 
@@ -912,10 +912,10 @@ export function PredictionModal({
                   id="stake"
                   name="stake"
                   type="number"
-                  placeholder={isCrowdWisdom ? "1.00" : "0.25"}
-                  min={isCrowdWisdom ? "1" : "0.25"}
+                  placeholder={isCrowdWisdom ? "1.00" : "0.0025"}
+                  min={isCrowdWisdom ? "1" : "0.0025"}
                   max="20"
-                  step="0.25"
+                  step="0.001"
                   value={stake}
                   style={{ fontSize: "16px" }} // Prevent auto-zoom on mobile iOS
                   onChange={(e) => {
@@ -938,7 +938,7 @@ export function PredictionModal({
                 </p>
               )}
               <p className="text-xs text-gray-400">
-                Minimum: ${isCrowdWisdom ? "1.00" : "0.25"} • Maximum: $20.00
+                Minimum: ${isCrowdWisdom ? "1.00" : "0.0025"} • Maximum: $20.00
               </p>
             </div>
 
@@ -1027,7 +1027,7 @@ export function PredictionModal({
                 isProcessing ||
                 isLoadingAllowance ||
                 !stake ||
-                parseFloat(stake) < (isCrowdWisdom ? 1.0 : 0.25) ||
+                parseFloat(stake) < (isCrowdWisdom ? 1.0 : 0.0025) ||
                 (isCrowdWisdom &&
                   selectedOutcomeIndex === null &&
                   !outcomeComment.trim()) ||

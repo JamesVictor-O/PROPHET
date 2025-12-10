@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   useAccount,
   useConnect,
@@ -32,11 +33,18 @@ export function WalletConnect({
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 
-  // Check if on correct network (Celo Sepolia)
+  // Prevent hydration mismatch - track if component has mounted
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Check if on correct network (Celo Mainnet)
   const isCorrectNetwork = chainId === defaultChain.id;
   const isWrongNetwork = isConnected && !isCorrectNetwork;
 
-  // Use current chain or default to Celo Sepolia
+  // Use current chain or default to Celo Mainnet
   const currentChainId = chainId || defaultChain.id;
 
   const { data: balance } = useBalance({
@@ -44,21 +52,18 @@ export function WalletConnect({
     chainId: isCorrectNetwork ? defaultChain.id : currentChainId,
   });
 
-  // Prevent hydration mismatch - check if we're on client side
-  const isClient = typeof window !== "undefined";
-
   const handleSwitchNetwork = async () => {
     try {
       // First try to switch using wagmi
       await switchChain({ chainId: defaultChain.id });
-      toast.success("Switched to Celo Sepolia");
+      toast.success("Switched to Celo Mainnet");
     } catch (error: unknown) {
       console.error("Error switching network:", error);
       const err = error as { code?: number };
 
       // If network doesn't exist (4902), try to add it
       if (err?.code === 4902) {
-        toast.info("Adding Celo Sepolia network to your wallet...");
+        toast.info("Adding Celo Mainnet network to your wallet...");
         const added = await addCeloSepoliaToMetaMask();
         if (added) {
           toast.success("Network added! Please try again.");
@@ -72,7 +77,7 @@ export function WalletConnect({
         try {
           const added = await addCeloSepoliaToMetaMask();
           if (added) {
-            toast.success("Switched to Celo Sepolia");
+            toast.success("Switched to Celo Mainnet");
           } else {
             toast.error(
               "Failed to switch network. Please switch manually in MetaMask."
@@ -104,8 +109,8 @@ export function WalletConnect({
     toast.success("Wallet disconnected");
   };
 
-  // Prevent hydration mismatch - show connect button during SSR and initial render
-  if (!isClient) {
+  // Prevent hydration mismatch - show consistent UI during SSR and initial client render
+  if (!mounted) {
     return (
       <button
         disabled

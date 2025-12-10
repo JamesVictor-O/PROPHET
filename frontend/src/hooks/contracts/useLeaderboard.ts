@@ -1,7 +1,4 @@
-/**
- * Hook for fetching leaderboard data
- * Combines top users with their stats and usernames
- */
+
 
 import { useMemo } from "react";
 import { Address } from "viem";
@@ -19,9 +16,7 @@ export interface LeaderboardEntry {
   reputationScore: bigint;
 }
 
-/**
- * Helper function to generate initials from username or address
- */
+
 function generateInitials(username: string, address: Address): string {
   let initials = "";
   if (username && username.length > 0) {

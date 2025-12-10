@@ -71,7 +71,53 @@ forge script script/PostDeploy.s.sol:PostDeployScript \
 -   Create initial markets
 -   Configure additional settings
 
-### 4. Verify.s.sol
+### 4. DeployBase.s.sol
+
+Deployment script for Base networks (Mainnet and Sepolia).
+
+**Usage:**
+
+```bash
+# Deploy to Base Sepolia
+forge script script/DeployBase.s.sol:DeployBaseScript \
+    --rpc-url $BASE_SEPOLIA_RPC_URL \
+    --private-key $PRIVATE_KEY \
+    --broadcast \
+    --verify \
+    --etherscan-api-key $BASE_ETHERSCAN_API_KEY \
+    --chain-id 84532
+
+# Deploy to Base Mainnet
+forge script script/DeployBase.s.sol:DeployBaseScript \
+    --rpc-url $BASE_MAINNET_RPC_URL \
+    --private-key $PRIVATE_KEY \
+    --broadcast \
+    --verify \
+    --etherscan-api-key $BASE_ETHERSCAN_API_KEY \
+    --chain-id 8453
+```
+
+**Or use the helper script:**
+
+```bash
+# Deploy to Base Sepolia
+./scripts/deploy-base.sh --sepolia
+
+# Deploy to Base Mainnet (with verification)
+./scripts/deploy-base.sh --mainnet --verify
+```
+
+**Features:**
+
+-   Auto-detects Base network (Mainnet vs Sepolia)
+-   Uses USDC as the stablecoin token
+-   Deploys contracts in correct order
+-   Sets up roles and permissions
+-   Supports custom oracle addresses
+
+**For detailed Base deployment instructions, see:** `DEPLOY_BASE.md`
+
+### 5. Verify.s.sol
 
 Contract verification helper (reference only).
 

@@ -1,7 +1,4 @@
-/**
- * Hook for interacting with MarketFactory contract
- * Handles market creation and factory queries
- */
+
 
 import { Address } from "viem";
 import { useAccount } from "wagmi";
@@ -11,16 +8,14 @@ import { getContractAddress, getContracts } from "@/lib/contracts";
 
 export function useMarketFactory() {
   const { chainId } = useAccount();
-  const contracts = getContracts("celoSepolia");
+  const contracts = getContracts("celoMainnet");
   const factoryAddress = getContractAddress("factory") as Address;
-
-  // Verify we're on the correct network
   const isCorrectNetwork = !chainId || chainId === contracts.chainId;
 
-  // Only log warning if connected (not just initializing)
+  
   if (!isCorrectNetwork && chainId) {
     console.warn(
-      `Network mismatch: Expected Celo Sepolia (${contracts.chainId}), got ${chainId}. Please switch networks.`
+      `Network mismatch: Expected Celo Mainnet (${contracts.chainId}), got ${chainId}. Please switch networks.`
     );
   }
 
@@ -164,12 +159,6 @@ export function useCreateBinaryMarket() {
   };
 }
 
-/**
- * Hook for creating a CrowdWisdom market (Multi-outcome)
- * Simplified wrapper that sets marketType = 1 and initialSide = 0 (ignored)
- *
- * Args: [question, category, endTime, initialStake, initialOutcomeLabel]
- */
 export function useCreateCrowdWisdomMarket() {
   const { address, abi } = useMarketFactory();
   const writeContract = useContractWrite({
@@ -189,12 +178,12 @@ export function useCreateCrowdWisdomMarket() {
       throw new Error("Write function not available");
     }
     const contractArgs: readonly unknown[] = [
-      1, // MarketType.CrowdWisdom
+      1,
       args.question,
       args.category,
       args.endTime,
       args.initialStake,
-      0, // initialSide (ignored for CrowdWisdom, but required by contract)
+      0, 
       args.initialOutcomeLabel,
     ];
     console.log("Creating CrowdWisdom market with args:", contractArgs);
@@ -207,12 +196,7 @@ export function useCreateCrowdWisdomMarket() {
   };
 }
 
-/**
- * @deprecated Use useCreateBinaryMarket or useCreateCrowdWisdomMarket instead
- * Generic hook for creating a market (supports both types)
- *
- * Args: [marketType, question, category, endTime, initialStake, initialSide, initialOutcomeLabel]
- */
+
 export function useCreateMarket() {
   const { address, abi } = useMarketFactory();
   return useContractWrite({

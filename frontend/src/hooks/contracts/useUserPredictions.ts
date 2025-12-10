@@ -1,7 +1,4 @@
-/**
- * Hook to fetch all user predictions across all markets
- * Fetches predictions the user has made and markets they've created
- */
+
 
 import { useMemo } from "react";
 import { Address } from "viem";
@@ -13,9 +10,7 @@ import { getContractAddress } from "@/lib/contracts";
 import { MarketType } from "@/lib/types";
 import { useMarketOutcomes, useOutcomeLabel } from "./usePredictionMarket";
 
-/**
- * Get the single PredictionMarket contract address
- */
+
 function usePredictionMarket() {
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
@@ -32,9 +27,9 @@ export interface UserPrediction {
   marketQuestion: string;
   category: string;
   categoryColor: string;
-  side: "yes" | "no"; // For Binary markets
-  outcomeIndex?: number; // For CrowdWisdom markets
-  outcomeLabel?: string; // For CrowdWisdom markets (fetched separately)
+  side: "yes" | "no";
+  outcomeIndex?: number; 
+  outcomeLabel?: string; 
   stake: number;
   potentialWin: number;
   actualWin?: number;
@@ -45,8 +40,8 @@ export interface UserPrediction {
   yesPercent: number;
   noPercent: number;
   pool: string;
-  isCreator: boolean; // Whether user created this market
-  marketType?: MarketType; // Binary or CrowdWisdom
+  isCreator: boolean; 
+  marketType?: MarketType; 
 }
 
 // Category color mapping
@@ -69,9 +64,7 @@ const categoryDisplayNames: Record<string, string> = {
   other: "OTHER",
 };
 
-/**
- * Get user prediction for a specific market
- */
+
 function useUserPredictionForMarket(
   marketId: bigint | number | undefined,
   userAddress: Address | undefined
@@ -80,8 +73,8 @@ function useUserPredictionForMarket(
 
   const { data: prediction, isLoading } = useContractRead<{
     user: Address;
-    side: number; // 0 = Yes, 1 = No (for Binary)
-    outcomeIndex: bigint; // For CrowdWisdom markets
+    side: number;
+    outcomeIndex: bigint; 
     amount: bigint;
     timestamp: bigint;
   }>({
@@ -98,9 +91,7 @@ function useUserPredictionForMarket(
   return { prediction, isLoading };
 }
 
-/**
- * Get user stakes for a specific market
- */
+
 function useUserStakesForMarket(
   marketId: bigint | number | undefined,
   userAddress: Address | undefined
@@ -113,7 +104,7 @@ function useUserStakesForMarket(
     functionName: "userStakes",
     args:
       marketId !== undefined && userAddress
-        ? [BigInt(marketId), userAddress, 0] // [marketId, user, Outcome.Yes = 0]
+        ? [BigInt(marketId), userAddress, 0] 
         : undefined,
     enabled: marketId !== undefined && !!userAddress && !!contractAddress,
   });
@@ -124,7 +115,7 @@ function useUserStakesForMarket(
     functionName: "userStakes",
     args:
       marketId !== undefined && userAddress
-        ? [BigInt(marketId), userAddress, 1] // [marketId, user, Outcome.No = 1]
+        ? [BigInt(marketId), userAddress, 1] 
         : undefined,
     enabled: marketId !== undefined && !!userAddress && !!contractAddress,
   });
@@ -136,21 +127,17 @@ function useUserStakesForMarket(
   };
 }
 
-/**
- * Main hook to get all user predictions
- */
+
 export function useUserPredictions() {
   const { address: userAddress } = useAccount();
   const { data: allMarkets, isLoading: isLoadingMarkets } = useAllMarkets();
 
-  // For each market, check if user has a prediction
-  // We'll fetch predictions for up to 20 markets to ensure we capture all user's created markets
+
   const marketIds = useMemo(() => {
     if (!allMarkets) return [];
     return allMarkets.slice(0, 20).map((m) => BigInt(m.id));
   }, [allMarkets]);
 
-  // Fetch user predictions for each market
   const predictions1 = useUserPredictionForMarket(
     marketIds[0] ? Number(marketIds[0]) : undefined,
     userAddress
@@ -203,12 +190,9 @@ export function useUserPredictions() {
     predictions8,
     predictions9,
     predictions10,
-    // Add more predictions for markets 11-20 if needed
-    // For now, we'll check up to 20 markets but only fetch predictions for first 10
-    // This ensures we still show created markets even if we don't fetch their prediction data
+  
   ];
 
-  // Combine markets with user predictions
   const userPredictions = useMemo(() => {
     if (!allMarkets || !userAddress) return [];
 

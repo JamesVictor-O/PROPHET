@@ -105,7 +105,7 @@ export function CreateMarketModal({
     question: "",
     category: "",
     endDate: "",
-    initialStake: 0.25,
+    initialStake: 0.0025,
     initialSide: "yes",
     initialOutcomeLabel: "", // For CrowdWisdom markets
   });
@@ -236,12 +236,12 @@ export function CreateMarketModal({
     }
 
     const minStake =
-      formData.marketType === MarketType.CrowdWisdom ? 1.0 : 0.25;
+      formData.marketType === MarketType.CrowdWisdom ? 1.0 : 0.0025;
     if (!formData.initialStake || formData.initialStake < minStake) {
       newErrors.initialStake =
         formData.marketType === MarketType.CrowdWisdom
           ? "Minimum stake is $1.00 cUSD for CrowdWisdom markets"
-          : "Minimum stake is $0.25 cUSD";
+          : "Minimum stake is $0.0025 cUSD";
     }
     // Validate based on market type
     if (formData.marketType === MarketType.Binary) {
@@ -375,7 +375,7 @@ export function CreateMarketModal({
         question: "",
         category: "",
         endDate: "",
-        initialStake: 0.25,
+        initialStake: 0.0025,
         initialSide: "yes",
         initialOutcomeLabel: "",
       });
@@ -415,7 +415,7 @@ export function CreateMarketModal({
     if (!validateForm()) return;
 
     if (!isCorrectNetwork) {
-      toast.error(`Switch to Celo Sepolia (Chain ID: ${defaultChain.id})`);
+      toast.error(`Switch to Celo Mainnet (Chain ID: ${defaultChain.id})`);
       return;
     }
 
@@ -647,7 +647,7 @@ export function CreateMarketModal({
         question: "",
         category: "",
         endDate: "",
-        initialStake: 0.25,
+        initialStake: 0.0025,
         initialSide: "yes",
         initialOutcomeLabel: "",
       });
@@ -1081,7 +1081,7 @@ export function CreateMarketModal({
                       marketType: MarketType.Binary,
                       initialOutcomeLabel: "", // Clear outcome label when switching to Binary
                       initialStake:
-                        prev.initialStake < 0.25 ? 0.25 : prev.initialStake, // Ensure minimum $0.25 for Binary
+                        prev.initialStake < 0.0025 ? 0.0025 : prev.initialStake, // Ensure minimum $0.0025 for Binary
                     }));
                     setAiMarketTypeSelected(false); // User manually changed
                   }}
@@ -1142,9 +1142,9 @@ export function CreateMarketModal({
                   min={
                     formData.marketType === MarketType.CrowdWisdom
                       ? "1"
-                      : "0.25"
+                      : "0.0025"
                   }
-                  step="0.25"
+                  step="0.001"
                   value={formData.initialStake || ""}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -1171,7 +1171,7 @@ export function CreateMarketModal({
                 Min: $
                 {formData.marketType === MarketType.CrowdWisdom
                   ? "1.00"
-                  : "0.25"}{" "}
+                  : "0.0025"}{" "}
                 • Max: $20
               </p>
             </div>
@@ -1302,7 +1302,7 @@ export function CreateMarketModal({
                   (!formData.initialOutcomeLabel.trim() ||
                     formData.initialStake < 1.0)) ||
                 (formData.marketType === MarketType.Binary &&
-                  (!formData.initialSide || formData.initialStake < 0.25))
+                  (!formData.initialSide || formData.initialStake < 0.0025))
               }
               className="flex-1 bg-[#2563EB] hover:bg-blue-600 h-10 text-sm disabled:opacity-50"
             >
