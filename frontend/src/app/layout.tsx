@@ -58,7 +58,7 @@ if (typeof window !== "undefined") {
   };
 }
 
-// Configure Inter font with comprehensive fallbacks
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",

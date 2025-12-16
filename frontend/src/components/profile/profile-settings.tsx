@@ -9,6 +9,7 @@ import { useSetUsername, useIsUsernameAvailable } from "@/hooks/contracts";
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Address } from "viem";
+import { SmartAccountPingTest } from "@/components/SmartAccountPingTest";
 
 interface ProfileSettingsProps {
   user: {
@@ -20,7 +21,7 @@ interface ProfileSettingsProps {
   address: Address | undefined;
 }
 
-export function ProfileSettings({ user, address }: ProfileSettingsProps) {
+export function ProfileSettings({ user }: ProfileSettingsProps) {
   const [username, setUsername] = useState(
     user.username.replace("@", "") || ""
   );
@@ -191,6 +192,9 @@ export function ProfileSettings({ user, address }: ProfileSettingsProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Smart Account Test */}
+      <SmartAccountPingTest />
     </div>
   );
 }

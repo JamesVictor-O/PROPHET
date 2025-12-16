@@ -1,5 +1,6 @@
 import { http, createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { baseSepolia } from "viem/chains";
 
 // Celo Mainnet
 const celo = {
@@ -46,11 +47,12 @@ const celoSepolia = {
 
 // Celo network configuration
 export const config = createConfig({
-  chains: [celo, celoSepolia],
+  chains: [celo, celoSepolia, baseSepolia],
   connectors: [injected()],
   transports: {
     [celo.id]: http(),
     [celoSepolia.id]: http(),
+    [baseSepolia.id]: http(),
   },
 });
 
@@ -146,6 +148,70 @@ export async function addCeloSepoliaToMetaMask(): Promise<boolean> {
         return false;
       }
     }
+    return false;
+  }
+}
+
+/**
+ * Add Base Sepolia network to MetaMask and switch to it
+ * This is required for smart account functionality
+ */
+export async function addBaseSepoliaToMetaMask(): Promise<boolean> {
+  if (
+    typeof window === "undefined" ||
+    !(window as { ethereum?: unknown }).ethereum
+  ) {
+    return false;
+  }
+
+  const ethereum = (
+    window as {
+      ethereum: {
+        request: (args: {
+          method: string;
+          params: unknown[];
+        }) => Promise<unknown>;
+      };
+    }
+  ).ethereum;
+  const chainIdHex = `0x${baseSepolia.id.toString(16)}`;
+
+  try {
+    // Try to switch first (network might already be added)
+    await ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+    return true;
+  } catch (switchError: unknown) {
+    const err = switchError as { code?: number };
+
+    // If network doesn't exist (code 4902), add it
+    if (err?.code === 4902) {
+      try {
+        await ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: chainIdHex,
+              chainName: "Base Sepolia",
+              nativeCurrency: {
+                name: "Ether",
+                symbol: "ETH",
+                decimals: 18,
+              },
+              rpcUrls: ["https://sepolia.base.org"],
+              blockExplorerUrls: ["https://sepolia.basescan.org"],
+            },
+          ],
+        });
+        return true;
+      } catch (addError) {
+        console.error("Error adding Base Sepolia to MetaMask:", addError);
+        return false;
+      }
+    }
+    console.error("Error switching to Base Sepolia:", switchError);
     return false;
   }
 }
