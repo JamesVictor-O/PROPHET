@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
 import { Loader2 } from "lucide-react";
+import { BinaryChart } from "./binary-chart";
 
 // Category color mapping
 const categoryColors: Record<string, string> = {
@@ -62,9 +63,11 @@ export function MarketsSection() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayMarkets.map((market) => {
               const categoryKey = market.category.toLowerCase();
-              const categoryColor = categoryColors[categoryKey] || categoryColors.other;
+              const categoryColor =
+                categoryColors[categoryKey] || categoryColors.other;
               const categoryDisplay =
-                categoryDisplayNames[categoryKey] || market.category.toUpperCase();
+                categoryDisplayNames[categoryKey] ||
+                market.category.toUpperCase();
 
               return (
                 <Card
@@ -86,19 +89,11 @@ export function MarketsSection() {
                       {market.question}
                     </h3>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center">
-                        <div className="text-2xl font-bold text-green-400 mb-1">
-                          {Math.round(market.yesPercent)}%
-                        </div>
-                        <div className="text-xs text-gray-400">YES</div>
-                      </div>
-                      <div className="bg-[#0F172A] border border-[#334155] rounded-lg p-3 text-center">
-                        <div className="text-2xl font-bold text-red-400 mb-1">
-                          {Math.round(market.noPercent)}%
-                        </div>
-                        <div className="text-xs text-gray-400">NO</div>
-                      </div>
+                    <div className="mb-4">
+                      <BinaryChart
+                        yesPercent={market.yesPercent}
+                        noPercent={market.noPercent}
+                      />
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-gray-400 mb-4">

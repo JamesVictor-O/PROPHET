@@ -6,6 +6,8 @@ import { config } from "@/lib/wallet-config";
 import { ReactNode } from "react";
 import { AutoConnect } from "./auto-connect";
 import { SmartAccountProvider } from "@/contexts/smart-account-context";
+import { SessionAccountProvider } from "@/providers/SessionAccountProvider";
+import { PermissionProvider } from "@/providers/PermissionProvider";
 
 const queryClient = new QueryClient();
 
@@ -18,8 +20,12 @@ export function WalletProvider({ children }: WalletProviderProps) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <SmartAccountProvider>
-          <AutoConnect />
-          {children}
+          <SessionAccountProvider>
+            <PermissionProvider>
+              <AutoConnect />
+              {children}
+            </PermissionProvider>
+          </SessionAccountProvider>
         </SmartAccountProvider>
       </QueryClientProvider>
     </WagmiProvider>

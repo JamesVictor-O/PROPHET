@@ -14,33 +14,11 @@ interface ContractCall {
   value?: bigint;
 }
 
-/**
- * Hook for sending contract transactions via smart account
- * 
- * This hook provides a convenient way to interact with contracts using smart accounts.
- * It encodes the function call and sends it as a user operation.
- * 
- * @example
- * ```tsx
- * const { sendContractCall, isPending } = useSmartAccountContract({
- *   onSuccess: () => toast.success("Transaction sent!"),
- * });
- * 
- * // Call a contract function
- * await sendContractCall({
- *   address: "0x...",
- *   abi: contractAbi,
- *   functionName: "makePrediction",
- *   args: [marketId, 0, stakeAmount],
- * });
- * ```
- */
-export function useSmartAccountContract(
-  options?: {
-    onSuccess?: () => void;
-    onError?: (error: Error) => void;
-  }
-) {
+
+export function useSmartAccountContract(options?: {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) {
   const { smartAccount, isInitializing } = useSmartAccount();
   const { isConnected } = useAccount();
   const { sendUserOperation, isPending, error } = useSmartAccountWrite({
@@ -67,7 +45,9 @@ export function useSmartAccountContract(
       }
 
       if (!smartAccount) {
-        const err = new Error("Smart account not available. Please ensure your wallet is connected.");
+        const err = new Error(
+          "Smart account not available. Please ensure your wallet is connected."
+        );
         options?.onError?.(err);
         return null;
       }
@@ -85,13 +65,16 @@ export function useSmartAccountContract(
           {
             to: call.address,
             data: data as `0x${string}`,
-            value: call.value ?? 0n,
+            value: call.value ?? BigInt(0),
           },
         ]);
 
         return hash;
       } catch (err) {
-        const error = err instanceof Error ? err : new Error("Failed to send contract call");
+        const error =
+          err instanceof Error
+            ? err
+            : new Error("Failed to send contract call");
         options?.onError?.(error);
         return null;
       }
@@ -107,5 +90,3 @@ export function useSmartAccountContract(
     isAvailable: !!smartAccount && !isInitializing,
   };
 }
-
-

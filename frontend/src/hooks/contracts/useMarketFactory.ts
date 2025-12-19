@@ -1,5 +1,3 @@
-
-
 import { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useContractRead, useContractWrite } from "./useContract";
@@ -8,14 +6,14 @@ import { getContractAddress, getContracts } from "@/lib/contracts";
 
 export function useMarketFactory() {
   const { chainId } = useAccount();
-  const contracts = getContracts("celoMainnet");
+  // Use baseSepolia as default
+  const contracts = getContracts("baseSepolia");
   const factoryAddress = getContractAddress("factory") as Address;
   const isCorrectNetwork = !chainId || chainId === contracts.chainId;
 
-  
   if (!isCorrectNetwork && chainId) {
     console.warn(
-      `Network mismatch: Expected Celo Mainnet (${contracts.chainId}), got ${chainId}. Please switch networks.`
+      `Network mismatch: Expected Base Sepolia (${contracts.chainId}), got ${chainId}. Please switch networks.`
     );
   }
 
@@ -183,7 +181,7 @@ export function useCreateCrowdWisdomMarket() {
       args.category,
       args.endTime,
       args.initialStake,
-      0, 
+      0,
       args.initialOutcomeLabel,
     ];
     console.log("Creating CrowdWisdom market with args:", contractArgs);
@@ -195,7 +193,6 @@ export function useCreateCrowdWisdomMarket() {
     write,
   };
 }
-
 
 export function useCreateMarket() {
   const { address, abi } = useMarketFactory();

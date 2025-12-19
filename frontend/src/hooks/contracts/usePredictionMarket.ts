@@ -6,7 +6,6 @@ import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 import { usePublicClient } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 
-
 export function usePredictionMarket() {
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
@@ -40,7 +39,6 @@ export function useMarketDetails(marketId: bigint | number | undefined) {
   };
 }
 
-
 export function useIsResolved(marketId: bigint | number | undefined) {
   const { data: market } = useMarketDetails(marketId);
 
@@ -57,7 +55,7 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
     address,
     abi,
     functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined, 
+    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined,
     enabled: marketId !== undefined && !!address,
   });
 
@@ -65,7 +63,7 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
     address,
     abi,
     functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined, 
+    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined,
     enabled: marketId !== undefined && !!address,
   });
 
@@ -75,7 +73,6 @@ export function usePoolAmounts(marketId: bigint | number | undefined) {
     isLoading: yesPool.isLoading || noPool.isLoading,
   };
 }
-
 
 export function useUserPrediction(
   marketId: bigint | number | undefined,
@@ -286,7 +283,6 @@ export function useUserOutcomeStake(
   });
 }
 
-
 export function useOutcomePoolAmount(
   marketId: bigint | number | undefined,
   outcomeIndex: bigint | number | undefined
@@ -349,21 +345,17 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
       if (!marketId || !address || !publicClient) return 0;
 
       try {
+        const currentBlock = await publicClient.getBlockNumber();
 
-        let fromBlock: bigint;
-        try {
-          const currentBlock = await publicClient.getBlockNumber();
-          
-          const lookback = BigInt(500000);
-          fromBlock =
-            currentBlock > lookback ? currentBlock - lookback : BigInt(0);
-        } catch {
-          fromBlock = BigInt(30000000); 
-          console.warn(
-            "Could not get current block, using fallback:",
-            fromBlock
-          );
-        }
+        // RPC providers typically limit queries to 100,000 blocks
+        // Use 99,000 to have a safety buffer
+        const maxBlockRange = BigInt(99000);
+
+        // Calculate the starting block (limit to maxBlockRange)
+        const fromBlock =
+          currentBlock > maxBlockRange
+            ? currentBlock - maxBlockRange
+            : BigInt(0);
 
         // Query PredictionMade events for this market using the ABI
         const logs = await publicClient.getLogs({
@@ -400,7 +392,7 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
       }
     },
     enabled: !!marketId && !!address && !!publicClient,
-    staleTime: 30000, 
+    staleTime: 30000,
     retry: 1,
   });
 }

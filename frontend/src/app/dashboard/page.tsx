@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { SearchFilters } from "@/components/dashboard/search-filters";
@@ -12,10 +11,9 @@ import {
   MarketData,
 } from "@/components/markets/create-market-modal";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
-import { defaultChain, addCeloSepoliaToMetaMask } from "@/lib/wallet-config";
-import { toast } from "sonner";
+import { defaultChain } from "@/lib/wallet-config";
 
 // Category color mapping
 const categoryColors: Record<string, string> = {
@@ -45,53 +43,6 @@ export default function DashboardPage() {
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [selectedSide, setSelectedSide] = useState<"yes" | "no" | undefined>();
 
-  // Check network
-  const { chainId } = useAccount();
-  const { switchChain, isPending: isSwitching } = useSwitchChain();
-  const isCorrectNetwork = chainId === defaultChain.id;
-  const isWrongNetwork = chainId !== undefined && !isCorrectNetwork;
-
-  const handleSwitchNetwork = async () => {
-    try {
-      // First try to switch using wagmi
-      await switchChain({ chainId: defaultChain.id });
-      toast.success("Switched to Celo Mainnet");
-    } catch (error: unknown) {
-      console.error("Error switching network:", error);
-      const err = error as { code?: number };
-
-      // If network doesn't exist (4902), try to add it
-      if (err?.code === 4902) {
-        toast.info("Adding Celo Mainnet network to your wallet...");
-        const added = await addCeloSepoliaToMetaMask();
-        if (added) {
-          toast.success("Network added! Please try again.");
-        } else {
-          toast.error(
-            "Failed to add network. Please add manually in MetaMask."
-          );
-        }
-      } else {
-        // For other errors, try direct MetaMask call as fallback
-        try {
-          const added = await addCeloSepoliaToMetaMask();
-          if (added) {
-            toast.success("Switched to Celo Mainnet");
-          } else {
-            toast.error(
-              "Failed to switch network. Please switch manually in MetaMask."
-            );
-          }
-        } catch (fallbackError) {
-          console.error("Fallback network switch failed:", fallbackError);
-          toast.error(
-            "Failed to switch network. Please switch manually in MetaMask."
-          );
-        }
-      }
-    }
-  };
-
   // Fetch real markets from contract
   const {
     data: marketsData,
@@ -105,7 +56,9 @@ export default function DashboardPage() {
     console.error("Possible issues:");
     console.error("1. Contract not deployed at the configured address");
     console.error(
-      "2. Wrong network (should be Celo Mainnet - chain ID 42220)"
+      "2. Wrong network (should be Base Sepolia - chain ID " +
+        defaultChain.id +
+        ")"
     );
     console.error("3. RPC endpoint issues");
     console.error("4. Contract address mismatch");
@@ -194,36 +147,10 @@ export default function DashboardPage() {
                 className="bg-[#2563EB] hover:bg-blue-700 text-white shrink-0 h-9 sm:h-10 px-3 sm:px-4"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Create Market</span>
+                <span className="hidden sm:inline">Create Prediction</span>
               </Button>
             </div>
           </div>
-
-          {/* Network Warning Banner */}
-          {isWrongNetwork && (
-            <div className="mb-4 sm:mb-6 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400 shrink-0 mt-0.5 sm:mt-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-orange-400 font-semibold text-sm sm:text-base">
-                    Wrong Network
-                  </p>
-                  <p className="text-gray-400 text-xs sm:text-sm">
-                    Please switch to Celo Mainnet (Chain ID: 42220) to use
-                    this app
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={handleSwitchNetwork}
-                disabled={isSwitching}
-                size="sm"
-                className="bg-orange-500 hover:bg-orange-600 text-white w-full sm:w-auto shrink-0 text-xs sm:text-sm h-8 sm:h-9"
-              >
-                {isSwitching ? "Switching..." : "Switch Network"}
-              </Button>
-            </div>
-          )}
 
           {/* Filters & Search */}
           <SearchFilters
@@ -255,7 +182,7 @@ export default function DashboardPage() {
                 <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
                   <li>
                     Ensure you&apos;re connected to{" "}
-                    <strong>Celo Mainnet</strong> (Chain ID: 42220)
+                    <strong>Base Sepolia</strong> (Chain ID: {defaultChain.id})
                   </li>
                   <li>
                     Check that contracts are deployed at the configured

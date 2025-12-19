@@ -10,6 +10,8 @@ import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Address } from "viem";
 import { SmartAccountPingTest } from "@/components/SmartAccountPingTest";
+import { PaymasterTest } from "@/components/PaymasterTest";
+import { PermissionsManager } from "@/components/wallet/permissions-manager";
 
 interface ProfileSettingsProps {
   user: {
@@ -174,6 +176,9 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         </CardContent>
       </Card>
 
+      {/* Permissions Manager */}
+      <PermissionsManager />
+
       {/* Info Card */}
       <Card className="bg-[#1E293B] border-dark-700">
         <CardContent className="p-6">
@@ -195,6 +200,9 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
 
       {/* Smart Account Test */}
       <SmartAccountPingTest />
+
+      {/* Paymaster Test */}
+      <PaymasterTest />
     </div>
   );
 }

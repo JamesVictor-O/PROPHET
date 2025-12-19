@@ -56,8 +56,8 @@ export const config = createConfig({
   },
 });
 
-// Default chain (Celo Mainnet)
-export const defaultChain = celo;
+// Default chain (Base Sepolia for Smart Accounts)
+export const defaultChain = baseSepolia;
 
 export function isMiniPayAvailable(): boolean {
   if (typeof window === "undefined") return false;

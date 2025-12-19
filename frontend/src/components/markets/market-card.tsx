@@ -7,6 +7,7 @@ import { Clock, Users, TrendingUp } from "lucide-react";
 import { useMarketOutcomes } from "@/hooks/contracts";
 import { MarketType } from "@/lib/types";
 import { formatEther } from "viem";
+import { BinaryChart } from "./binary-chart";
 
 export interface Market {
   id: string;
@@ -87,31 +88,14 @@ export function MarketCard({ market, onPredict }: MarketCardProps) {
           {market.question}
         </h2>
 
-        {/* Binary Market: YES / NO BUTTONS */}
+        {/* Binary Market: Visual Chart */}
         {!isCrowdWisdom && (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => onPredict(market.id, "yes")}
-              className="bg-[#0F172A] border border-dark-700 rounded-lg p-3 text-center 
-                     hover:border-green-500 active:scale-95 transition-all"
-            >
-              <div className="text-white text-lg font-bold">
-                {market.yesPercent}%
-              </div>
-              <div className="text-green-400 text-[11px] font-medium">YES</div>
-            </button>
-
-            <button
-              onClick={() => onPredict(market.id, "no")}
-              className="bg-[#0F172A] border border-dark-700 rounded-lg p-3 text-center 
-                     hover:border-red-500 active:scale-95 transition-all"
-            >
-              <div className="text-white text-lg font-bold">
-                {market.noPercent}%
-              </div>
-              <div className="text-red-400 text-[11px] font-medium">NO</div>
-            </button>
-          </div>
+          <BinaryChart
+            yesPercent={market.yesPercent}
+            noPercent={market.noPercent}
+            onYesClick={() => onPredict(market.id, "yes")}
+            onNoClick={() => onPredict(market.id, "no")}
+          />
         )}
 
         {/* CrowdWisdom Market: Outcomes Chart */}

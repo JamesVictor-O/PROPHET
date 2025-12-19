@@ -2,15 +2,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount } from "wagmi";
 import { useSmartAccount } from "@/contexts/smart-account-context"; // Ensure this path is correct
-import { bundlerClient, smartAccountChain } from "@/lib/smart-accounts-config";
-import { addBaseSepoliaToMetaMask } from "@/lib/wallet-config";
+import { getBundlerClient } from "@/lib/smart-accounts-config";
 import { Card, CardContent } from "@/components/ui/card"; // Assuming you use shadcn/ui Card
 
 export function SmartAccountPingTest() {
   const { chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
   const {
     smartAccount,
     smartAccountAddress,
@@ -30,33 +28,10 @@ export function SmartAccountPingTest() {
       return;
     }
 
-    // Check if we're on the correct chain
-    if (chainId !== smartAccountChain.id) {
-      setError(
-        `Please switch to Base Sepolia (Chain ID: ${smartAccountChain.id}) to run the ping test.`
-      );
-      setStatus("Switching to Base Sepolia...");
-      try {
-        if (switchChain) {
-          await switchChain({ chainId: smartAccountChain.id });
-        } else {
-          const switched = await addBaseSepoliaToMetaMask();
-          if (!switched) {
-            throw new Error("Failed to switch to Base Sepolia");
-          }
-        }
-        // Wait for chain switch
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        setStatus(null);
-      } catch (err) {
-        setError(
-          `Failed to switch to Base Sepolia: ${
-            err instanceof Error ? err.message : String(err)
-          }. Please switch manually in your wallet.`
-        );
-        setStatus(null);
-        return;
-      }
+    // Ensure we have a chain ID
+    if (!chainId) {
+      setError("No chain ID found. Please connect your wallet.");
+      return;
     }
 
     setIsLoading(true);
@@ -74,6 +49,9 @@ export function SmartAccountPingTest() {
       setStatus("Creating User Operation, including deployment logic...");
 
       console.log("Sending UserOp from derived address:", smartAccountAddress);
+
+      // Get bundler client for the current chain
+      const bundlerClient = getBundlerClient(chainId);
 
       // Send UserOp - The Hybrid implementation automatically includes initCode
       // for deployment if the account is not yet deployed.
@@ -111,7 +89,6 @@ export function SmartAccountPingTest() {
       // Provide helpful error messages
       let errorMessage = err instanceof Error ? err.message : String(err);
 
-      // Update error message for Hybrid failure modes
       if (
         errorMessage.includes("AA20") ||
         errorMessage.includes("invalid signature")
@@ -163,6 +140,23 @@ export function SmartAccountPingTest() {
               Initializing smart account...
             </p>
           )}
+          {!smartAccountAddress && !isInitializing && !contextError && (
+            <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded">
+              <p className="text-xs text-yellow-400 font-medium">
+                Smart account not initialized yet
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                If using MetaMask Flask, try disconnecting and reconnecting your wallet, 
+                or click the button below to manually initialize.
+              </p>
+              <button
+                onClick={() => initializeSmartAccount()}
+                className="mt-2 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+              >
+                Initialize Smart Account
+              </button>
+            </div>
+          )}
           {contextError && !isInitializing && (
             <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded">
               <p className="text-xs text-red-400 font-medium">
@@ -179,27 +173,11 @@ export function SmartAccountPingTest() {
               </button>
             </div>
           )}
-          {chainId !== smartAccountChain.id && (
-            <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded">
-              <p className="text-xs text-yellow-400 font-medium">
-                Wrong Network
-              </p>
-              <p className="text-xs text-yellow-300 mt-1">
-                Please switch to Base Sepolia (Chain ID: {smartAccountChain.id})
-                to use smart accounts.
-              </p>
-            </div>
-          )}
         </div>
 
         <button
           onClick={handlePingTest}
-          disabled={
-            !smartAccount ||
-            isLoading ||
-            isInitializing ||
-            chainId !== smartAccountChain.id
-          }
+          disabled={!smartAccount || isLoading || isInitializing || !chainId}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-150 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading

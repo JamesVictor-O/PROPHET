@@ -77,7 +77,7 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Visual Content - Takes remaining space */}
+
         <div className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl flex-1 border-2 sm:border-3 rounded-xl sm:rounded-2xl items-center justify-center border-[#7a9fed] bg-gradient-to-br from-[#1E293B] to-[#0F172A] h-64 sm:h-80 md:h-96 relative overflow-hidden mx-4 sm:mx-0">
           <div className="relative z-10 h-full flex items-center justify-center overflow-hidden">
             <Image
