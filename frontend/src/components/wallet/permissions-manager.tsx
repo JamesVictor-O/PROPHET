@@ -12,6 +12,7 @@ import { getContractAddress } from "@/lib/contracts";
 import { parseUnits } from "viem";
 import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
 import { defaultChain } from "@/lib/wallet-config";
+import { PermissionSettingsModal } from "./permission-settings-modal";
 
 // Helper to format time until expiration
 function formatTimeUntil(expiresAtSeconds: number): string {
@@ -63,37 +64,47 @@ export function PermissionsManager() {
   const supportedChainIds = [84532, 11142220, 42220, 8453];
   const isOnSupportedChain = chainId && supportedChainIds.includes(chainId);
 
-  const handleGrantPermission = async () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleGrantPermission = async (
+    amount: number,
+    durationHours: number
+  ) => {
     try {
       setIsGranting(true);
 
       if (!sessionSmartAccount || !sessionSmartAccountAddress) {
         toast.info("Creating session smart account...");
         await createSessionAccount();
-        toast.info(
-          "Session smart account ready. Click again to grant permission."
-        );
-        return;
+        // Wait a bit for state to update
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!sessionSmartAccount || !sessionSmartAccountAddress) {
+          toast.info("Session account created. Please try again.");
+          setIsGranting(false);
+          return;
+        }
       }
 
       if (!walletClient) {
         toast.error("Wallet not connected");
+        setIsGranting(false);
         return;
       }
 
       toast.info("Requesting permission from MetaMask...");
 
-      // Step 2: Extend wallet client with ERC-7715 actions
+      // Extend wallet client with ERC-7715 actions
       const client = walletClient.extend(erc7715ProviderActions());
 
-      // Step 3: Set up permission parameters
+      // Set up permission parameters
       const currentTime = Math.floor(Date.now() / 1000);
-      const expiry = currentTime + 24 * 60 * 60; // 24 hours
+      const expiry = currentTime + durationHours * 60 * 60;
 
-      // Maximum amount per period (20 tokens per day)
-      const maxPeriodAmount = parseUnits("20", tokenDecimals);
+      // Convert amount to wei/units
+      const maxPeriodAmount = parseUnits(amount.toString(), tokenDecimals);
+      const periodDuration = 86400; // 24 hours in seconds
 
-      // Step 4: Request the permission using ERC-7715
+      // Request the permission using ERC-7715
       const permissions = await client.requestExecutionPermissions([
         {
           chainId,
@@ -101,7 +112,7 @@ export function PermissionsManager() {
           signer: {
             type: "account",
             data: {
-              address: sessionSmartAccountAddress, // Session smart account address (the executor)
+              address: sessionSmartAccountAddress,
             },
           },
           isAdjustmentAllowed: true,
@@ -110,17 +121,18 @@ export function PermissionsManager() {
             data: {
               tokenAddress: tokenAddress as `0x${string}`,
               periodAmount: maxPeriodAmount,
-              periodDuration: 86400, // 24 hours
-              justification: `One-tap betting: spend up to 20 ${tokenSymbol}/day on Prophet`,
+              periodDuration,
+              justification: `One-tap betting: spend up to ${amount} ${tokenSymbol}/day on Prophet`,
             },
           },
         },
       ]);
 
-      // Step 5: Save the permission with expiry
+      // Save the permission with expiry
       if (permissions && permissions.length > 0) {
         savePermission(permissions[0], expiry);
         toast.success("🎉 One-tap betting enabled! No more approval popups.");
+        setIsModalOpen(false);
       } else {
         toast.error("No permissions were granted");
       }
@@ -239,7 +251,7 @@ export function PermissionsManager() {
 
             {/* Grant Button */}
             <Button
-              onClick={handleGrantPermission}
+              onClick={() => setIsModalOpen(true)}
               disabled={isGranting || isCreatingSession || !isOnSupportedChain}
               className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-semibold"
             >
@@ -259,6 +271,14 @@ export function PermissionsManager() {
                 </>
               )}
             </Button>
+
+            {/* Permission Settings Modal */}
+            <PermissionSettingsModal
+              open={isModalOpen}
+              onOpenChange={setIsModalOpen}
+              onConfirm={handleGrantPermission}
+              isLoading={isGranting || isCreatingSession}
+            />
 
             {!isOnSupportedChain && (
               <p className="text-xs text-yellow-400 text-center">

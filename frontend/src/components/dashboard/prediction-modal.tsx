@@ -31,12 +31,14 @@ import {
   useUserPrediction,
 } from "@/hooks/contracts";
 import { toast } from "sonner";
-import { parseEther, maxUint256, formatEther } from "viem";
+import { parseEther, maxUint256, formatEther, encodeFunctionData } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
 import { MarketType } from "@/lib/types";
 import { MessageSquare } from "lucide-react";
+import { useSessionTransaction } from "@/hooks/useSessionTransaction";
+import { PredictionMarketABI } from "@/lib/abis";
 
 interface PredictionModalProps {
   open: boolean;
@@ -86,6 +88,15 @@ export function PredictionModal({
   const isPlacingPredictionRef = useRef<boolean>(false);
 
   const { chainId, address } = useAccount();
+
+  // One-Tap Betting (ERC-7715 Session Transaction)
+  const {
+    canUseSessionTransaction,
+    isPermissionValid,
+    executeSessionTransaction,
+    encodeContractCall,
+    isExecuting: isSessionExecuting,
+  } = useSessionTransaction();
 
   // Determine market type (default to Binary for backward compatibility)
   const marketType = market?.marketType ?? MarketType.Binary;
@@ -167,7 +178,9 @@ export function PredictionModal({
       ? existingOutcomeIndex
       : selectedOutcomeIndex;
 
-  const isPending = isCrowdWisdom
+  const isPending = isSessionExecuting
+    ? true
+    : isCrowdWisdom
     ? effectiveOutcomeIndex !== null
       ? isStakeOnOutcomePending
       : isCommentPending
@@ -603,6 +616,140 @@ export function PredictionModal({
       allowanceFromHook: allowanceData,
     });
 
+    // ======== ONE-TAP BETTING (ERC-7715 Session Transaction) ========
+    // If user has granted permission, use session account - NO METAMASK POPUPS!
+    if (canUseSessionTransaction && isPermissionValid) {
+      console.log("🚀 Using One-Tap Betting (ERC-7715 Session Transaction)");
+      toast.info("Placing prediction with One-Tap Betting...");
+
+      try {
+        const calls: {
+          to: `0x${string}`;
+          value: bigint;
+          data: `0x${string}`;
+        }[] = [];
+
+        // Add approval call if needed
+        if (actuallyNeedsApproval) {
+          const tokenAddress = getContractAddress("cUSD") as `0x${string}`;
+          const approveData = encodeFunctionData({
+            abi: [
+              {
+                inputs: [
+                  { name: "spender", type: "address" },
+                  { name: "amount", type: "uint256" },
+                ],
+                name: "approve",
+                outputs: [{ name: "", type: "bool" }],
+                stateMutability: "nonpayable",
+                type: "function",
+              },
+            ],
+            functionName: "approve",
+            args: [predictionMarketAddress, maxUint256],
+          });
+
+          calls.push({
+            to: tokenAddress,
+            value: BigInt(0),
+            data: approveData,
+          });
+        }
+
+        // Add prediction/stake call based on market type
+        if (isCrowdWisdom) {
+          // CrowdWisdom market
+          if (hasExistingPrediction && existingOutcomeIndex !== null) {
+            // User already staked - add to existing outcome
+            const stakeData = encodeContractCall({
+              abi: PredictionMarketABI,
+              functionName: "stakeOnOutcome",
+              args: [
+                BigInt(market.id),
+                BigInt(existingOutcomeIndex),
+                stakeAmount,
+              ],
+              to: predictionMarketAddress,
+            });
+            calls.push(stakeData);
+          } else if (selectedOutcomeIndex !== null) {
+            // Stake on existing outcome
+            const stakeData = encodeContractCall({
+              abi: PredictionMarketABI,
+              functionName: "stakeOnOutcome",
+              args: [
+                BigInt(market.id),
+                BigInt(selectedOutcomeIndex),
+                stakeAmount,
+              ],
+              to: predictionMarketAddress,
+            });
+            calls.push(stakeData);
+          } else {
+            // Comment and stake (creates new outcome or stakes on existing)
+            const commentData = encodeContractCall({
+              abi: PredictionMarketABI,
+              functionName: "commentAndStake",
+              args: [BigInt(market.id), outcomeComment.trim(), stakeAmount],
+              to: predictionMarketAddress,
+            });
+            calls.push(commentData);
+          }
+        } else {
+          // Binary market
+          const sideUint8 = side === "yes" ? 0 : 1;
+          const predictData = encodeContractCall({
+            abi: PredictionMarketABI,
+            functionName: "predict",
+            args: [BigInt(market.id), sideUint8, stakeAmount],
+            to: predictionMarketAddress,
+          });
+          calls.push(predictData);
+        }
+
+        // Execute via session account (NO METAMASK POPUP!)
+        setIsStaking(true);
+        const result = await executeSessionTransaction(calls);
+
+        if (result.success) {
+          toast.success("🎉 Prediction placed with One-Tap Betting!");
+          console.log(
+            "✅ Prediction placed via session transaction:",
+            result.hash
+          );
+
+          // Reset form and close modal
+          setStake("");
+          setOutcomeComment("");
+          setSelectedOutcomeIndex(null);
+          setProcessedPredictionHash(result.hash || null);
+          isPlacingPredictionRef.current = false;
+
+          // Close modal after a short delay to show success message
+          setTimeout(() => {
+            onOpenChange(false);
+          }, 1500);
+        } else {
+          toast.error(`Failed: ${result.error}`);
+          console.error("❌ Session transaction failed:", result.error);
+          setIsProcessing(false);
+          setIsStaking(false);
+          isPlacingPredictionRef.current = false;
+        }
+      } catch (err) {
+        console.error("One-Tap Betting error:", err);
+        toast.error("One-Tap Betting failed. Falling back to regular flow...");
+        // Fall through to regular flow
+        setIsProcessing(false);
+        setIsStaking(false);
+        isPlacingPredictionRef.current = false;
+      }
+      return;
+    }
+
+    // ======== REGULAR WALLET FLOW (with MetaMask popups) ========
+    console.log("📱 Using regular wallet flow (MetaMask popups required)");
+
     if (actuallyNeedsApproval) {
       // Automatically trigger approval
       if (!approve || !predictionMarketAddress) {
@@ -662,6 +809,18 @@ export function PredictionModal({
 
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 px-3 sm:px-4 md:px-6 min-h-0">
+          {/* One-Tap Betting Indicator */}
+          {canUseSessionTransaction && isPermissionValid && (
+            <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-xl">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                <p className="text-xs sm:text-sm text-yellow-400 font-medium">
+                  ⚡ One-Tap Betting Active - No wallet popups!
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Balance Info */}
           {cusdBalance && (
             <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-[#0F172A] border border-dark-700 rounded-xl">
@@ -993,6 +1152,8 @@ export function PredictionModal({
                     <p className="text-xs text-blue-400 font-medium">
                       {isApproving
                         ? "Please approve cUSD spending in your wallet..."
+                        : isSessionExecuting
+                        ? "Placing prediction with One-Tap Betting..."
                         : isStaking || isPending
                         ? "Placing your prediction..."
                         : "Processing..."}
@@ -1000,6 +1161,8 @@ export function PredictionModal({
                     <p className="text-xs text-gray-400 mt-1">
                       {isApproving
                         ? "After approval, prediction will start automatically"
+                        : isSessionExecuting
+                        ? "No wallet popup needed! 🎉"
                         : "Please confirm the transaction in your wallet"}
                     </p>
                   </div>
@@ -1040,6 +1203,8 @@ export function PredictionModal({
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   {isApproving
                     ? "Approving..."
+                    : isSessionExecuting
+                    ? "One-Tap..."
                     : isStaking || isPending
                     ? "Placing..."
                     : "Processing..."}

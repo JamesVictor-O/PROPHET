@@ -8,6 +8,7 @@ import { Home, BarChart3, Trophy, User } from "lucide-react";
 import { useUserStats, useUserPredictions } from "@/hooks/contracts";
 import { formatEther } from "viem";
 import { useMemo } from "react";
+import { PermissionButton } from "@/components/wallet/permission-button";
 
 interface SidebarProps {
   onCreateMarket?: () => void;
@@ -91,6 +92,11 @@ export function DashboardSidebar({ onCreateMarket }: SidebarProps) {
           })}
 
         </nav>
+
+        {/* One-Tap Betting Button */}
+        <div className="px-4 pb-4">
+          <PermissionButton variant="outline" size="default" className="w-full" />
+        </div>
 
         {/* Stats Card */}
         <Card className="m-4 bg-[#1E293B] border-dark-700">

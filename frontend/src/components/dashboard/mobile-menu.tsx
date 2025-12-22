@@ -15,6 +15,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, BarChart3, Trophy, User, Plus } from "lucide-react";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
+import { PermissionButton } from "@/components/wallet/permission-button";
 
 interface MobileMenuProps {
   onCreateMarket?: () => void;
@@ -87,7 +88,7 @@ export function MobileMenu({ onCreateMarket }: MobileMenuProps) {
               );
             })}
 
-            <div className="pt-4 border-t border-dark-700 mt-4">
+            <div className="pt-4 border-t border-dark-700 mt-4 space-y-2">
               <Button
                 onClick={() => {
                   onCreateMarket?.();
@@ -98,6 +99,7 @@ export function MobileMenu({ onCreateMarket }: MobileMenuProps) {
                 <Plus className="w-5 h-5 mr-2" />
                 Create Market
               </Button>
+              <PermissionButton variant="outline" size="default" className="w-full" />
             </div>
           </nav>
 
