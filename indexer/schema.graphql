@@ -1,0 +1,107 @@
+# Event entities (raw events)
+type PredictionMarket_MarketCreated {
+  id: ID!
+  marketId: BigInt!
+  creator: String!
+  question: String!
+  category: String!
+  endTime: BigInt!
+  marketType: BigInt!
+}
+
+type PredictionMarket_PredictionMade {
+  id: ID!
+  marketId: BigInt!
+  user: String!
+  side: BigInt!
+  outcomeIndex: BigInt!
+  amount: BigInt!
+}
+
+type PredictionMarket_MarketResolved {
+  id: ID!
+  marketId: BigInt!
+  winningOutcome: BigInt!
+  winningOutcomeIndex: BigInt!
+}
+
+type PredictionMarket_PayoutClaimed {
+  id: ID!
+  marketId: BigInt!
+  user: String!
+  amount: BigInt!
+}
+
+type ReputationSystem_ReputationUpdated {
+  id: ID!
+  user: String!
+  newScore: BigInt!
+  streak: BigInt!
+}
+
+type ReputationSystem_UsernameSet {
+  id: ID!
+  user: String!
+  username: String!
+}
+
+type MarketFactory_OwnershipTransferred {
+  id: ID!
+  previousOwner: String!
+  newOwner: String!
+}
+
+# Aggregated entities for frontend queries
+
+type Market {
+  id: ID! # marketId as string
+  marketId: BigInt!
+  creator: String!
+  question: String!
+  category: String!
+  marketType: BigInt! # 0 = Binary, 1 = CrowdWisdom
+  endTime: BigInt!
+  status: String! # Active, Resolved, Closed
+  resolved: Boolean!
+  winningOutcome: BigInt
+  winningOutcomeIndex: BigInt
+  yesPool: BigInt!
+  noPool: BigInt!
+  totalPool: BigInt!
+  createdAt: BigInt!
+  resolvedAt: BigInt
+  predictionCount: BigInt!
+}
+
+type Prediction {
+  id: ID! # marketId-userAddress
+  marketId: BigInt!
+  user: String!
+  side: BigInt! # For Binary: 0 = Yes, 1 = No
+  outcomeIndex: BigInt! # For CrowdWisdom: outcome index
+  amount: BigInt!
+  timestamp: BigInt!
+  claimed: Boolean!
+}
+
+type User {
+  id: ID! # user address
+  address: String!
+  username: String
+  totalPredictions: BigInt!
+  correctPredictions: BigInt!
+  totalWinnings: BigInt!
+  currentStreak: BigInt!
+  bestStreak: BigInt!
+  reputationScore: BigInt!
+  totalStaked: BigInt!
+}
+
+type GlobalStats {
+  id: ID! # singleton "global"
+  totalMarkets: BigInt!
+  totalPredictions: BigInt!
+  totalVolume: BigInt!
+  totalUsers: BigInt!
+  totalResolved: BigInt!
+}

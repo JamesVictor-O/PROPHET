@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: prophet-indexer
+networks:
+  - id: 84532 # Base Sepolia
+    start_block: 0 # TODO: Update with actual deployment block
+    contracts:
+      - name: MarketFactory
+        address:
+          - 0xe44Ea520518CCD7709CD13BCd37161518fA2e580
+        handler: src/EventHandlers.ts
+        events:
+          - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+      - name: PredictionMarket
+        address:
+          - 0x7FcfD3947A638377c37f445A794c1Ec0590c05f3
+        handler: src/EventHandlers.ts
+        events:
+          - event: MarketCreated(uint256 indexed marketId, address indexed creator, string question, string category, uint256 endTime, uint8 marketType)
+          - event: PredictionMade(uint256 indexed marketId, address indexed user, uint8 side, uint256 outcomeIndex, uint256 amount)
+          - event: MarketResolved(uint256 indexed marketId, uint8 winningOutcome, uint256 winningOutcomeIndex)
+          - event: PayoutClaimed(uint256 indexed marketId, address indexed user, uint256 amount)
+      - name: Oracle
+        address:
+          - 0x99C0b5dd3A58Da47D3e38FC857CB8F1e3db66a22
+        handler: src/EventHandlers.ts
+        events:
+          - event: MarketResolved(uint256 indexed marketId, uint8 outcome, uint256 outcomeIndex)
+      - name: ReputationSystem
+        address:
+          - 0xE562ef4B289ee17FB3c9B254bB44F018C573BF55
+        handler: src/EventHandlers.ts
+        events:
+          - event: ReputationUpdated(address indexed user, uint256 newScore, uint256 streak)
+          - event: UsernameSet(address indexed user, string username)
+unordered_multichain_mode: true
+preload_handlers: true
