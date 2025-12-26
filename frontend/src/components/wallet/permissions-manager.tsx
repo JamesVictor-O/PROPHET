@@ -42,6 +42,7 @@ export function PermissionsManager() {
   const {
     sessionSmartAccount,
     sessionSmartAccountAddress,
+    sessionKeyAddress,
     createSessionAccount,
     clearSessionAccount,
     isLoading: isCreatingSession,
@@ -102,9 +103,13 @@ export function PermissionsManager() {
 
       // Convert amount to wei/units
       const maxPeriodAmount = parseUnits(amount.toString(), tokenDecimals);
-      const periodDuration = 86400; // 24 hours in seconds
+      const periodDuration = 86400; 
+      if (!sessionKeyAddress) {
+        toast.error("Session key address not available. Please try again.");
+        setIsGranting(false);
+        return;
+      }
 
-      // Request the permission using ERC-7715
       const permissions = await client.requestExecutionPermissions([
         {
           chainId,
@@ -112,7 +117,7 @@ export function PermissionsManager() {
           signer: {
             type: "account",
             data: {
-              address: sessionSmartAccountAddress,
+              address: sessionKeyAddress, // Session EOA address (matches what we use when redeeming)
             },
           },
           isAdjustmentAllowed: true,

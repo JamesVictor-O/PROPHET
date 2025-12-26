@@ -148,14 +148,14 @@ export function useAllMarkets() {
     console.error("Error in useAllMarketIds:", marketIdsError);
   }
 
-  // Limit to first 10 markets (newest first)
+  // Limit to first 50 markets (newest first) - increased to show more markets
   // Note: marketIds might be generated from count, so they're sequential (1, 2, 3...)
   const limitedIds = useMemo(() => {
     if (!marketIds || marketIds.length === 0) return [];
-    // Convert to array and reverse to show newest first, then limit to 10
+    // Convert to array and reverse to show newest first, then limit to 50
     const idsArray = Array.from(marketIds);
     // Reverse to show newest first (highest ID = newest)
-    return idsArray.reverse().slice(0, 10);
+    return idsArray.reverse().slice(0, 50);
   }, [marketIds]);
 
   // In refactored architecture, all markets are in one contract

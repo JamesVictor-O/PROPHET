@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, TrendingUp } from "lucide-react";
+import { Trophy, ShieldCheck, MapPin, Calendar } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProfileHeaderProps {
   user: {
@@ -23,63 +23,87 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
   return (
-    <Card className="bg-[#1E293B] border-dark-700">
-      <CardContent className="p-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          {/* Avatar */}
-          <div className="w-24 h-24 bg-[#2563EB] rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-3xl">{user.initials}</span>
+    <div className="relative w-full animate-in fade-in duration-1000">
+      <div className="flex flex-col lg:flex-row items-start lg:items-end gap-8 lg:gap-12">
+        {/* 1. Ultra-Clean Avatar Area */}
+        <div className="relative group">
+          <div className="w-32 h-32 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl shadow-blue-500/10 transition-transform group-hover:scale-[1.02] duration-500">
+            <span className="text-white font-light text-5xl tracking-tighter italic">
+              {user.initials}
+            </span>
           </div>
-
-          {/* User Info */}
-          <div className="flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold">{user.displayName}</h1>
-              <div className="flex items-center gap-2">
-                {stats.rank <= 3 && (
-                  <Badge className="bg-[#2563EB] text-white">
-                    <Trophy className="w-3 h-3 mr-1" />
-                    Rank #{stats.rank}
-                  </Badge>
-                )}
-                {stats.currentStreak > 0 && (
-                  <Badge className="bg-orange-500/10 text-orange-400 border-orange-500/20">
-                    🔥 {stats.currentStreak} streak
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <p className="text-gray-400 mb-2">{user.username}</p>
-            {user.bio && (
-              <p className="text-sm text-gray-400 mb-4">{user.bio}</p>
-            )}
-            {(user.joinDate || user.email) && (
-              <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-                {user.joinDate && <span>Joined {user.joinDate}</span>}
-                {user.joinDate && user.email && <span>•</span>}
-                {user.email && <span>{user.email}</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="flex gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-[#2563EB] mb-1">
-                {stats.winRate}%
-              </div>
-              <div className="text-xs text-gray-400">Win Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-400 mb-1">
-                #{stats.rank}
-              </div>
-              <div className="text-xs text-gray-400">Rank</div>
-            </div>
+          {/* Subtle Verified Badge */}
+          <div className="absolute -bottom-2 -right-2 bg-[#020617] p-1.5 rounded-full border border-white/10">
+            <ShieldCheck className="w-5 h-5 text-blue-400 fill-blue-400/10" />
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* 2. User Info & Typography */}
+        <div className="flex-1 space-y-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-4xl md:text-5xl font-light tracking-tight text-white leading-tight">
+                {user.displayName}
+              </h1>
+              <div className="flex gap-2">
+                {stats.currentStreak >= 3 && (
+                  <Badge className="bg-orange-500/10 text-orange-400 border-none px-3 py-1 text-[10px] uppercase tracking-widest font-bold">
+                    🔥 {stats.currentStreak} Day Streak
+                  </Badge>
+                )}
+                <Badge className="bg-blue-500/10 text-blue-400 border-none px-3 py-1 text-[10px] uppercase tracking-widest font-bold">
+                  Pro Trader
+                </Badge>
+              </div>
+            </div>
+            <p className="text-lg font-mono text-slate-500 tracking-tighter">
+              {user.username}
+            </p>
+          </div>
+
+          {/* 3. Biography & Meta Metadata */}
+          <div className="max-w-xl">
+            <p className="text-slate-400 leading-relaxed font-medium text-sm">
+              {user.bio ||
+                "Quantitative predictor specializing in global film markets and geopolitical outcomes."}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-6 pt-2">
+            <MetaItem
+              icon={<Calendar className="w-3.5 h-3.5" />}
+              text={`Member since ${user.joinDate || "Jan 2024"}`}
+            />
+            <MetaItem
+              icon={<MapPin className="w-3.5 h-3.5" />}
+              text="Decentralized"
+            />
+          </div>
+        </div>
+
+        {/* 4. Strategic Secondary Stats (Desktop Only) */}
+        <div className="hidden xl:flex gap-12 border-l border-white/5 pl-12 h-20 items-center">
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">
+              Global Standing
+            </p>
+            <p className="text-3xl font-light text-emerald-400 tracking-tighter">
+              Top {((stats.rank / 1000) * 100).toFixed(1)}%
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
+function MetaItem({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-slate-500">
+      <span className="opacity-70">{icon}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider">
+        {text}
+      </span>
+    </div>
+  );
+}

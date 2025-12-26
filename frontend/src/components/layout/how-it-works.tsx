@@ -1,140 +1,199 @@
+"use client";
+
 import { Card, CardContent } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import {
+  Check,
+  ArrowRight,
+  Zap,
+  Sparkles,
+  Trophy,
+  MousePointer2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function HowItWorks() {
   const steps = [
     {
-      number: "1",
-      title: "Connect Wallet",
-      description:
-        "Open Prophet in MiniPay. Connect with one tap. No complex setup required.",
+      title: "Sync",
+      sub: "TAP & GO",
+      desc: "One-tap MiniPay connection. No seed phrases, just speed.",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
     },
     {
-      number: "2",
-      title: "Choose & Predict",
-      description:
-        "Browse active markets. Pick your prediction. Stake from $0.0025 to $20 per market.",
+      title: "Vibe",
+      sub: "PICK SIDES",
+      desc: "Trust your gut on culture. Stake what you want, from $0.01.",
+      color: "text-purple-400",
+      bg: "bg-purple-500/10",
     },
     {
-      number: "3",
-      title: "Win & Earn",
-      description:
-        "When you're right, you win a share of the pool. Paid out automatically to your wallet.",
+      title: "Win",
+      sub: "CASH OUT",
+      desc: "Smart contracts stream wins to your wallet. Instantly.",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
     },
-  ];
-
-  const exampleSteps = [
-    'You predict "YES, Burna Boy will drop an album" with a $5 stake',
-    "Total pool reaches $890 from 1,234 predictions",
-    'Burna announces album → Market resolves to "YES"',
-    "You win $7.35 (47% profit!) paid instantly to your wallet",
   ];
 
   return (
     <section
       id="how-it-works"
-      className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8 bg-[#1E293B]"
+      className="py-32 px-6 bg-[#020617] relative overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-10 sm:mb-12 md:mb-16">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">How It Works</h2>
-          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto px-4">
-            Start predicting and earning in 3 simple steps
+      {/* Dynamic Background Elements */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
+      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-emerald-600/10 blur-[100px] rounded-full" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Livelier Header */}
+        <div className="flex flex-col items-center text-center mb-24 space-y-6">
+          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white text-[10px] uppercase tracking-[0.3em] font-black">
+            <Sparkles className="w-3 h-3 text-yellow-400" /> The Prophet Path
+          </div>
+          <h2 className="text-5xl md:text-8xl font-black tracking-tighter text-white uppercase italic">
+            Zero{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-emerald-400">
+              Friction.
+            </span>
+          </h2>
+          <p className="text-slate-400 text-lg md:text-xl max-w-xl font-medium tracking-tight">
+            Stop watching from the sidelines. Turn your cultural IQ into real
+            assets in three moves.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mb-8 sm:mb-12">
-          {steps.map((step, index) => (
-            <div key={index} className="text-center">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-[#2563EB] text-white rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-bold mx-auto mb-4 sm:mb-6">
-                {step.number}
+        {/* Action Steps with Visual Connector */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-32 relative">
+          {steps.map((step, i) => (
+            <div key={i} className="relative group">
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div
+                  className={cn(
+                    "w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-3xl font-black rotate-3 group-hover:rotate-12 transition-all duration-500 shadow-2xl shadow-black/50 border border-white/10",
+                    step.bg,
+                    step.color
+                  )}
+                >
+                  {i + 1}
+                </div>
+                <div className="space-y-2">
+                  <p
+                    className={cn(
+                      "text-[10px] font-black tracking-[0.3em] uppercase",
+                      step.color
+                    )}
+                  >
+                    {step.sub}
+                  </p>
+                  <h3 className="text-3xl font-bold text-white tracking-tighter italic">
+                    {step.title}
+                  </h3>
+                  <p className="text-slate-500 text-sm font-semibold max-w-[200px] mx-auto leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3">{step.title}</h3>
-              <p className="text-sm sm:text-base text-gray-400 leading-relaxed px-2">
-                {step.description}
-              </p>
+              {i < 2 && (
+                <ArrowRight className="hidden md:block absolute top-12 -right-6 w-12 h-12 text-white/5 stroke-[1px]" />
+              )}
             </div>
           ))}
         </div>
 
-        <Card className="mt-8 sm:mt-12 md:mt-16 bg-[#0F172A] border-[#334155]">
-          <CardContent className="p-4 sm:p-6 md:p-8 lg:p-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-start md:items-center">
-              <div>
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 sm:mb-6">
-                  Example: How You Win
-                </h3>
-                <div className="space-y-3 sm:space-y-4 text-gray-400">
-                  {exampleSteps.map((step, index) => (
-                    <div key={index} className="flex items-start space-x-2 sm:space-x-3">
-                      <div
-                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                          index === exampleSteps.length - 1
-                            ? "bg-green-500/20 border border-green-500/40"
-                            : "bg-[#2563EB]/10 border border-[#2563EB]/20"
-                        }`}
-                      >
-                        <Check
-                          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${
-                            index === exampleSteps.length - 1
-                              ? "text-green-400"
-                              : "text-[#2563EB]"
-                          }`}
-                        />
+        {/* "The Winning Moment" Interactive Card */}
+        <div className="relative group perspective-1000">
+          <div className="absolute -inset-4 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition-opacity duration-700" />
+
+          <Card className="relative bg-black/40 backdrop-blur-3xl border-white/10 rounded-[2.5rem] overflow-hidden">
+            <CardContent className="p-1 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-5 h-full">
+                {/* Visual Narrative Side */}
+                <div className="lg:col-span-3 p-8 md:p-16 space-y-10">
+                  <div className="space-y-4">
+                    <h4 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter leading-none">
+                      SEE IT. <br />
+                      <span className="text-slate-500">PREDICT IT.</span> <br />
+                      <span className="text-emerald-400 underline decoration-white/20 underline-offset-8">
+                        OWN IT.
+                      </span>
+                    </h4>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4 group/item">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover/item:scale-125 transition-transform">
+                        <MousePointer2 className="w-4 h-4" />
                       </div>
-                      <p
-                        className={`text-sm sm:text-base ${
-                          index === exampleSteps.length - 1
-                            ? "text-white font-semibold"
-                            : ""
-                        }`}
-                      >
-                        {index === exampleSteps.length - 1 ? (
-                          <strong className="text-white">{step}</strong>
-                        ) : (
-                          step
-                        )}
+                      <p className="text-white font-bold tracking-tight">
+                        You predicted Burna Boy drops a Surprise EP
                       </p>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="flex items-center gap-4 group/item">
+                      <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 group-hover/item:scale-125 transition-transform">
+                        <Trophy className="w-4 h-4" />
+                      </div>
+                      <p className="text-white font-bold tracking-tight">
+                        Market Settles. Reality matches your gut.
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="bg-[#1E293B] border border-[#334155] rounded-xl p-4 sm:p-6">
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-[#334155]">
-                    <span className="text-gray-400 text-xs sm:text-sm">Your Stake</span>
-                    <span className="text-white font-semibold text-sm sm:text-base">$5.00</span>
+                  <button className="flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full font-black uppercase text-xs tracking-widest hover:bg-emerald-400 hover:scale-105 transition-all shadow-xl shadow-white/5">
+                    Enter the Arena <Zap className="w-4 h-4 fill-black" />
+                  </button>
+                </div>
+
+                {/* The "Dynamic Receipt" - The Lively Part */}
+                <div className="lg:col-span-2 bg-gradient-to-b from-slate-900 to-black p-8 md:p-12 border-l border-white/5 flex flex-col justify-center relative">
+                  <div className="space-y-8 relative z-10">
+                    <div className="space-y-1">
+                      <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                        Your Position
+                      </p>
+                      <p className="text-4xl font-black text-white">$10.00</p>
+                    </div>
+
+                    <div className="h-px bg-white/5 w-full" />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">
+                          Multiplier
+                        </p>
+                        <p className="text-xl font-bold text-white">1.8x</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">
+                          Network
+                        </p>
+                        <p className="text-xl font-bold text-blue-400">
+                          MiniPay
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 relative group/payout overflow-hidden">
+                      <div className="absolute inset-0 bg-emerald-500/10 translate-y-full group-hover/payout:translate-y-0 transition-transform duration-500" />
+                      <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1 relative z-10">
+                        Instant Payout
+                      </p>
+                      <p className="text-5xl font-black text-emerald-400 tracking-tighter relative z-10">
+                        $18.42
+                      </p>
+                      <p className="text-xs font-bold text-emerald-500/60 mt-2 relative z-10">
+                        +84% GAIN
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-[#334155]">
-                    <span className="text-gray-400 text-xs sm:text-sm">Total Pool</span>
-                    <span className="text-white font-semibold text-sm sm:text-base">$890.00</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-[#334155]">
-                    <span className="text-gray-400 text-xs sm:text-sm">
-                      Your Share (YES wins)
-                    </span>
-                    <span className="text-white font-semibold text-sm sm:text-base">0.82%</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-[#334155]">
-                    <span className="text-gray-400 text-xs sm:text-sm">
-                      Platform Fee (5%)
-                    </span>
-                    <span className="text-white font-semibold text-sm sm:text-base">$44.50</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-gray-400 text-xs sm:text-sm font-semibold">
-                      You Win
-                    </span>
-                    <span className="text-green-400 font-bold text-lg sm:text-xl">
-                      $7.35
-                    </span>
-                  </div>
+
+                  {/* Aesthetic grid pattern for the receipt */}
+                  <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </section>
   );

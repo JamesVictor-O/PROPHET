@@ -52,6 +52,7 @@ export {
   useClaimPayout,
   useHasClaimed,
   usePredictionCount,
+  useMaxStakePerUser,
 } from "./usePredictionMarket";
 
 // All markets hook

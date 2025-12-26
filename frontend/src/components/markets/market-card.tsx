@@ -4,9 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Users, TrendingUp } from "lucide-react";
-import { useMarketOutcomes } from "@/hooks/contracts";
+import { useMarketOutcomes, usePoolAmounts } from "@/hooks/contracts";
 import { MarketType } from "@/lib/types";
 import { formatEther } from "viem";
+import { useMemo } from "react";
 import { BinaryChart } from "./binary-chart";
 
 export interface Market {
@@ -29,6 +30,32 @@ interface MarketCardProps {
 
 export function MarketCard({ market, onPredict }: MarketCardProps) {
   const isCrowdWisdom = market.marketType === MarketType.CrowdWisdom;
+
+  // Fetch live pool amounts for Binary markets to ensure chart shows current data
+  const { yesPool, noPool } = usePoolAmounts(
+    !isCrowdWisdom ? BigInt(market.id) : undefined
+  );
+
+  // Calculate live percentages for Binary markets
+  const livePercentages = useMemo(() => {
+    if (isCrowdWisdom) {
+      return { yesPercent: market.yesPercent, noPercent: market.noPercent };
+    }
+
+    const yesPoolAmount = yesPool || BigInt(0);
+    const noPoolAmount = noPool || BigInt(0);
+    const totalPool = yesPoolAmount + noPoolAmount;
+
+    if (totalPool === BigInt(0)) {
+      return { yesPercent: 50, noPercent: 50 };
+    }
+
+    const yesPercent =
+      Number((yesPoolAmount * BigInt(10000)) / totalPool) / 100;
+    const noPercent = Number((noPoolAmount * BigInt(10000)) / totalPool) / 100;
+
+    return { yesPercent, noPercent };
+  }, [isCrowdWisdom, yesPool, noPool, market.yesPercent, market.noPercent]);
 
   // Fetch outcomes for CrowdWisdom markets
   const { data: marketOutcomesData, isLoading: isLoadingOutcomes } =
@@ -59,125 +86,61 @@ export function MarketCard({ market, onPredict }: MarketCardProps) {
     .slice(0, 3);
 
   return (
-    <Card className="bg-[#0F172A] border border-[#1E293B] rounded-xl p-3 sm:p-4 w-full">
-      <CardContent className="p-0 space-y-3">
-        {/* Top Row: Category + Time Left + Market Type */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Badge
-              className="px-2 py-0.5 text-[10px] sm:text-xs"
-              style={{ backgroundColor: market.categoryColor }}
-            >
-              {market.category}
-            </Badge>
-            {isCrowdWisdom && (
-              <Badge className="px-2 py-0.5 text-[10px] sm:text-xs bg-purple-500/10 text-purple-400 border-purple-500/20">
-                CrowdWisdom
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 text-gray-400 text-[11px] sm:text-xs">
-            <Clock size={12} />
+    <Card className="bg-[#020617] border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-colors">
+      <CardContent className="p-0">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-4">
+          <Badge className="bg-slate-800 text-slate-300 hover:bg-slate-800 border-none rounded-md px-2 py-0">
+            {market.category}
+          </Badge>
+          <div className="flex items-center gap-1.5 text-slate-500 text-xs font-medium">
+            <Clock size={13} />
             {market.timeLeft}
           </div>
         </div>
 
         {/* Question */}
-        <h2 className="font-semibold text-white text-sm sm:text-base leading-snug">
+        <h2 className="text-white text-base font-medium leading-tight mb-4 min-h-[3rem]">
           {market.question}
         </h2>
 
-        {/* Binary Market: Visual Chart */}
+        {/* The New Aesthetic Chart */}
         {!isCrowdWisdom && (
           <BinaryChart
-            yesPercent={market.yesPercent}
-            noPercent={market.noPercent}
-            onYesClick={() => onPredict(market.id, "yes")}
-            onNoClick={() => onPredict(market.id, "no")}
+            yesPercent={livePercentages.yesPercent}
+            noPercent={livePercentages.noPercent}
           />
         )}
 
-        {/* CrowdWisdom Market: Outcomes Chart */}
-        {isCrowdWisdom && (
-          <div className="space-y-2">
-            {isLoadingOutcomes ? (
-              <div className="p-4 bg-[#1E293B] border border-dark-700 rounded-lg text-center">
-                <div className="text-xs text-gray-400">Loading outcomes...</div>
-              </div>
-            ) : sortedOutcomes.length > 0 ? (
-              <>
-                <div className="space-y-2">
-                  {sortedOutcomes.map((outcome, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-[#1E293B] border border-dark-700 rounded-lg p-2.5 sm:p-3"
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-white font-semibold text-xs sm:text-sm truncate flex-1 mr-2">
-                          {outcome.label}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-purple-400 font-bold text-xs sm:text-sm">
-                            {outcome.percentage.toFixed(1)}%
-                          </span>
-                          <span className="text-gray-400 text-[10px] sm:text-xs">
-                            $
-                            {Number(formatEther(outcome.poolAmount)).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Progress Bar */}
-                      <div className="w-full bg-[#0F172A] rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-300"
-                          style={{ width: `${outcome.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {outcomes.length > 3 && (
-                  <div className="text-center">
-                    <span className="text-xs text-gray-400">
-                      +{outcomes.length - 3} more outcomes
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="p-4 bg-[#1E293B] border border-dark-700 rounded-lg text-center">
-                <div className="text-xs text-gray-400">
-                  No outcomes yet. Be the first to comment!
-                </div>
-              </div>
-            )}
+        {/* Prediction Stats Bar */}
+        <div className="flex items-center gap-4 py-3 border-y border-slate-800/50 mb-4">
+          <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+            <Users size={14} className="text-slate-600" />
+            <span className="text-slate-200 font-medium">
+              {market.predictions}
+            </span>
           </div>
-        )}
-
-        {/* Stats Row */}
-        <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
-          <div className="flex items-center gap-1">
-            <Users size={12} />
-            {market.predictions.toLocaleString()} participant
-            {market.predictions !== 1 ? "s" : ""}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <TrendingUp size={12} />
-            Pool: {market.pool}
+          <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+            <TrendingUp size={14} className="text-slate-600" />
+            <span className="text-slate-200 font-medium">{market.pool}</span>
           </div>
         </div>
 
-        {/* Main Button */}
-        <Button
-          onClick={() => onPredict(market.id)}
-          size="sm"
-          className="w-full bg-[#2563EB] text-white hover:bg-blue-700 
-                 text-xs sm:text-sm h-10"
-        >
-          Place Prediction
-        </Button>
+        {/* Action Buttons: Split UI */}
+        <div className="grid grid-cols-2 gap-3 mt-6">
+          <Button
+            variant="secondary"
+            className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border-none h-11 transition-all"
+          >
+            YES
+          </Button>
+          <Button
+            variant="secondary"
+            className="bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border-none h-11 transition-all"
+          >
+            NO
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

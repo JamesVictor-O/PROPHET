@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount, useBalance } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   usePredict,
   useCUSDAllowance,
@@ -31,14 +32,16 @@ import {
   useUserPrediction,
 } from "@/hooks/contracts";
 import { toast } from "sonner";
-import { parseEther, maxUint256, formatEther, encodeFunctionData } from "viem";
+import { parseUnits, maxUint256, formatUnits } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
 import { MarketType } from "@/lib/types";
 import { MessageSquare } from "lucide-react";
-import { useSessionTransaction } from "@/hooks/useSessionTransaction";
+import { useRedeemDelegations } from "@/hooks/useRedeemDelegations";
+import { usePermissions } from "@/providers/PermissionProvider";
 import { PredictionMarketABI } from "@/lib/abis";
+import { useContractRead } from "wagmi";
 
 interface PredictionModalProps {
   open: boolean;
@@ -88,36 +91,26 @@ export function PredictionModal({
   const isPlacingPredictionRef = useRef<boolean>(false);
 
   const { chainId, address } = useAccount();
+  const queryClient = useQueryClient();
 
-  // One-Tap Betting (ERC-7715 Session Transaction)
-  const {
-    canUseSessionTransaction,
-    isPermissionValid,
-    executeSessionTransaction,
-    encodeContractCall,
-    isExecuting: isSessionExecuting,
-  } = useSessionTransaction();
+  // Token decimals: USDC (6) on Base, cUSD (18) on Celo
+  const tokenDecimals =
+    defaultChain.id === 84532 || defaultChain.id === 8453 ? 6 : 18;
+  const tokenSymbol =
+    defaultChain.id === 84532 || defaultChain.id === 8453 ? "USDC" : "cUSD";
+
+  // One-Tap Betting (ERC-7715 Redeem Delegations with Auto Transfer)
+  const { canUseRedeem, redeemWithUSDCTransfer } = useRedeemDelegations();
+
+  // Check permission validity separately
+  const { isPermissionValid } = usePermissions();
 
   // Determine market type (default to Binary for backward compatibility)
   const marketType = market?.marketType ?? MarketType.Binary;
   const isCrowdWisdom = marketType === MarketType.CrowdWisdom;
 
-  // Debug: Log market type to console
   useEffect(() => {
     if (open && market) {
-      console.log("🔍 PredictionModal Debug:", {
-        marketId: market.id,
-        question: market.question,
-        marketTypeRaw: market.marketType,
-        marketTypeProcessed: marketType,
-        isCrowdWisdom,
-        MarketTypeEnum: {
-          Binary: MarketType.Binary,
-          CrowdWisdom: MarketType.CrowdWisdom,
-        },
-        willShowBinaryUI: !isCrowdWisdom,
-        willShowCrowdWisdomUI: isCrowdWisdom,
-      });
     }
   }, [open, market, marketType, isCrowdWisdom]);
 
@@ -178,7 +171,7 @@ export function PredictionModal({
       ? existingOutcomeIndex
       : selectedOutcomeIndex;
 
-  const isPending = isSessionExecuting
+  const isPending = isStaking
     ? true
     : isCrowdWisdom
     ? effectiveOutcomeIndex !== null
@@ -207,8 +200,53 @@ export function PredictionModal({
   const predictionMarketAddress = getContractAddress(
     "predictionMarket"
   ) as Address;
+
+  // Parse stake amount using correct decimals (USDC: 6, cUSD: 18)
   const stakeInWei =
-    stake && parseFloat(stake) > 0 ? parseEther(stake) : undefined;
+    stake && parseFloat(stake) > 0
+      ? parseUnits(stake, tokenDecimals)
+      : undefined;
+
+  // Get existing stakes for Binary markets (Yes + No) to validate total stake
+  const { data: yesStake } = useContractRead({
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
+    functionName: "userStakes",
+    args:
+      market?.id && !isCrowdWisdom && address
+        ? [BigInt(market.id), address as Address, 0] // 0 = Yes
+        : undefined,
+    query: {
+      enabled:
+        !!market?.id &&
+        !isCrowdWisdom &&
+        !!address &&
+        !!predictionMarketAddress,
+    },
+  });
+
+  const { data: noStake } = useContractRead({
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
+    functionName: "userStakes",
+    args:
+      market?.id && !isCrowdWisdom && address
+        ? [BigInt(market.id), address as Address, 1] // 1 = No
+        : undefined,
+    query: {
+      enabled:
+        !!market?.id &&
+        !isCrowdWisdom &&
+        !!address &&
+        !!predictionMarketAddress,
+    },
+  });
+
+  // Calculate total existing stake (contract checks: existing + new <= MAX_STAKE_PER_USER)
+  // For Binary: Yes + No stakes, For CrowdWisdom: userPrediction.amount
+  const existingStake = isCrowdWisdom
+    ? userPrediction?.amount || BigInt(0)
+    : ((yesStake as bigint) || BigInt(0)) + ((noStake as bigint) || BigInt(0));
 
   // Check if approval is needed
   const {
@@ -245,13 +283,8 @@ export function PredictionModal({
     stakeInWei
   );
 
-  // Handle placing prediction - must be defined before useEffect that uses it
   const handlePlacePrediction = useCallback(() => {
-    // Prevent multiple calls - guard against duplicate triggers
     if (isPlacingPredictionRef.current) {
-      console.log(
-        "⚠️ handlePlacePrediction: Already placing prediction, skipping duplicate call"
-      );
       return;
     }
 
@@ -266,7 +299,7 @@ export function PredictionModal({
     isPlacingPredictionRef.current = true;
 
     try {
-      const stakeInWei = parseEther(stake);
+      const stakeInWei = parseUnits(stake, tokenDecimals);
 
       if (isCrowdWisdom) {
         // If user has existing prediction, must use existing outcome index
@@ -325,7 +358,6 @@ export function PredictionModal({
 
       toast.info("Confirm prediction in your wallet");
     } catch (err) {
-      console.error("Error:", err);
       toast.error("Failed to place prediction");
       setIsProcessing(false);
       setIsStaking(false);
@@ -336,6 +368,7 @@ export function PredictionModal({
     stake,
     isCrowdWisdom,
     selectedOutcomeIndex,
+    tokenDecimals,
     outcomeComment,
     side,
     writeStakeOnOutcome,
@@ -448,11 +481,9 @@ export function PredictionModal({
     handlePlacePrediction,
   ]);
 
-  // Handle approval errors
   useEffect(() => {
     if (approvalError) {
-      console.error("Approval error:", approvalError);
-      isPlacingPredictionRef.current = false; // Reset flag on error
+      isPlacingPredictionRef.current = false;
       toast.error("Failed to approve cUSD");
       setIsApproving(false);
       setIsProcessing(false);
@@ -484,6 +515,36 @@ export function PredictionModal({
       setProcessedPredictionHash(currentPredictionHash);
       isPlacingPredictionRef.current = false; // Reset flag on success
       toast.success("Prediction placed successfully!");
+
+      // Invalidate queries to refresh pool data and market details
+      // Wait a bit for transaction to be confirmed on-chain before refetching
+      setTimeout(() => {
+        const predictionMarketAddress = getContractAddress("predictionMarket");
+        // Invalidate all wagmi readContract queries for prediction market
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const queryKey = query.queryKey;
+            // Match wagmi readContract queries for prediction market
+            if (Array.isArray(queryKey) && queryKey[0] === "readContract") {
+              const queryData = queryKey[1] as { address?: string };
+              return (
+                queryData?.address?.toLowerCase() ===
+                predictionMarketAddress?.toLowerCase()
+              );
+            }
+            // Also match custom query keys
+            return (
+              (Array.isArray(queryKey) && queryKey[0] === "allMarkets") ||
+              (Array.isArray(queryKey) && queryKey[0] === "marketDetails") ||
+              (Array.isArray(queryKey) && queryKey[0] === "poolAmounts") ||
+              (Array.isArray(queryKey) && queryKey[0] === "userPrediction") ||
+              (Array.isArray(queryKey) && queryKey[0] === "marketOutcomes") ||
+              (Array.isArray(queryKey) && queryKey[0] === "predictionCount")
+            );
+          },
+        });
+      }, 2000); // Wait 2 seconds for transaction confirmation
+
       setStake("");
       setErrors({});
       setNeedsApproval(false);
@@ -498,13 +559,13 @@ export function PredictionModal({
     currentPredictionHash,
     processedPredictionHash,
     onOpenChange,
+    market?.id,
+    queryClient,
   ]);
 
-  // Handle errors
   useEffect(() => {
     if (writeError) {
-      console.error("Error placing prediction:", writeError);
-      isPlacingPredictionRef.current = false; // Reset flag on error
+      isPlacingPredictionRef.current = false;
       setIsProcessing(false);
       setIsStaking(false);
       setProcessedApprovalHash(null); // Reset on error
@@ -541,17 +602,37 @@ export function PredictionModal({
     } = {};
 
     // Validate stake amount
-    const minStake = isCrowdWisdom ? 1.0 : 0.25;
+    // Contract MIN_STAKE = 25e3 (0.025 USDC) for Binary, MIN_STAKE_TO_CREATE_OUTCOME = 1e6 (1 USDC) for CrowdWisdom
+    const minStake = isCrowdWisdom ? 1.0 : 0.025;
     if (!stake || parseFloat(stake) < minStake) {
       newErrors.stake = isCrowdWisdom
-        ? "Minimum stake is $1.00 cUSD for CrowdWisdom markets"
-        : "Minimum stake is $0.25 cUSD";
+        ? `Minimum stake is $1.00 ${tokenSymbol} for CrowdWisdom markets`
+        : `Minimum stake is $0.025 ${tokenSymbol}`;
     }
-    if (parseFloat(stake) > 20) {
-      newErrors.stake = "Maximum stake is $20.00 cUSD";
+
+    // Check total stake (existing + new) <= MAX_STAKE_PER_USER
+    // Contract MAX_STAKE_PER_USER = 20e6 (20 USDC) for USDC, 20e18 (20 cUSD) for cUSD
+    const newStakeAmount = stake ? parseUnits(stake, tokenDecimals) : BigInt(0);
+    const totalStake = existingStake + newStakeAmount;
+    const maxStakePerUser = tokenDecimals === 6 ? BigInt(20e6) : BigInt(20e18); // 20 USDC or 20 cUSD
+
+    if (totalStake > maxStakePerUser) {
+      const existingStakeFormatted = Number(
+        formatUnits(existingStake, tokenDecimals)
+      );
+      const maxNewStake = 20 - existingStakeFormatted;
+      newErrors.stake =
+        existingStakeFormatted > 0
+          ? `Maximum total stake is $20.00 ${tokenSymbol}. You already have $${existingStakeFormatted.toFixed(
+              2
+            )} ${tokenSymbol} staked. Maximum new stake: $${maxNewStake.toFixed(
+              2
+            )} ${tokenSymbol}`
+          : `Maximum stake is $20.00 ${tokenSymbol}`;
     }
+
     if (cusdBalance && parseFloat(stake) > Number(cusdBalance.formatted)) {
-      newErrors.stake = "Insufficient cUSD balance";
+      newErrors.stake = `Insufficient ${tokenSymbol} balance`;
     }
 
     // Validate Binary market side
@@ -596,7 +677,7 @@ export function PredictionModal({
     }
     const allowanceData = await refetchAllowance();
     const currentAllowance = allowanceData.data as bigint | undefined | null;
-    const stakeAmount = parseEther(stake);
+    const stakeAmount = parseUnits(stake, tokenDecimals);
     const actuallyNeedsApproval =
       currentAllowance === undefined ||
       currentAllowance === null ||
@@ -606,33 +687,31 @@ export function PredictionModal({
         currentAllowance !== null &&
         currentAllowance < stakeAmount);
 
-    console.log("🔍 Approval Check:", {
-      currentAllowance: currentAllowance?.toString(),
-      stakeAmount: stakeAmount.toString(),
-      needsApproval,
-      checkNeedsApproval,
-      actuallyNeedsApproval,
-      isLoadingAllowance,
-      allowanceFromHook: allowanceData,
-    });
-
-    // ======== ONE-TAP BETTING (ERC-7715 Session Transaction) ========
-    // If user has granted permission, use session account - NO METAMASK POPUPS!
-    if (canUseSessionTransaction && isPermissionValid) {
-      console.log("🚀 Using One-Tap Betting (ERC-7715 Session Transaction)");
+    if (canUseRedeem && isPermissionValid()) {
       toast.info("Placing prediction with One-Tap Betting...");
 
-      try {
-        const calls: {
-          to: `0x${string}`;
-          value: bigint;
-          data: `0x${string}`;
-        }[] = [];
+      // Ensure market exists
+      if (!market) {
+        toast.error("Market not found");
+        setIsProcessing(false);
+        return;
+      }
 
-        // Add approval call if needed
+      try {
+        const contractCalls: Array<{
+          to: `0x${string}`;
+          value?: bigint;
+          abi: typeof PredictionMarketABI;
+          functionName: string;
+          args: readonly unknown[];
+        }> = [];
+
+        // Add approval call if needed (as first contract call)
         if (actuallyNeedsApproval) {
           const tokenAddress = getContractAddress("cUSD") as `0x${string}`;
-          const approveData = encodeFunctionData({
+          contractCalls.push({
+            to: tokenAddress,
+            value: BigInt(0),
             abi: [
               {
                 inputs: [
@@ -644,15 +723,9 @@ export function PredictionModal({
                 stateMutability: "nonpayable",
                 type: "function",
               },
-            ],
+            ] as const,
             functionName: "approve",
             args: [predictionMarketAddress, maxUint256],
-          });
-
-          calls.push({
-            to: tokenAddress,
-            value: BigInt(0),
-            data: approveData,
           });
         }
 
@@ -661,20 +734,19 @@ export function PredictionModal({
           // CrowdWisdom market
           if (hasExistingPrediction && existingOutcomeIndex !== null) {
             // User already staked - add to existing outcome
-            const stakeData = encodeContractCall({
+            contractCalls.push({
               abi: PredictionMarketABI,
               functionName: "stakeOnOutcome",
               args: [
-                BigInt(market.id),
-                BigInt(existingOutcomeIndex),
+                BigInt(Number(market.id)),
+                BigInt(Number(existingOutcomeIndex)),
                 stakeAmount,
               ],
               to: predictionMarketAddress,
             });
-            calls.push(stakeData);
           } else if (selectedOutcomeIndex !== null) {
             // Stake on existing outcome
-            const stakeData = encodeContractCall({
+            contractCalls.push({
               abi: PredictionMarketABI,
               functionName: "stakeOnOutcome",
               args: [
@@ -684,37 +756,41 @@ export function PredictionModal({
               ],
               to: predictionMarketAddress,
             });
-            calls.push(stakeData);
           } else {
             // Comment and stake (creates new outcome or stakes on existing)
-            const commentData = encodeContractCall({
+            contractCalls.push({
               abi: PredictionMarketABI,
               functionName: "commentAndStake",
               args: [BigInt(market.id), outcomeComment.trim(), stakeAmount],
               to: predictionMarketAddress,
             });
-            calls.push(commentData);
           }
         } else {
           // Binary market
           const sideUint8 = side === "yes" ? 0 : 1;
-          const predictData = encodeContractCall({
+          contractCalls.push({
             abi: PredictionMarketABI,
             functionName: "predict",
             args: [BigInt(market.id), sideUint8, stakeAmount],
             to: predictionMarketAddress,
           });
-          calls.push(predictData);
         }
 
-        // Execute via session account (NO METAMASK POPUP!)
+        // Execute with automatic USDC transfer (NO METAMASK POPUP!)
+        // Step 1: Transfer USDC from user's EOA to session account (via redeemDelegations)
+        // Step 2: Execute contract calls using session account (which now has USDC)
         setIsStaking(true);
-        const result = await executeSessionTransaction(calls);
+        const result = await redeemWithUSDCTransfer({
+          usdcAmount: stake, // Amount as string (e.g., "10.5")
+          tokenDecimals: tokenDecimals, // 6 for USDC, 18 for cUSD
+          // recipient defaults to sessionSmartAccountAddress in the hook
+          contractCalls: contractCalls, // Contract calls to execute after transfer
+        });
 
         if (result.success) {
           toast.success("🎉 Prediction placed with One-Tap Betting!");
           console.log(
-            "✅ Prediction placed via session transaction:",
+            "✅ Prediction placed via redeemDelegations (auto-transfer):",
             result.hash
           );
 
@@ -724,6 +800,39 @@ export function PredictionModal({
           setSelectedOutcomeIndex(null);
           setProcessedPredictionHash(result.hash || null);
           isPlacingPredictionRef.current = false;
+
+          // Invalidate queries to refresh pool data and market details
+          // Wait a bit for transaction to be confirmed on-chain before refetching
+          setTimeout(() => {
+            const predictionMarketAddress =
+              getContractAddress("predictionMarket");
+            // Invalidate all wagmi readContract queries for prediction market
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const queryKey = query.queryKey;
+                // Match wagmi readContract queries for prediction market
+                if (Array.isArray(queryKey) && queryKey[0] === "readContract") {
+                  const queryData = queryKey[1] as { address?: string };
+                  return (
+                    queryData?.address?.toLowerCase() ===
+                    predictionMarketAddress?.toLowerCase()
+                  );
+                }
+                // Also match custom query keys
+                return (
+                  (Array.isArray(queryKey) && queryKey[0] === "allMarkets") ||
+                  (Array.isArray(queryKey) &&
+                    queryKey[0] === "marketDetails") ||
+                  (Array.isArray(queryKey) && queryKey[0] === "poolAmounts") ||
+                  (Array.isArray(queryKey) &&
+                    queryKey[0] === "userPrediction") ||
+                  (Array.isArray(queryKey) &&
+                    queryKey[0] === "marketOutcomes") ||
+                  (Array.isArray(queryKey) && queryKey[0] === "predictionCount")
+                );
+              },
+            });
+          }, 2000); // Wait 2 seconds for transaction confirmation
 
           // Close modal after a short delay to show success message
           setTimeout(() => {
@@ -783,7 +892,7 @@ export function PredictionModal({
   // Calculate potential win display
   const potentialWinFormatted =
     potentialWinnings && stakeInWei
-      ? Number(formatEther(potentialWinnings)).toFixed(2)
+      ? Number(formatUnits(potentialWinnings, tokenDecimals)).toFixed(2)
       : stake && parseFloat(stake) > 0
       ? (
           (parseFloat(stake) /
@@ -810,7 +919,7 @@ export function PredictionModal({
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 px-3 sm:px-4 md:px-6 min-h-0">
           {/* One-Tap Betting Indicator */}
-          {canUseSessionTransaction && isPermissionValid && (
+          {canUseRedeem && isPermissionValid() && (
             <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-xl">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
@@ -994,8 +1103,10 @@ export function PredictionModal({
                                 </div>
                                 <div className="text-xs text-gray-400 mt-0.5">
                                   Pool: $
-                                  {Number(formatEther(poolAmount)).toFixed(2)}{" "}
-                                  cUSD
+                                  {Number(
+                                    formatUnits(poolAmount, tokenDecimals)
+                                  ).toFixed(2)}{" "}
+                                  {tokenSymbol}
                                 </div>
                               </div>
                             </div>
@@ -1152,17 +1263,17 @@ export function PredictionModal({
                     <p className="text-xs text-blue-400 font-medium">
                       {isApproving
                         ? "Please approve cUSD spending in your wallet..."
-                        : isSessionExecuting
-                        ? "Placing prediction with One-Tap Betting..."
-                        : isStaking || isPending
+                        : isStaking
+                        ? "Placing prediction with One-Tap Betting (auto-transfer)..."
+                        : isPending
                         ? "Placing your prediction..."
                         : "Processing..."}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
                       {isApproving
                         ? "After approval, prediction will start automatically"
-                        : isSessionExecuting
-                        ? "No wallet popup needed! 🎉"
+                        : isStaking
+                        ? "No wallet popup needed! USDC transfers automatically 🎉"
                         : "Please confirm the transaction in your wallet"}
                     </p>
                   </div>
@@ -1203,9 +1314,9 @@ export function PredictionModal({
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   {isApproving
                     ? "Approving..."
-                    : isSessionExecuting
+                    : isStaking
                     ? "One-Tap..."
-                    : isStaking || isPending
+                    : isPending
                     ? "Placing..."
                     : "Processing..."}
                 </>

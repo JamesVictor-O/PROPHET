@@ -3,93 +3,208 @@
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Wallet } from "lucide-react";
+import { ArrowRight, Wallet, Zap, TrendingUp } from "lucide-react";
 import { useAccount, useConnect } from "wagmi";
 import { isMiniPayAvailable } from "@/lib/wallet-config";
 import { toast } from "sonner";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export function Hero() {
   const { isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
+  // Use lazy initializers to avoid useEffect
+  const [mounted] = useState(() => typeof window !== "undefined");
+  const [isMiniPay] = useState(() => isMiniPayAvailable());
 
   const handleConnect = () => {
     const minipayConnector = connectors.find((c) => c.id === "injected");
     if (minipayConnector) {
       connect({ connector: minipayConnector });
     } else {
-      toast.error(
-        "MiniPay not detected. Please open in Opera browser with MiniPay enabled."
-      );
+      toast.error("Connect via MiniPay to begin.");
     }
   };
 
   return (
-    <section className="pt-20 sm:pt-24 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 sm:px-6 lg:px-8 h-screen overflow-hidden flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col justify-center items-center">
-        {/* Text Content - Takes natural space */}
-        <div className="text-center flex flex-col items-center justify-center mb-6 sm:mb-8">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 leading-tight px-2">
-            Turn Your Entertainment Knowledge
-            <br className="hidden sm:block" />
-            <span className="sm:hidden"> </span>
-            Into
-            <span className="text-[#2563EB]"> Earnings.</span>
-          </h1>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-300 mb-6 sm:mb-8 leading-relaxed text-center max-w-4xl px-4">
-            Monetize your cultural knowledge. Predict Afrobeats releases,
-            Nollywood hits, and reality TV outcomes. Earn when
-            you&apos;re right.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 sm:mb-12 w-full sm:w-auto px-4 sm:px-0">
-            {typeof window !== "undefined" && isConnected ? (
+    <section className="relative min-h-screen pt-20 flex items-center bg-[#020617] overflow-hidden">
+      {/* Background Kinetic Elements */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="max-w-[1400px] mx-auto px-6 lg:px-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+        {/* Left Side: The Hook */}
+        <div className="lg:col-span-7 space-y-10">
+          <div className="space-y-6">
+            <h1 className="text-6xl md:text-8xl font-black text-white italic tracking-tighter leading-[0.85] uppercase">
+              Culture <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-white to-slate-700">
+                Is Your Asset.
+              </span>
+            </h1>
+
+            <p className="text-slate-400 text-lg md:text-xl max-w-xl font-medium leading-relaxed italic">
+              Monetize your gut feeling. Predict the pulse of African music,
+              film, and entertainment. Built for the streets, settled on the
+              chain.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-5">
+            {mounted && isConnected ? (
               <Button
                 asChild
                 size="lg"
-                className="w-full sm:w-auto bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3 text-sm sm:text-base"
+                className="h-16 px-10 bg-white text-black hover:bg-emerald-400 rounded-2xl transition-all duration-300 group shadow-2xl shadow-white/5"
               >
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center justify-center"
+                  className="flex items-center gap-3 text-xs font-black uppercase tracking-widest"
                 >
-                  Start Predicting
-                  <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 ml-2 bg-black rounded-full p-1 text-white" />
+                  Enter Dashboard
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
                 </Link>
               </Button>
             ) : (
               <Button
-                size="lg"
                 onClick={handleConnect}
                 disabled={isPending}
-                className="w-full sm:w-auto bg-white text-black hover:bg-blue-700 rounded-full px-6 py-3 text-sm sm:text-base"
+                className="h-16 px-10 bg-white text-black hover:bg-blue-500 hover:text-white rounded-2xl transition-all duration-300 shadow-2xl shadow-white/5"
               >
-                {isPending ? (
-                  "Connecting..."
-                ) : (
-                  <>
-                    {typeof window !== "undefined" && isMiniPayAvailable()
-                      ? "Connect MiniPay"
-                      : "Connect Wallet"}
-                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
-                  </>
-                )}
+                <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest">
+                  {isPending
+                    ? "Syncing..."
+                    : mounted && isMiniPay
+                    ? "Connect MiniPay"
+                    : "Connect Wallet"}
+                  <Wallet className="w-4 h-4" />
+                </div>
               </Button>
             )}
+
+            <div className="flex items-center gap-6 px-4">
+              <HeroStat label="Active Pools" value="$12.4k+" />
+              <div className="h-8 w-px bg-white/10" />
+              <HeroStat label="Settled" value="1.2k+" />
+            </div>
           </div>
         </div>
 
+        {/* Right Side: The Visual flex */}
+        <div className="lg:col-span-5 relative group">
+          <div className="absolute -inset-1  rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
 
-        <div className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl flex-1 border-2 sm:border-3 rounded-xl sm:rounded-2xl items-center justify-center border-[#7a9fed] bg-gradient-to-br from-[#1E293B] to-[#0F172A] h-64 sm:h-80 md:h-96 relative overflow-hidden mx-4 sm:mx-0">
-          <div className="relative z-10 h-full flex items-center justify-center overflow-hidden">
+          <div className="relative aspect-[4/5] lg:aspect-square bg-[#0F172A] border border-white/10 rounded-[2.5rem] p-4 overflow-hidden shadow-2xl">
+            {/* Overlay Gradient for depth */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent z-20" />
+
             <Image
-              width={1000}
-              height={1000}
               src="/dashboard.png"
-              alt="Dashboard Preview"
-              className="w-full h-full object-contain rounded-xl sm:rounded-2xl"
+              alt="Prophet Terminal"
+              fill
+              className="object-cover object-top opacity-80 group-hover:scale-105 transition-transform duration-700"
+              priority
+            />
+
+            {/* Floating UI Elements for "Magic" */}
+            <div className="absolute top-10 right-[-20px] bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-2xl z-30 animate-bounce transition-all duration-[3000ms]">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-[8px] uppercase tracking-widest text-slate-500 font-bold">
+                    New Win
+                  </p>
+                  <p className="text-xs font-black text-white">+$18.42</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute bottom-10 left-10 right-10 z-30">
+              <div className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-3xl space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">
+                    Trending Market
+                  </p>
+                  <Zap className="w-3 h-3 text-blue-400 fill-blue-400" />
+                </div>
+                <p className="text-sm font-bold text-white leading-tight">
+                  Will Burna Boy win a Grammy in 2026?
+                </p>
+                <div className="flex gap-2">
+                  <div className="h-1 flex-1 bg-blue-500 rounded-full" />
+                  <div className="h-1 w-1/3 bg-white/10 rounded-full" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Ticker - The "Social Proof" */}
+      <div className="absolute bottom-0 w-full py-6 bg-white/[0.02] border-t border-white/5 backdrop-blur-sm hidden md:block">
+        <div className="max-w-[1400px] mx-auto px-12 flex justify-between items-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
+            Live Prediction Stream
+          </p>
+          <div className="flex gap-12">
+            <TickerItem
+              user="0x4...21"
+              action="predicted YES"
+              market="BBNaija Finale"
+            />
+            <TickerItem
+              user="0x9...f0"
+              action="won $42.50"
+              market="Davido Album"
+              color="text-emerald-400"
+            />
+            <TickerItem
+              user="0x1...a2"
+              action="predicted NO"
+              market="Wizkid Tour"
             />
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+        {label}
+      </span>
+      <span className="text-xl font-bold text-white tracking-tighter">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+interface TickerItemProps {
+  user: string;
+  action: string;
+  market: string;
+  color?: string;
+}
+
+function TickerItem({
+  user,
+  action,
+  market,
+  color = "text-blue-400",
+}: TickerItemProps) {
+  return (
+    <div className="flex items-center gap-2 text-[10px] font-bold tracking-tight">
+      <span className="text-slate-500 font-mono">{user}</span>
+      <span className={cn("uppercase", color)}>{action}</span>
+      <span className="text-white italic">on {market}</span>
+    </div>
   );
 }

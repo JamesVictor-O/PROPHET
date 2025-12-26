@@ -1,80 +1,127 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Music, Film, Tv, Zap, Award, Share2 } from "lucide-react";
+"use client";
+
+import { Music, Film, Tv, Zap, Award, Share2, Sparkle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function Features() {
-  const features = [
+  const categories = [
     {
-      icon: Music,
-      title: "Music Markets",
-      description:
-        "Predict album drops, streaming milestones, and chart positions for Afrobeats, Amapiano, and more.",
+      icon: <Music className="w-10 h-10" />,
+      title: "Music",
+      label: "STREAMING & CHARTS",
+      desc: "Afrobeats. Amapiano. Milestones. Predict the next chart-topper.",
+      className:
+        "md:col-span-3 bg-blue-600/10 border-blue-500/20 text-blue-400",
     },
     {
-      icon: Film,
-      title: "Movie Success",
-      description:
-        "Predict Nollywood box office, streaming views, and award nominations before they happen.",
+      icon: <Film className="w-10 h-10" />,
+      title: "Movies",
+      label: "BOX OFFICE",
+      desc: "Nollywood hits & global views.",
+      className:
+        "md:col-span-2 bg-purple-600/10 border-purple-500/20 text-purple-400",
     },
     {
-      icon: Tv,
+      icon: <Tv className="w-10 h-10" />,
       title: "Reality TV",
-      description:
-        "BBNaija evictions, The Voice winners, and reality show outcomes. Weekly fresh markets.",
+      label: "LIVE EVENTS",
+      desc: "BBNaija evictions & show winners.",
+      className:
+        "md:col-span-2 bg-emerald-600/10 border-emerald-500/20 text-emerald-400",
     },
     {
-      icon: Zap,
-      title: "Instant Payouts",
-      description:
-        "Win and get paid immediately. Smart contracts handle everything automatically.",
-    },
-    {
-      icon: Award,
-      title: "Reputation System",
-      description:
-        "Build your prophet score. Win streaks unlock bonuses and exclusive markets.",
-    },
-    {
-      icon: Share2,
-      title: "Social Sharing",
-      description:
-        "Share your predictions on Twitter. Challenge friends. Build your prophet brand.",
+      icon: <Zap className="w-10 h-10" />,
+      title: "Instant Win",
+      label: "SMART PROTOCOL",
+      desc: "Smart contracts stream your wins home instantly.",
+      className:
+        "md:col-span-3 bg-orange-600/10 border-orange-500/20 text-orange-400",
     },
   ];
 
+  const subFeatures = [
+    { icon: <Award className="w-5 h-5" />, text: "Reputation Bonus" },
+    { icon: <Share2 className="w-5 h-5" />, text: "Social Flexing" },
+    { icon: <Sparkle className="w-5 h-5" />, text: "Exclusive Markets" },
+  ];
+
   return (
-    <section id="features" className="py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
+    <section id="features" className="py-32 px-6 bg-[#020617] relative">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-10 sm:mb-12 md:mb-16">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">Features</h2>
-          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto px-4">
-            Everything you need to become a top prophet
-          </p>
+        {/* Aggressive Header */}
+        <div className="mb-20 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="h-px w-12 bg-blue-500" />
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500">
+              The Arsenal
+            </span>
+          </div>
+          <h2 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter uppercase leading-none">
+            Built for the <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-white to-slate-700">
+              Prophet Class.
+            </span>
+          </h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <Card
-                key={index}
-                className="feature-card bg-[#1E293B] border-[#334155]"
-              >
-                <CardContent className="p-4 sm:p-6 md:p-8">
-                  <div className="flex items-start space-x-3 sm:space-x-4">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2563EB]/10 border border-[#2563EB]/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#2563EB]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold mb-1 sm:mb-2">
-                        {feature.title}
-                      </h3>
-                      <p className="text-sm sm:text-base text-gray-400 leading-relaxed">{feature.description}</p>
-                    </div>
+        {/* Bento Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {categories.map((cat, i) => (
+            <div
+              key={i}
+              className={cn(
+                "relative group overflow-hidden rounded-[2.5rem] border p-8 md:p-12 transition-all duration-700 hover:scale-[0.98]",
+                cat.className
+              )}
+            >
+              {/* Animated Glow Background */}
+              <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-current opacity-[0.03] blur-[80px] group-hover:opacity-[0.08] transition-opacity" />
+
+              <div className="relative z-10 h-full flex flex-col justify-between space-y-12">
+                <div className="p-4 bg-white/5 rounded-2xl w-fit group-hover:rotate-12 transition-transform duration-500">
+                  {cat.icon}
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[9px] font-black tracking-[0.3em] opacity-60 mb-2 uppercase">
+                      {cat.label}
+                    </p>
+                    <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic">
+                      {cat.title}
+                    </h3>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  <p className="text-slate-500 font-bold leading-tight max-w-[240px]">
+                    {cat.desc}
+                  </p>
+                </div>
+              </div>
+
+              {/* Decorative Arrow */}
+              <div className="absolute top-8 right-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white fill-white" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Floating Sub-Features Ticker */}
+        <div className="mt-12 flex flex-wrap justify-center md:justify-start gap-4">
+          {subFeatures.map((sf, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 px-6 py-3 rounded-full bg-white/[0.03] border border-white/5 text-slate-400 group hover:bg-white/10 transition-all cursor-default"
+            >
+              <span className="text-blue-500 group-hover:scale-125 transition-transform">
+                {sf.icon}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                {sf.text}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </section>

@@ -32,6 +32,7 @@ export function PermissionButton({
   const {
     sessionSmartAccount,
     sessionSmartAccountAddress,
+    sessionKeyAddress,
     createSessionAccount,
     isLoading: isCreatingSession,
   } = useSessionAccount();
@@ -49,7 +50,10 @@ export function PermissionButton({
   const tokenSymbol =
     defaultChain.id === 84532 || defaultChain.id === 8453 ? "USDC" : "cUSD";
 
-  const handleGrantPermission = async (amount: number, durationHours: number) => {
+  const handleGrantPermission = async (
+    amount: number,
+    durationHours: number
+  ) => {
     try {
       setIsGranting(true);
 
@@ -73,8 +77,6 @@ export function PermissionButton({
       }
 
       toast.info("Requesting permission from MetaMask...");
-
-      // Extend wallet client with ERC-7715 actions
       const client = walletClient.extend(erc7715ProviderActions());
 
       // Set up permission parameters
@@ -86,6 +88,13 @@ export function PermissionButton({
       const periodDuration = 86400; // 24 hours in seconds
 
       // Request the permission using ERC-7715
+      // CRITICAL: Use sessionKeyAddress (EOA) to match what we use when redeeming
+      if (!sessionKeyAddress) {
+        toast.error("Session key address not available. Please try again.");
+        setIsGranting(false);
+        return;
+      }
+
       const permissions = await client.requestExecutionPermissions([
         {
           chainId,
@@ -93,7 +102,7 @@ export function PermissionButton({
           signer: {
             type: "account",
             data: {
-              address: sessionSmartAccountAddress,
+              address: sessionKeyAddress, // Session EOA address (matches what we use when redeeming)
             },
           },
           isAdjustmentAllowed: true,
@@ -109,7 +118,6 @@ export function PermissionButton({
         },
       ]);
 
-      // Save the permission with expiry
       if (permissions && permissions.length > 0) {
         savePermission(permissions[0], expiry);
         toast.success("🎉 One-tap betting enabled! No more approval popups.");
@@ -189,4 +197,3 @@ export function PermissionButton({
     </>
   );
 }
-

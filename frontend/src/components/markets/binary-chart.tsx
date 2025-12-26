@@ -1,118 +1,83 @@
 "use client";
 
+import { Area, AreaChart, ResponsiveContainer, YAxis, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
 
 interface BinaryChartProps {
   yesPercent: number;
   noPercent: number;
-  onYesClick?: () => void;
-  onNoClick?: () => void;
   className?: string;
 }
 
 export function BinaryChart({
   yesPercent,
   noPercent,
-  onYesClick,
-  onNoClick,
   className,
 }: BinaryChartProps) {
-  const [animatedYes, setAnimatedYes] = useState(0);
-  const [animatedNo, setAnimatedNo] = useState(0);
-
-  useEffect(() => {
-    // Animate the percentages
-    const duration = 800; // Animation duration in ms
-    const steps = 60;
-    const stepDuration = duration / steps;
-    let currentStep = 0;
-
-    const interval = setInterval(() => {
-      currentStep++;
-      const progress = Math.min(currentStep / steps, 1);
-
-      // Easing function for smooth animation
-      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-      const easedProgress = easeOutCubic(progress);
-
-      setAnimatedYes(yesPercent * easedProgress);
-      setAnimatedNo(noPercent * easedProgress);
-
-      if (currentStep >= steps) {
-        clearInterval(interval);
-        setAnimatedYes(yesPercent);
-        setAnimatedNo(noPercent);
-      }
-    }, stepDuration);
-
-    return () => clearInterval(interval);
-  }, [yesPercent, noPercent]);
-
-  const total = animatedYes + animatedNo;
-  const yesWidth = total > 0 ? (animatedYes / total) * 100 : 50;
-  const noWidth = total > 0 ? (animatedNo / total) * 100 : 50;
+  // Mock data creates that smooth "wave" look from your reference
+  const data = [
+    { name: "1", yes: 45, no: 55 },
+    { name: "2", yes: 52, no: 48 },
+    { name: "3", yes: 48, no: 52 },
+    { name: "4", yes: 65, no: 35 },
+    { name: "5", yes: yesPercent, no: noPercent },
+  ];
 
   return (
-    <div className={cn("space-y-2", className)}>
-      {/* Visual Chart Bar */}
-      <div className="relative w-full h-12 sm:h-14 bg-[#0F172A] border border-[#334155] rounded-lg overflow-hidden group">
-        {/* Yes Section */}
-        <div
-          className={cn(
-            "absolute left-0 top-0 h-full bg-gradient-to-r from-green-500/80 to-green-600/80 transition-all duration-500 ease-out flex items-center justify-start pl-3 sm:pl-4",
-            onYesClick &&
-              "cursor-pointer hover:from-green-500 hover:to-green-600"
-          )}
-          style={{ width: `${yesWidth}%` }}
-          onClick={onYesClick}
-        >
-          {yesWidth > 15 && (
-            <span className="text-white font-bold text-xs sm:text-sm drop-shadow-lg">
-              YES
-            </span>
-          )}
+    <div className={cn("w-full space-y-4", className)}>
+      {/* 1. Clean Label Row */}
+      <div className="flex justify-between items-end px-1">
+        <div className="space-y-0.5">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-emerald-500/80 font-bold">
+            Yes
+          </p>
+          <p className="text-2xl font-light tracking-tight text-white leading-none">
+            {yesPercent.toFixed(1)}
+            <span className="text-sm opacity-50 ml-0.5">%</span>
+          </p>
         </div>
-
-        {/* No Section */}
-        <div
-          className={cn(
-            "absolute right-0 top-0 h-full bg-gradient-to-l from-red-500/80 to-red-600/80 transition-all duration-500 ease-out flex items-center justify-end pr-3 sm:pr-4",
-            onNoClick && "cursor-pointer hover:from-red-500 hover:to-red-600"
-          )}
-          style={{ width: `${noWidth}%` }}
-          onClick={onNoClick}
-        >
-          {noWidth > 15 && (
-            <span className="text-white font-bold text-xs sm:text-sm drop-shadow-lg">
-              NO
-            </span>
-          )}
+        <div className="space-y-0.5 text-right">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-rose-500/80 font-bold">
+            No
+          </p>
+          <p className="text-2xl font-light tracking-tight text-white leading-none">
+            {noPercent.toFixed(1)}
+            <span className="text-sm opacity-50 ml-0.5">%</span>
+          </p>
         </div>
+      </div>
 
-        {/* Divider Line */}
-        {yesWidth > 0 && noWidth > 0 && (
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-white/20 z-10 transition-all duration-500"
-            style={{ left: `${yesWidth}%` }}
-          />
-        )}
+      {/* 2. The Slick Chart */}
+      <div className="w-full h-[80px] relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={data}
+            margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
+          >
+            <XAxis hide dataKey="name" />
+            <YAxis hide domain={[0, 100]} />
 
-        {/* Percentage Labels (shown when sections are too small for text) */}
-        {yesWidth <= 15 && (
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20">
-            <span className="text-green-400 font-bold text-xs sm:text-sm drop-shadow-lg">
-              YES {animatedYes.toFixed(1)}%
-            </span>
-          </div>
-        )}
-        {noWidth <= 15 && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20">
-            <span className="text-red-400 font-bold text-xs sm:text-sm drop-shadow-lg">
-              NO {animatedNo.toFixed(1)}%
-            </span>
-          </div>
-        )}
+            {/* NO Line - Thinner, subtle fill */}
+            <Area
+              type="monotone"
+              dataKey="no"
+              stroke="#f43f5e"
+              strokeWidth={1.5}
+              fill="#f43f5e"
+              fillOpacity={0.03} // Very subtle to keep it clean
+            />
+
+            {/* YES Line - Thinner, subtle fill */}
+            <Area
+              type="monotone"
+              dataKey="yes"
+              stroke="#10b981"
+              strokeWidth={1.5}
+              fill="#10b981"
+              fillOpacity={0.03}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

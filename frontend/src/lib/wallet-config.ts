@@ -200,7 +200,11 @@ export async function addBaseSepoliaToMetaMask(): Promise<boolean> {
                 symbol: "ETH",
                 decimals: 18,
               },
-              rpcUrls: ["https://sepolia.base.org"],
+              rpcUrls: [
+                process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/demo",
+                "https://sepolia.base.org",
+                "https://base-sepolia-rpc.publicnode.com",
+              ],
               blockExplorerUrls: ["https://sepolia.basescan.org"],
             },
           ],

@@ -1,15 +1,12 @@
-
-
 import { useMemo } from "react";
 import { Address } from "viem";
 import { useAccount } from "wagmi";
-import { useAllMarkets, MarketInfo } from "./useAllMarkets";
 import { useContractRead } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
 import { MarketType } from "@/lib/types";
-import { useMarketOutcomes, useOutcomeLabel } from "./usePredictionMarket";
-
+import { useMarketDetails } from "./usePredictionMarket";
+import { useAllMarketIds } from "./useMarketFactory";
 
 function usePredictionMarket() {
   const predictionMarketAddress = getContractAddress(
@@ -28,8 +25,8 @@ export interface UserPrediction {
   category: string;
   categoryColor: string;
   side: "yes" | "no";
-  outcomeIndex?: number; 
-  outcomeLabel?: string; 
+  outcomeIndex?: number;
+  outcomeLabel?: string;
   stake: number;
   potentialWin: number;
   actualWin?: number;
@@ -40,8 +37,8 @@ export interface UserPrediction {
   yesPercent: number;
   noPercent: number;
   pool: string;
-  isCreator: boolean; 
-  marketType?: MarketType; 
+  isCreator: boolean;
+  marketType?: MarketType;
 }
 
 // Category color mapping
@@ -64,7 +61,6 @@ const categoryDisplayNames: Record<string, string> = {
   other: "OTHER",
 };
 
-
 function useUserPredictionForMarket(
   marketId: bigint | number | undefined,
   userAddress: Address | undefined
@@ -74,7 +70,7 @@ function useUserPredictionForMarket(
   const { data: prediction, isLoading } = useContractRead<{
     user: Address;
     side: number;
-    outcomeIndex: bigint; 
+    outcomeIndex: bigint;
     amount: bigint;
     timestamp: bigint;
   }>({
@@ -91,7 +87,6 @@ function useUserPredictionForMarket(
   return { prediction, isLoading };
 }
 
-
 function useUserStakesForMarket(
   marketId: bigint | number | undefined,
   userAddress: Address | undefined
@@ -104,7 +99,7 @@ function useUserStakesForMarket(
     functionName: "userStakes",
     args:
       marketId !== undefined && userAddress
-        ? [BigInt(marketId), userAddress, 0] 
+        ? [BigInt(marketId), userAddress, 0]
         : undefined,
     enabled: marketId !== undefined && !!userAddress && !!contractAddress,
   });
@@ -115,7 +110,7 @@ function useUserStakesForMarket(
     functionName: "userStakes",
     args:
       marketId !== undefined && userAddress
-        ? [BigInt(marketId), userAddress, 1] 
+        ? [BigInt(marketId), userAddress, 1]
         : undefined,
     enabled: marketId !== undefined && !!userAddress && !!contractAddress,
   });
@@ -127,91 +122,168 @@ function useUserStakesForMarket(
   };
 }
 
-
 export function useUserPredictions() {
   const { address: userAddress } = useAccount();
-  const { data: allMarkets, isLoading: isLoadingMarkets } = useAllMarkets();
 
+  // Get ALL market IDs directly (not limited to 10 like useAllMarkets)
+  const { data: allMarketIds, isLoading: isLoadingMarketIds } =
+    useAllMarketIds();
 
+  // Limit to first 50 markets to avoid too many calls
   const marketIds = useMemo(() => {
-    if (!allMarkets) return [];
-    return allMarkets.slice(0, 20).map((m) => BigInt(m.id));
-  }, [allMarkets]);
+    if (!allMarketIds) return [];
+    // Reverse to get newest first, then limit to 50
+    const idsArray = Array.from(allMarketIds);
+    return idsArray
+      .reverse()
+      .slice(0, 50)
+      .map((id) => Number(id));
+  }, [allMarketIds]);
 
-  const predictions1 = useUserPredictionForMarket(
-    marketIds[0] ? Number(marketIds[0]) : undefined,
-    userAddress
-  );
-  const predictions2 = useUserPredictionForMarket(
-    marketIds[1] ? Number(marketIds[1]) : undefined,
-    userAddress
-  );
-  const predictions3 = useUserPredictionForMarket(
-    marketIds[2] ? Number(marketIds[2]) : undefined,
-    userAddress
-  );
-  const predictions4 = useUserPredictionForMarket(
-    marketIds[3] ? Number(marketIds[3]) : undefined,
-    userAddress
-  );
-  const predictions5 = useUserPredictionForMarket(
-    marketIds[4] ? Number(marketIds[4]) : undefined,
-    userAddress
-  );
-  const predictions6 = useUserPredictionForMarket(
-    marketIds[5] ? Number(marketIds[5]) : undefined,
-    userAddress
-  );
-  const predictions7 = useUserPredictionForMarket(
-    marketIds[6] ? Number(marketIds[6]) : undefined,
-    userAddress
-  );
-  const predictions8 = useUserPredictionForMarket(
-    marketIds[7] ? Number(marketIds[7]) : undefined,
-    userAddress
-  );
-  const predictions9 = useUserPredictionForMarket(
-    marketIds[8] ? Number(marketIds[8]) : undefined,
-    userAddress
-  );
-  const predictions10 = useUserPredictionForMarket(
-    marketIds[9] ? Number(marketIds[9]) : undefined,
-    userAddress
-  );
-
-  const allPredictions = [
-    predictions1,
-    predictions2,
-    predictions3,
-    predictions4,
-    predictions5,
-    predictions6,
-    predictions7,
-    predictions8,
-    predictions9,
-    predictions10,
-  
+  // Create individual hooks for each market (up to 50)
+  // React hooks must be called unconditionally, so we create hooks for all 50 slots
+  const predictions = [
+    useUserPredictionForMarket(marketIds[0], userAddress),
+    useUserPredictionForMarket(marketIds[1], userAddress),
+    useUserPredictionForMarket(marketIds[2], userAddress),
+    useUserPredictionForMarket(marketIds[3], userAddress),
+    useUserPredictionForMarket(marketIds[4], userAddress),
+    useUserPredictionForMarket(marketIds[5], userAddress),
+    useUserPredictionForMarket(marketIds[6], userAddress),
+    useUserPredictionForMarket(marketIds[7], userAddress),
+    useUserPredictionForMarket(marketIds[8], userAddress),
+    useUserPredictionForMarket(marketIds[9], userAddress),
+    useUserPredictionForMarket(marketIds[10], userAddress),
+    useUserPredictionForMarket(marketIds[11], userAddress),
+    useUserPredictionForMarket(marketIds[12], userAddress),
+    useUserPredictionForMarket(marketIds[13], userAddress),
+    useUserPredictionForMarket(marketIds[14], userAddress),
+    useUserPredictionForMarket(marketIds[15], userAddress),
+    useUserPredictionForMarket(marketIds[16], userAddress),
+    useUserPredictionForMarket(marketIds[17], userAddress),
+    useUserPredictionForMarket(marketIds[18], userAddress),
+    useUserPredictionForMarket(marketIds[19], userAddress),
+    useUserPredictionForMarket(marketIds[20], userAddress),
+    useUserPredictionForMarket(marketIds[21], userAddress),
+    useUserPredictionForMarket(marketIds[22], userAddress),
+    useUserPredictionForMarket(marketIds[23], userAddress),
+    useUserPredictionForMarket(marketIds[24], userAddress),
+    useUserPredictionForMarket(marketIds[25], userAddress),
+    useUserPredictionForMarket(marketIds[26], userAddress),
+    useUserPredictionForMarket(marketIds[27], userAddress),
+    useUserPredictionForMarket(marketIds[28], userAddress),
+    useUserPredictionForMarket(marketIds[29], userAddress),
+    useUserPredictionForMarket(marketIds[30], userAddress),
+    useUserPredictionForMarket(marketIds[31], userAddress),
+    useUserPredictionForMarket(marketIds[32], userAddress),
+    useUserPredictionForMarket(marketIds[33], userAddress),
+    useUserPredictionForMarket(marketIds[34], userAddress),
+    useUserPredictionForMarket(marketIds[35], userAddress),
+    useUserPredictionForMarket(marketIds[36], userAddress),
+    useUserPredictionForMarket(marketIds[37], userAddress),
+    useUserPredictionForMarket(marketIds[38], userAddress),
+    useUserPredictionForMarket(marketIds[39], userAddress),
+    useUserPredictionForMarket(marketIds[40], userAddress),
+    useUserPredictionForMarket(marketIds[41], userAddress),
+    useUserPredictionForMarket(marketIds[42], userAddress),
+    useUserPredictionForMarket(marketIds[43], userAddress),
+    useUserPredictionForMarket(marketIds[44], userAddress),
+    useUserPredictionForMarket(marketIds[45], userAddress),
+    useUserPredictionForMarket(marketIds[46], userAddress),
+    useUserPredictionForMarket(marketIds[47], userAddress),
+    useUserPredictionForMarket(marketIds[48], userAddress),
+    useUserPredictionForMarket(marketIds[49], userAddress),
   ];
 
-  const userPredictions = useMemo(() => {
-    if (!allMarkets || !userAddress) return [];
+  const allPredictions = predictions;
 
+  // Fetch market details for all market IDs (up to 50)
+  // We need market details to check creator and get market info
+  // React hooks must be called unconditionally, so we create hooks for all 50 slots
+  const marketDetails = [
+    useMarketDetails(marketIds[0]),
+    useMarketDetails(marketIds[1]),
+    useMarketDetails(marketIds[2]),
+    useMarketDetails(marketIds[3]),
+    useMarketDetails(marketIds[4]),
+    useMarketDetails(marketIds[5]),
+    useMarketDetails(marketIds[6]),
+    useMarketDetails(marketIds[7]),
+    useMarketDetails(marketIds[8]),
+    useMarketDetails(marketIds[9]),
+    useMarketDetails(marketIds[10]),
+    useMarketDetails(marketIds[11]),
+    useMarketDetails(marketIds[12]),
+    useMarketDetails(marketIds[13]),
+    useMarketDetails(marketIds[14]),
+    useMarketDetails(marketIds[15]),
+    useMarketDetails(marketIds[16]),
+    useMarketDetails(marketIds[17]),
+    useMarketDetails(marketIds[18]),
+    useMarketDetails(marketIds[19]),
+    useMarketDetails(marketIds[20]),
+    useMarketDetails(marketIds[21]),
+    useMarketDetails(marketIds[22]),
+    useMarketDetails(marketIds[23]),
+    useMarketDetails(marketIds[24]),
+    useMarketDetails(marketIds[25]),
+    useMarketDetails(marketIds[26]),
+    useMarketDetails(marketIds[27]),
+    useMarketDetails(marketIds[28]),
+    useMarketDetails(marketIds[29]),
+    useMarketDetails(marketIds[30]),
+    useMarketDetails(marketIds[31]),
+    useMarketDetails(marketIds[32]),
+    useMarketDetails(marketIds[33]),
+    useMarketDetails(marketIds[34]),
+    useMarketDetails(marketIds[35]),
+    useMarketDetails(marketIds[36]),
+    useMarketDetails(marketIds[37]),
+    useMarketDetails(marketIds[38]),
+    useMarketDetails(marketIds[39]),
+    useMarketDetails(marketIds[40]),
+    useMarketDetails(marketIds[41]),
+    useMarketDetails(marketIds[42]),
+    useMarketDetails(marketIds[43]),
+    useMarketDetails(marketIds[44]),
+    useMarketDetails(marketIds[45]),
+    useMarketDetails(marketIds[46]),
+    useMarketDetails(marketIds[47]),
+    useMarketDetails(marketIds[48]),
+    useMarketDetails(marketIds[49]),
+  ];
+
+  // Extract market data for dependency tracking
+  const marketDataArray = useMemo(
+    () => marketDetails.map((m) => m.data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [marketDetails.length, ...marketDetails.map((m) => m.data)]
+  );
+
+  const userPredictions = useMemo(() => {
+    if (!marketIds || !userAddress || marketIds.length === 0) return [];
+
+    // Calculate current timestamp for time calculations
+    // Note: Date.now() is fine here - it's recalculated on each useMemo run which is expected
+    const currentTimestamp = Math.floor(Date.now() / 1000);
     const results: UserPrediction[] = [];
 
-    // Check all markets (up to 20) to find user's predictions and created markets
-    allMarkets.slice(0, 20).forEach((market, index) => {
-      // Only fetch prediction data for first 10 markets, but check creator for all
-      const prediction =
-        index < 10 ? allPredictions[index]?.prediction : undefined;
+    // Check ALL markets (up to 50) to find user's predictions and created markets
+    marketIds.forEach((marketId, index) => {
+      // Get prediction and market details for this market
+      const prediction = allPredictions[index]?.prediction;
+      const market = marketDetails[index]?.data;
+
+      if (!market) return; // Skip if market details not loaded yet
+
       const hasPrediction = prediction && prediction.amount > BigInt(0);
 
-      // Include if user created the market OR has a prediction
+      // Check if user created the market
       const isCreator =
         market.creator.toLowerCase() === userAddress.toLowerCase();
 
+      // Only include if user created the market OR has a prediction
       if (hasPrediction || isCreator) {
-        const marketId = BigInt(market.id);
-
         // If user has a prediction, use it; otherwise if they're creator, show as "created" with no stake
         const side = hasPrediction
           ? prediction.side === 0
@@ -224,25 +296,62 @@ export function useUserPredictions() {
         // For created markets without stake, we still want to show them
         // but with 0 stake and no potential winnings calculation
 
+        // Format market data similar to formatMarketData in useAllMarkets
+        const totalPoolNum = Number(market.totalPool);
+        const yesPoolNum = Number(market.yesPool);
+        const noPoolNum = Number(market.noPool);
+        const marketType = market.marketType ?? MarketType.Binary;
+
+        // Calculate percentages (only for Binary markets)
+        let yesPercent = 50;
+        let noPercent = 50;
+        if (marketType === MarketType.Binary && totalPoolNum > 0) {
+          yesPercent =
+            Number(
+              (BigInt(Math.floor(yesPoolNum)) * BigInt(10000)) /
+                BigInt(Math.floor(totalPoolNum))
+            ) / 100;
+          noPercent =
+            Number(
+              (BigInt(Math.floor(noPoolNum)) * BigInt(10000)) /
+                BigInt(Math.floor(totalPoolNum))
+            ) / 100;
+        }
+
+        // Calculate time left
+        const endTime = Number(market.endTime);
+        const secondsLeft = endTime - currentTimestamp;
+
+        let timeLeft = "Ended";
+        if (secondsLeft > 0) {
+          const days = Math.floor(secondsLeft / 86400);
+          const hours = Math.floor((secondsLeft % 86400) / 3600);
+          if (days > 0) {
+            timeLeft = `${days}d left`;
+          } else if (hours > 0) {
+            timeLeft = `${hours}h left`;
+          } else {
+            timeLeft = `${Math.floor(secondsLeft / 60)}m left`;
+          }
+        }
+
+        // Format pool amount
+        const poolFormatted =
+          totalPoolNum > 0 ? `$${(totalPoolNum / 1e18).toFixed(2)}` : "$0.00";
+
         // Calculate potential/actual winnings (only if user has a stake)
-        const totalPool = Number(market.totalPool);
         const winningPool = hasPrediction
           ? side === "yes"
-            ? Number(market.yesPool)
-            : Number(market.noPool)
+            ? yesPoolNum
+            : noPoolNum
           : 0; // No winning pool if no prediction
-        const losingPool = hasPrediction
-          ? side === "yes"
-            ? Number(market.noPool)
-            : Number(market.yesPool)
-          : 0;
 
         // Calculate potential winnings (only for active markets with stake)
         let potentialWin = 0;
         if (!market.resolved && winningPool > 0 && stakeAmount > BigInt(0)) {
           // Potential winnings = (stake / winningPool) * (totalPool - fees)
           // Assuming 7% total fees (5% platform + 2% creator)
-          const poolAfterFees = totalPool * 0.93;
+          const poolAfterFees = totalPoolNum * 0.93;
           potentialWin =
             ((Number(stakeAmount) / winningPool) * poolAfterFees) / 1e18;
         }
@@ -256,22 +365,22 @@ export function useUserPredictions() {
           status = "active";
         } else if (market.resolved && hasPrediction) {
           // Market is resolved, check if user won
-          const winningOutcome = market.winningOutcome ?? -1; // -1 means not available
+          const winningOutcome = market.winningOutcome;
+          const hasWinningOutcome =
+            winningOutcome !== undefined && winningOutcome !== null;
 
-          if (winningOutcome !== -1) {
+          if (hasWinningOutcome) {
             const userSide = prediction.side; // 0 = Yes, 1 = No
             const userWon = userSide === winningOutcome;
 
             if (userWon) {
               // Calculate actual winnings
               const winningPoolAmount =
-                winningOutcome === 0
-                  ? Number(market.yesPool)
-                  : Number(market.noPool);
+                winningOutcome === 0 ? yesPoolNum : noPoolNum;
 
               if (winningPoolAmount > 0 && stakeAmount > BigInt(0)) {
                 // After fees: 93% to winners (7% total fees)
-                const poolAfterFees = totalPool * 0.93;
+                const poolAfterFees = totalPoolNum * 0.93;
                 actualWin =
                   ((Number(stakeAmount) / winningPoolAmount) * poolAfterFees) /
                   1e18;
@@ -293,14 +402,15 @@ export function useUserPredictions() {
           categoryDisplayNames[categoryKey] || market.category.toUpperCase();
 
         // Get outcomeIndex for CrowdWisdom markets
-        const outcomeIndex = prediction?.outcomeIndex !== undefined
-          ? Number(prediction.outcomeIndex)
-          : undefined;
+        const outcomeIndex =
+          prediction?.outcomeIndex !== undefined
+            ? Number(prediction.outcomeIndex)
+            : undefined;
 
         results.push({
-          id: `pred-${market.id}`,
-          marketId: market.id,
-          marketQuestion: market.question,
+          id: `pred-${marketId}`,
+          marketId: marketId.toString(),
+          marketQuestion: market.question || "",
           category: categoryDisplay,
           categoryColor,
           side,
@@ -310,20 +420,24 @@ export function useUserPredictions() {
           actualWin,
           status,
           marketStatus: market.resolved ? "resolved" : "active",
-          timeLeft: market.timeLeft,
-          yesPercent: market.yesPercent,
-          noPercent: market.noPercent,
-          pool: market.poolFormatted,
+          timeLeft,
+          yesPercent,
+          noPercent,
+          pool: poolFormatted,
           isCreator,
-          marketType: market.marketType,
+          marketType: marketType,
         });
       }
     });
 
     return results;
-  }, [allMarkets, allPredictions, userAddress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketIds, allPredictions, marketDataArray, userAddress, marketDetails]);
 
-  const isLoading = isLoadingMarkets || allPredictions.some((p) => p.isLoading);
+  const isLoading =
+    isLoadingMarketIds ||
+    allPredictions.some((p) => p?.isLoading) ||
+    marketDetails.some((m) => m?.isLoading);
 
   return {
     data: userPredictions,

@@ -1,91 +1,130 @@
+"use client";
+
 import Link from "next/link";
+import Image from "next/image";
+import { Twitter, Github, Send, MessageSquare, ArrowUp } from "lucide-react";
 
 export function Footer() {
-  const productLinks = [
-    { label: "Markets", href: "#markets" },
-    { label: "Leaderboard", href: "#" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Pricing", href: "#" },
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
+  const sections = [
+    {
+      title: "Protocol",
+      links: [
+        { label: "Markets", href: "#markets" },
+        { label: "Leaderboard", href: "#" },
+        { label: "How It Works", href: "#how-it-works" },
+        { label: "Prediction API", href: "#" },
+      ],
+    },
+    {
+      title: "Governance",
+      links: [
+        { label: "Documentation", href: "#" },
+        { label: "Whitepaper", href: "#" },
+        { label: "Smart Contracts", href: "#" },
+        { label: "Security Audit", href: "#" },
+      ],
+    },
   ];
 
-  const resourceLinks = [
-    { label: "Documentation", href: "#" },
-    { label: "Whitepaper", href: "#" },
-    { label: "Smart Contracts", href: "#" },
-    { label: "API", href: "#" },
-  ];
-
-  const communityLinks = [
-    { label: "Twitter", href: "#" },
-    { label: "Discord", href: "#" },
-    { label: "Telegram", href: "#" },
-    { label: "GitHub", href: "#" },
+  const socials = [
+    { icon: <Twitter className="w-4 h-4" />, href: "#" },
+    { icon: <MessageSquare className="w-4 h-4" />, href: "#" },
+    { icon: <Send className="w-4 h-4" />, href: "#" },
+    { icon: <Github className="w-4 h-4" />, href: "#" },
   ];
 
   return (
-    <footer className="border-t border-[#334155] py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8">
-          <div className="col-span-2 sm:col-span-2 md:col-span-1">
-            <div className="flex items-center space-x-2 mb-3 sm:mb-4">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-base sm:text-lg">P</span>
-              </div>
-              <span className="text-lg sm:text-xl font-bold">PROPHET</span>
-            </div>
-            <p className="text-xs sm:text-sm text-gray-400">
-              Predict anything. Earn everything.
+    <footer className="relative bg-[#020617] pt-24 pb-12 overflow-hidden border-t border-white/5">
+      {/* Massive Background Watermark */}
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 select-none pointer-events-none opacity-[0.02]">
+        <h2 className="text-[20vw] font-black uppercase tracking-tighter italic leading-none">
+          PROPHET
+        </h2>
+      </div>
+
+      <div className="max-w-[1400px] mx-auto px-6 lg:px-12 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
+          {/* Brand Column */}
+          <div className="md:col-span-5 space-y-8">
+            <Link
+              href="/"
+              className="inline-block transition-transform active:scale-95"
+            >
+              <Image
+                src="/Logo2.png"
+                alt="PROPHET"
+                width={140}
+                height={40}
+                className="h-10 w-auto brightness-110"
+              />
+            </Link>
+            <p className="text-slate-500 font-bold text-lg max-w-sm italic leading-tight">
+              The first decentralized intelligence layer for the pulse of
+              African culture.
             </p>
+            <div className="flex gap-4">
+              {socials.map((social, i) => (
+                <Link
+                  key={i}
+                  href={social.href}
+                  className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-blue-600 transition-all"
+                >
+                  {social.icon}
+                </Link>
+              ))}
+            </div>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Product</h4>
-            <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-400">
-              {productLinks.map((link) => (
-                <li key={link.label}>
-                  <Link href={link.href} className="hover:text-white transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {/* Links Columns */}
+          <div className="md:col-span-6 grid grid-cols-2 gap-8">
+            {sections.map((section) => (
+              <div key={section.title} className="space-y-6">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500">
+                  {section.title}
+                </h4>
+                <ul className="space-y-4">
+                  {section.links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-slate-400 hover:text-white text-sm font-medium transition-colors tracking-tight"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Resources</h4>
-            <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-400">
-              {resourceLinks.map((link) => (
-                <li key={link.label}>
-                  <Link href={link.href} className="hover:text-white transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Community</h4>
-            <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-400">
-              {communityLinks.map((link) => (
-                <li key={link.label}>
-                  <Link href={link.href} className="hover:text-white transition-colors">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {/* Scroll Up Control */}
+          <div className="md:col-span-1 flex justify-end items-start">
+            <button
+              onClick={scrollToTop}
+              className="group w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all duration-500"
+            >
+              <ArrowUp className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+            </button>
           </div>
         </div>
 
-        <div className="pt-6 sm:pt-8 border-t border-[#334155] flex flex-col sm:flex-row justify-between items-center text-xs sm:text-sm text-gray-400 gap-4">
-          <p className="text-center sm:text-left">&copy; 2024 Prophet. All rights reserved.</p>
-          <div className="flex flex-wrap justify-center sm:justify-end gap-4 sm:gap-6">
+        {/* Bottom Bar */}
+        <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-600">
+            <p>© 2025 PROPHET PROTOCOL</p>
+            <div className="h-1 w-1 rounded-full bg-slate-800" />
+            <p>BUILT FOR MINIPAY</p>
+          </div>
+
+          <div className="flex gap-8 text-[10px] font-black uppercase tracking-widest text-slate-600">
             <Link href="#" className="hover:text-white transition-colors">
-              Privacy Policy
+              Privacy
             </Link>
             <Link href="#" className="hover:text-white transition-colors">
-              Terms of Service
+              Terms
             </Link>
             <Link href="#" className="hover:text-white transition-colors">
               Contact

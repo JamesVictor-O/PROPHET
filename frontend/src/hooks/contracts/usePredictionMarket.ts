@@ -396,3 +396,17 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
     retry: 1,
   });
 }
+
+/**
+ * Get the maximum stake per user constant from the contract
+ */
+export function useMaxStakePerUser() {
+  const { address, abi } = usePredictionMarket();
+
+  return useContractRead<bigint>({
+    address,
+    abi,
+    functionName: "MAX_STAKE_PER_USER",
+    enabled: !!address,
+  });
+}

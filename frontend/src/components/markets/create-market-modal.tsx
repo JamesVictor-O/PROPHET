@@ -38,7 +38,7 @@ import {
   useApproveCUSD,
 } from "@/hooks/contracts";
 import { toast } from "sonner";
-import { maxUint256, parseUnits, encodeFunctionData } from "viem";
+import { maxUint256, parseUnits, encodeFunctionData, type Abi } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
@@ -46,7 +46,8 @@ import { useAIValidator } from "@/hooks/useAIValidator";
 import { usePredictionSuggestions } from "@/hooks/usePredictionSuggestions";
 import { MarketType } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useSessionTransaction } from "@/hooks/useSessionTransaction";
+import { useRedeemDelegations } from "@/hooks/useRedeemDelegations";
+import { usePermissions } from "@/providers/PermissionProvider";
 import { MarketFactoryABI } from "@/lib/abis";
 
 interface CreateMarketModalProps {
@@ -105,13 +106,13 @@ export function CreateMarketModal({
 }: CreateMarketModalProps) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<MarketData>({
-    marketType: MarketType.Binary, // Default to Binary
+    marketType: MarketType.Binary,
     question: "",
     category: "",
     endDate: "",
     initialStake: 0.025,
     initialSide: "yes",
-    initialOutcomeLabel: "", // For CrowdWisdom markets
+    initialOutcomeLabel: "",
   });
 
   const [errors, setErrors] = useState<
@@ -210,11 +211,9 @@ export function CreateMarketModal({
   const tokenAddress = getContractAddress("cUSD") as Address; // Key is "cUSD" but address is USDC on Base Sepolia
 
   // Session transaction hook for one-tap betting (ERC-7715)
-  const {
-    canUseSessionTransaction,
-    isPermissionValid,
-    executeSessionTransaction,
-  } = useSessionTransaction();
+  const { canUseRedeem, redeemWithUSDCTransfer } = useRedeemDelegations();
+
+  const { permission, isPermissionValid } = usePermissions();
 
   const { data: tokenBalance } = useBalance({
     address,
@@ -264,7 +263,6 @@ export function CreateMarketModal({
     if (errors.category) {
       setErrors((prev) => ({ ...prev, category: undefined }));
     }
-    // Clear suggestions when category changes
     clearSuggestions();
   };
 
@@ -360,10 +358,8 @@ export function CreateMarketModal({
       if (endDate <= today) {
         newErrors.endDate = "End date must be in the future";
       }
-
-      // Check if end date is more than 365 days in the future (contract limit)
       const maxEndDate = new Date();
-      maxEndDate.setDate(maxEndDate.getDate() + 365); // 365 days from now
+      maxEndDate.setDate(maxEndDate.getDate() + 365);
       if (endDate > maxEndDate) {
         newErrors.endDate = `End date cannot be more than 365 days in the future. Maximum date: ${maxEndDate.toLocaleDateString()}`;
       }
@@ -378,7 +374,7 @@ export function CreateMarketModal({
           ? `Minimum stake is $1.00 ${tokenSymbol} for CrowdWisdom markets`
           : `Minimum stake is $0.025 ${tokenSymbol}`;
     }
-    // Validate based on market type
+
     if (formData.marketType === MarketType.Binary) {
       if (!formData.initialSide) {
         newErrors.initialSide = "Please select your prediction side";
@@ -426,8 +422,6 @@ export function CreateMarketModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Update needsApproval based on ACTUAL on-chain allowance check
-  // The only way to know if approval is needed is to check the blockchain
   useEffect(() => {
     if (checkNeedsApproval !== undefined) {
       setNeedsApproval(checkNeedsApproval);
@@ -477,8 +471,6 @@ export function CreateMarketModal({
 
         // Small delay to ensure allowance is updated
         setTimeout(() => {
-          // Double-check we're still supposed to create (ref should be true at this point)
-          // If ref is false, it means we've been reset (error or modal closed)
           if (!marketCreationTriggeredRef.current) {
             return;
           }
@@ -502,8 +494,6 @@ export function CreateMarketModal({
 
             const endDate = new Date(formData.endDate);
             const endTime = Math.floor(endDate.getTime() / 1000);
-            // Use token's native decimals for the transfer
-            // USDC uses 6 decimals, cUSD uses 18 decimals
             const stakeInWei =
               defaultChain.id === 84532
                 ? parseUnits(formData.initialStake.toString(), 6) // USDC: 6 decimals
@@ -748,13 +738,8 @@ export function CreateMarketModal({
 
     const tokenSymbol = defaultChain.id === 84532 ? "USDC" : "cUSD";
     const tokenDecimals = defaultChain.id === 84532 ? 6 : 18;
-
-    // Check if ACTUAL on-chain approval is needed
     const actuallyNeedsApproval = needsApproval || checkNeedsApproval;
-
-    // ======== ONE-TAP BETTING (ERC-7715 Session Transaction) ========
-    // If user has granted permission, use session account - NO METAMASK POPUPS!
-    if (canUseSessionTransaction && isPermissionValid) {
+    if (canUseRedeem && isPermissionValid()) {
       console.log("🚀 Using One-Tap Betting (ERC-7715 Session Transaction)");
       toast.info("Creating market with One-Tap Betting...");
 
@@ -766,44 +751,42 @@ export function CreateMarketModal({
           tokenDecimals
         );
 
-        // Build the calls array
-        const calls: {
+        // Build the contract calls array
+        const contractCalls: Array<{
           to: `0x${string}`;
-          value: bigint;
-          data: `0x${string}`;
-        }[] = [];
+          value?: bigint;
+          abi: Abi;
+          functionName: string;
+          args: readonly unknown[];
+        }> = [];
 
-        // Add approval call if needed
-        if (actuallyNeedsApproval) {
-          const approveData = encodeFunctionData({
-            abi: [
-              {
-                inputs: [
-                  { name: "spender", type: "address" },
-                  { name: "amount", type: "uint256" },
-                ],
-                name: "approve",
-                outputs: [{ name: "", type: "bool" }],
-                stateMutability: "nonpayable",
-                type: "function",
-              },
-            ],
-            functionName: "approve",
-            args: [factoryAddress, maxUint256],
-          });
-
-          calls.push({
-            to: tokenAddress,
-            value: BigInt(0),
-            data: approveData,
-          });
-        }
+        // Always add approval call as first contract call
+        // The session account needs to approve the factory to spend USDC
+        // Even if the user's account has approval, the session account is a different account
+        contractCalls.push({
+          to: tokenAddress,
+          value: BigInt(0),
+          abi: [
+            {
+              inputs: [
+                { name: "spender", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              name: "approve",
+              outputs: [{ name: "", type: "bool" }],
+              stateMutability: "nonpayable",
+              type: "function",
+            },
+          ] as const satisfies Abi,
+          functionName: "approve",
+          args: [factoryAddress, maxUint256],
+        });
 
         // Add market creation call
         const marketType = formData.marketType === MarketType.Binary ? 0 : 1;
         const initialSide = formData.initialSide === "yes" ? 0 : 1;
 
-        const createMarketData = encodeFunctionData({
+        contractCalls.push({
           abi: MarketFactoryABI,
           functionName: "createMarket",
           args: [
@@ -817,26 +800,21 @@ export function CreateMarketModal({
               ? ""
               : formData.initialOutcomeLabel,
           ],
-        });
-
-        calls.push({
           to: factoryAddress,
-          value: BigInt(0),
-          data: createMarketData,
         });
-
-        // Execute via session account (NO METAMASK POPUP!)
         setIsCreating(true);
-        const result = await executeSessionTransaction(calls);
+        const result = await redeemWithUSDCTransfer({
+          usdcAmount: formData.initialStake.toString(), 
+          tokenDecimals: tokenDecimals, 
+          contractCalls: contractCalls, 
+        });
 
         if (result.success) {
           toast.success("🎉 Market created with One-Tap Betting!");
           console.log(
-            "✅ Market created via session transaction:",
+            "✅ Market created via redeemDelegations (auto-transfer):",
             result.hash
           );
-
-          // Trigger success flow
           queryClient.invalidateQueries({ queryKey: ["markets"] });
           onOpenChange(false);
           onCreateMarket({
@@ -2018,7 +1996,7 @@ export function CreateMarketModal({
           <div className="bg-[#0F172A] border-t border-dark-700 p-3 sticky bottom-0">
             <div className="flex gap-2">
               {/* One-Tap Betting Indicator */}
-              {canUseSessionTransaction && isPermissionValid && (
+              {canUseRedeem && isPermissionValid() && (
                 <div className="flex items-center justify-center gap-2 text-xs text-green-400 bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/30 mb-2 w-full">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>One-Tap Betting Active - No wallet popups!</span>
@@ -2050,7 +2028,7 @@ export function CreateMarketModal({
                 }
                 className={cn(
                   "flex-1 h-10 text-sm disabled:opacity-50",
-                  canUseSessionTransaction && isPermissionValid
+                  canUseRedeem && isPermissionValid()
                     ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                     : "bg-[#2563EB] hover:bg-blue-600"
                 )}
@@ -2064,7 +2042,7 @@ export function CreateMarketModal({
                       ? "Creating..."
                       : "Processing..."}
                   </>
-                ) : canUseSessionTransaction && isPermissionValid ? (
+                ) : canUseRedeem && isPermissionValid() ? (
                   "⚡ Create Market (One-Tap)"
                 ) : (
                   "Create Market"

@@ -24,6 +24,7 @@ export function GrantPermissionsButton({
   const {
     sessionSmartAccount,
     sessionSmartAccountAddress,
+    sessionKeyAddress,
     createSessionAccount,
     isLoading: isCreatingSession,
   } = useSessionAccount();
@@ -88,8 +89,15 @@ export function GrantPermissionsButton({
       const maxPeriodAmount = parseUnits("20", tokenDecimals);
 
       // Step 4: Request the permission
-      // CRITICAL: Use sessionSmartAccountAddress (the smart account that will execute)
-      // The permission grants the user's smart account the ability to delegate to this session smart account
+      // CRITICAL: Use sessionKeyAddress (the EOA) to match what we use when redeeming
+      // The permission grants the user's smart account the ability to delegate to this session EOA
+      // When redeeming, we use sessionKey (EOA) to sign, so permission must be granted to EOA address
+      if (!sessionKeyAddress) {
+        toast.error("Session key address not available. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
       const permissions = await client.requestExecutionPermissions([
         {
           chainId,
@@ -97,7 +105,7 @@ export function GrantPermissionsButton({
           signer: {
             type: "account",
             data: {
-              address: sessionSmartAccountAddress, // Session smart account address (the executor)
+              address: sessionKeyAddress, // Session EOA address (matches what we use when redeeming)
             },
           },
           isAdjustmentAllowed: true, // Allow MetaMask to suggest adjustments

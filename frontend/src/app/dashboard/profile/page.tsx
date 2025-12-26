@@ -15,6 +15,7 @@ import { useUserPredictions, useAllMarkets } from "@/hooks/contracts";
 import { formatAddress } from "@/lib/wallet-config";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { BinaryChart } from "@/components/markets/binary-chart";
 
 // Helper to generate initials from username or address
 function generateInitials(
@@ -225,52 +226,79 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-white">
+    <div className="min-h-screen bg-[#020617] text-slate-50 selection:bg-blue-500/30">
       <DashboardNav />
       <div className="pt-16 flex">
         <DashboardSidebar />
 
-        {/* Main Content */}
-        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
-          {/* Loading State */}
-          {isLoading && (
-            <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#2563EB]" />
-              <p className="text-gray-400">Loading profile...</p>
+        <main className="flex-1 lg:ml-64 px-6 py-10 lg:px-12 max-w-7xl mx-auto transition-all">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-4" />
+              <p className="text-slate-500 text-sm font-medium tracking-wide">
+                SYNCING PROFILE...
+              </p>
             </div>
-          )}
+          ) : (
+            <div className="space-y-12">
+              {/* 1. Integrated Header & Sparkline */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-end">
+                <div className="lg:col-span-2">
+                  <ProfileHeader user={userData} stats={stats} />
+                </div>
+                {/* Profile Performance Sparkline */}
+                <div className="hidden lg:block h-32 w-full">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-2">
+                    Portfolio PNL
+                  </p>
+                  <BinaryChart
+                    yesPercent={stats.winRate}
+                    noPercent={100 - stats.winRate}
+                    className="h-20"
+                  />
+                </div>
+              </div>
 
-          {/* Profile Content */}
-          {!isLoading && (
-            <>
-              {/* Profile Header */}
-              <ProfileHeader user={userData} stats={stats} />
-
-              {/* Tabs */}
+              {/* 2. Professional Tab Navigation */}
               <Tabs
                 value={activeTab}
                 onValueChange={setActiveTab}
-                className="mt-8"
+                className="w-full"
               >
-                <TabsList className="grid w-full max-w-2xl grid-cols-3 bg-[#1E293B] border-dark-700">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="activity">Activity</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
+                <TabsList className="bg-transparent border-b border-slate-800 w-full justify-start rounded-none h-auto p-0 gap-8">
+                  <TabsTrigger
+                    value="overview"
+                    className="bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent rounded-none px-0 pb-4 text-slate-400 data-[state=active]:text-white transition-all uppercase text-[11px] tracking-widest font-bold"
+                  >
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="activity"
+                    className="bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent rounded-none px-0 pb-4 text-slate-400 data-[state=active]:text-white transition-all uppercase text-[11px] tracking-widest font-bold"
+                  >
+                    Activity
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="settings"
+                    className="bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent rounded-none px-0 pb-4 text-slate-400 data-[state=active]:text-white transition-all uppercase text-[11px] tracking-widest font-bold"
+                  >
+                    Settings
+                  </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="overview" className="mt-6">
+                <TabsContent value="overview" className="mt-10 outline-none">
                   <ProfileStats stats={stats} />
                 </TabsContent>
 
-                <TabsContent value="activity" className="mt-6">
+                <TabsContent value="activity" className="mt-10 outline-none">
                   <ProfileActivity activities={activities} />
                 </TabsContent>
 
-                <TabsContent value="settings" className="mt-6">
+                <TabsContent value="settings" className="mt-10 outline-none">
                   <ProfileSettings user={userData} address={address} />
                 </TabsContent>
               </Tabs>
-            </>
+            </div>
           )}
         </main>
       </div>

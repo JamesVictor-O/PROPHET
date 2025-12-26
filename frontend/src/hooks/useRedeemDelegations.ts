@@ -1,0 +1,434 @@
+"use client";
+
+import { useCallback } from "react";
+import { useSessionAccount } from "@/providers/SessionAccountProvider";
+import { usePermissions } from "@/providers/PermissionProvider";
+import {
+  useChainId,
+  usePublicClient,
+  useAccount,
+  useWalletClient,
+} from "wagmi";
+import {
+  createWalletClient,
+  http,
+  type Address,
+  parseUnits,
+  parseEther,
+} from "viem";
+import { encodeFunctionData, type Abi } from "viem";
+import {
+  redeemDelegations,
+  createExecution,
+  ExecutionMode,
+} from "@metamask/smart-accounts-kit";
+import { decodePermissionContexts } from "@metamask/smart-accounts-kit/utils";
+import { defaultChain } from "@/lib/wallet-config";
+import { getContractAddress } from "@/lib/contracts";
+import { bundlerClient } from "@/services/bundlerClient";
+import { pimlicoClient } from "@/services/pimlicoClient";
+
+// ERC-20 ABI for transfer function
+const ERC20_ABI = [
+  {
+    type: "function",
+    name: "transfer",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+interface RedeemDelegationsCall {
+  to: `0x${string}`;
+  value?: bigint;
+  data?: `0x${string}`;
+  abi?: Abi;
+  functionName?: string;
+  args?: readonly unknown[];
+}
+
+interface UseRedeemDelegationsReturn {
+  canUseRedeem: boolean;
+  redeemWithUSDCTransfer: (params: {
+    usdcAmount: string;
+    tokenDecimals: number;
+    recipient?: Address; // If not provided, uses session account address
+    contractCalls: RedeemDelegationsCall[];
+  }) => Promise<{
+    success: boolean;
+    hash?: string;
+    error?: string;
+  }>;
+}
+
+/**
+ * Hook to use redeemDelegations with automatic USDC transfer
+ * This allows transferring USDC from EOA to session account (or contract)
+ * and executing contract calls in a single transaction
+ */
+export function useRedeemDelegations(): UseRedeemDelegationsReturn {
+  const { sessionKey, sessionSmartAccountAddress, sessionSmartAccount } =
+    useSessionAccount();
+  const { permission, isPermissionValid } = usePermissions();
+  const chainId = useChainId();
+  const publicClient = usePublicClient();
+  const { address: userAddress } = useAccount();
+  const { data: walletClient } = useWalletClient();
+
+  const canUseRedeem = !!(
+    sessionKey &&
+    sessionSmartAccountAddress &&
+    permission &&
+    isPermissionValid() &&
+    permission.signerMeta?.delegationManager &&
+    chainId &&
+    publicClient
+  );
+
+  const redeemWithUSDCTransfer = useCallback(
+    async (params: {
+      usdcAmount: string;
+      tokenDecimals: number;
+      recipient?: Address;
+      contractCalls: RedeemDelegationsCall[];
+    }) => {
+      if (!canUseRedeem) {
+        return {
+          success: false,
+          error: "Redeem not available or permission expired.",
+        };
+      }
+
+      if (!sessionKey || !sessionSmartAccountAddress) {
+        return {
+          success: false,
+          error: "Session account not initialized",
+        };
+      }
+
+      if (!permission?.context) {
+        return { success: false, error: "Permission context not found" };
+      }
+
+      const { signerMeta } = permission;
+      const delegationManager = signerMeta?.delegationManager;
+
+      if (!delegationManager) {
+        return {
+          success: false,
+          error: "Delegation manager not found in permission",
+        };
+      }
+
+      if (!publicClient) {
+        return {
+          success: false,
+          error: "Public client not available",
+        };
+      }
+
+      try {
+        // CRITICAL: We must use redeemDelegations (not sendUserOperationWithDelegation)
+        // because:
+        // 1. redeemDelegations executes FROM user's account (via DelegationManager.redeemDelegations)
+        // 2. sendUserOperationWithDelegation executes FROM session account (session account doesn't have USDC)
+        //
+        // Trade-off: redeemDelegations is a regular transaction, so it can't use paymaster.
+        // The session account (EOA) needs ETH for gas fees (one-time setup).
+
+        // Check session account balance
+        const sessionAccountBalance = await publicClient.getBalance({
+          address: sessionKey.address,
+        });
+
+        const estimatedGas = BigInt(200000);
+        const feeData = await publicClient
+          .estimateFeesPerGas()
+          .catch(() => null);
+        const maxFeePerGas = feeData?.maxFeePerGas ?? BigInt(20000000000);
+        const estimatedGasCost = estimatedGas * maxFeePerGas;
+        const requiredBalance = estimatedGasCost + estimatedGasCost / BigInt(5);
+
+        if (sessionAccountBalance < requiredBalance) {
+          const balanceEth = Number(sessionAccountBalance) / 1e18;
+          const requiredEth = Number(requiredBalance) / 1e18;
+
+          // Auto-fund session account from user's EOA (like playground server does)
+          // This mimics playground's server-side funding, but done client-side
+          if (walletClient && userAddress) {
+            try {
+              console.log(
+                "💰 Auto-funding session account from user's EOA (one-time setup)..."
+              );
+
+              // Send enough ETH to cover multiple transactions (like playground server pre-funds)
+              // Send 0.01 ETH which should cover many transactions
+              const fundingAmount = parseEther("0.01"); // 0.01 ETH
+
+              const fundingTxHash = await walletClient.sendTransaction({
+                to: sessionKey.address,
+                value: fundingAmount,
+              });
+
+              console.log("✅ Funding transaction sent:", fundingTxHash);
+              console.log("⏳ Waiting for funding transaction to confirm...");
+
+              // Wait for funding transaction to be confirmed
+              await publicClient.waitForTransactionReceipt({
+                hash: fundingTxHash,
+              });
+
+              console.log(
+                "✅ Session account funded successfully! Continuing with redemption..."
+              );
+              // Continue with redemption after funding
+            } catch (fundingError) {
+              const fundingMessage =
+                fundingError instanceof Error
+                  ? fundingError.message
+                  : String(fundingError);
+              console.error(
+                "❌ Failed to auto-fund session account:",
+                fundingMessage
+              );
+
+              return {
+                success: false,
+                error: `One-time setup: Please approve the ETH transfer to fund the session account for gas fees. This is a one-time setup (like playground).`,
+              };
+            }
+          } else {
+            return {
+              success: false,
+              error: `Session account needs ETH for gas. Current: ${balanceEth.toFixed(
+                6
+              )} ETH. Required: ${requiredEth.toFixed(6)} ETH. Send ETH to: ${
+                sessionKey.address
+              }`,
+            };
+          }
+        }
+
+        // Get token address
+        const tokenAddress = getContractAddress("cUSD") as Address;
+        const usdcAmountWei = parseUnits(
+          params.usdcAmount,
+          params.tokenDecimals
+        );
+        const recipient = params.recipient || sessionSmartAccountAddress;
+
+        // Get RPC URL
+        let rpcUrl = publicClient.chain?.rpcUrls.default.http[0];
+        if (chainId === 84532 || chainId === 8453) {
+          const baseSepoliaRpcUrls = [
+            process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL,
+            "https://base-sepolia-rpc.publicnode.com",
+            "https://base-sepolia.g.alchemy.com/v2/demo",
+            rpcUrl,
+          ].filter(Boolean) as string[];
+          rpcUrl = baseSepoliaRpcUrls[0];
+        }
+
+        if (!rpcUrl) {
+          throw new Error("RPC URL not found for chain");
+        }
+
+        const sessionWalletClient = createWalletClient({
+          account: sessionKey,
+          chain: defaultChain,
+          transport: http(rpcUrl, {
+            timeout: 10000,
+            retryCount: 2,
+            retryDelay: 1000,
+          }),
+        });
+
+        // Build USDC transfer execution (executes FROM user's account via DelegationManager)
+        const transferCallData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [recipient, usdcAmountWei],
+        });
+
+        const usdcTransferExecution = createExecution({
+          target: tokenAddress,
+          value: BigInt(0),
+          callData: transferCallData,
+        });
+
+        // Decode permission context
+        const decodedContexts = decodePermissionContexts([
+          permission.context as `0x${string}`,
+        ]);
+        const [permissionContext] = decodedContexts;
+
+        console.log("🔄 Redeeming delegation with USDC transfer...", {
+          usdcAmount: params.usdcAmount,
+          usdcAmountWei: usdcAmountWei.toString(),
+          recipient,
+          note: "Transfers from user's account via DelegationManager",
+        });
+
+        // Redeem delegation - executes FROM user's account
+        const txHash = await redeemDelegations(
+          sessionWalletClient,
+          publicClient,
+          delegationManager as `0x${string}`,
+          [
+            {
+              permissionContext: permissionContext,
+              executions: [usdcTransferExecution],
+              mode: ExecutionMode.SingleDefault,
+            },
+          ]
+        );
+
+        console.log("✅ Redeem transaction sent:", txHash);
+
+        // Wait for receipt
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash,
+        });
+
+        console.log("✅ USDC transfer confirmed:", receipt.transactionHash);
+
+        // Step 7: If contract calls were provided, execute them using session account
+        // The session account now has USDC, so we can execute contract calls
+        if (params.contractCalls && params.contractCalls.length > 0) {
+          console.log("🔄 Executing contract calls after USDC transfer...");
+
+          // Wait a bit for the transfer to be confirmed
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Execute contract calls using session smart account
+          // The session account now has USDC, so it can execute the calls
+          if (!sessionSmartAccount) {
+            throw new Error(
+              "Session smart account not available for contract calls"
+            );
+          }
+
+          const client = bundlerClient();
+          const { fast: fee } = await pimlicoClient(
+            chainId!
+          ).getUserOperationGasPrice();
+
+          // Build calls for session account execution
+          const sessionCalls = params.contractCalls.map((call) => {
+            let callData = call.data;
+            if (call.abi && call.functionName && call.args) {
+              callData = encodeFunctionData({
+                abi: call.abi,
+                functionName: call.functionName,
+                args: call.args,
+              });
+            }
+            const result = {
+              to: call.to,
+              value: call.value ?? BigInt(0),
+              data: callData as `0x${string}`,
+            };
+            console.log("📋 Contract call:", {
+              to: result.to,
+              functionName: call.functionName,
+              dataPreview: result.data.slice(0, 20) + "...",
+            });
+            return result;
+          });
+
+          console.log(
+            `📦 Executing ${sessionCalls.length} contract calls from session account...`
+          );
+
+          // Execute using sendUserOperationWithDelegation
+          const userOpHash = await (
+            client as unknown as {
+              sendUserOperationWithDelegation: (args: {
+                account: typeof sessionSmartAccount;
+                calls: Array<{
+                  to: `0x${string}`;
+                  value: bigint;
+                  data: `0x${string}`;
+                }>;
+                permissionsContext: string;
+                delegationManager: `0x${string}`;
+                maxFeePerGas: bigint;
+                maxPriorityFeePerGas: bigint;
+              }) => Promise<`0x${string}`>;
+            }
+          ).sendUserOperationWithDelegation({
+            account: sessionSmartAccount,
+            calls: sessionCalls,
+            permissionsContext: permission.context,
+            delegationManager: delegationManager as `0x${string}`,
+            ...fee,
+          });
+
+          // Wait for receipt
+          const sessionReceipt = await client.waitForUserOperationReceipt({
+            hash: userOpHash,
+            timeout: 120_000,
+          });
+
+          console.log(
+            "✅ Contract calls executed:",
+            sessionReceipt.receipt.transactionHash
+          );
+
+          return {
+            success: true,
+            hash: sessionReceipt.receipt.transactionHash,
+            transferHash: receipt.transactionHash,
+          };
+        }
+
+        return { success: true, hash: receipt.transactionHash };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("❌ Redeem delegation failed:", message);
+
+        // Provide helpful error message for insufficient balance
+        if (
+          message.includes("exceeds the balance") ||
+          message.includes("insufficient funds") ||
+          message.includes("insufficient ETH")
+        ) {
+          return {
+            success: false,
+            error: `Session account (${sessionKey.address}) has insufficient ETH for gas fees. Please send ETH to this address to continue.`,
+          };
+        }
+
+        // Handle permission amount exceeded error
+        if (message.includes("transfer-amount-exceeded")) {
+          return {
+            success: false,
+            error: `Transfer amount (${params.usdcAmount} USDC) exceeds your permission limit. Please grant a new permission with a higher amount, or wait for the current period to reset (24 hours).`,
+          };
+        }
+
+        return { success: false, error: message };
+      }
+    },
+    [
+      canUseRedeem,
+      sessionKey,
+      sessionSmartAccountAddress,
+      sessionSmartAccount,
+      permission,
+      publicClient,
+      chainId,
+      userAddress,
+      walletClient,
+    ]
+  );
+
+  return {
+    canUseRedeem,
+    redeemWithUSDCTransfer,
+  };
+}
