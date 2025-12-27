@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { Home, BarChart3, Trophy, User, Zap } from "lucide-react";
-import { useUserStats, useUserPredictions } from "@/hooks/contracts";
+import { useUserStatsGraphQL } from "@/hooks/graphql";
+import { useUserPredictions } from "@/hooks/contracts";
 import { formatEther } from "viem";
 import { useMemo } from "react";
 import { PermissionButton } from "@/components/wallet/permission-button";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { address } = useAccount();
-  const { data: userStats } = useUserStats(address);
+  const { data: userStats } = useUserStatsGraphQL(address);
   const { data: userPredictions } = useUserPredictions();
 
   const stats = useMemo(() => {

@@ -7,8 +7,8 @@ import { LeaderboardEntry } from "@/components/leaderboard/leaderboard-entry";
 import { LeaderboardFilters } from "@/components/leaderboard/leaderboard-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
-import { useLeaderboard } from "@/hooks/contracts";
-import type { LeaderboardEntry as LeaderboardEntryData } from "@/hooks/contracts";
+import { useLeaderboardGraphQL } from "@/hooks/graphql";
+import type { LeaderboardEntryGraphQL } from "@/hooks/graphql";
 
 export interface LeaderboardUser {
   id: string;
@@ -28,37 +28,25 @@ export default function LeaderboardPage() {
   const [timeFilter, setTimeFilter] = useState<"all" | "month" | "week">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // Fetch real leaderboard data (top 100 for full page)
-  const { data: leaderboardData, isLoading, isError } = useLeaderboard(100);
+  // Fetch real leaderboard data from GraphQL (top 100 for full page)
+  const { data: leaderboardData, isLoading, isError } = useLeaderboardGraphQL(100);
 
-  // Map contract data to component format
+  // Map GraphQL data to component format
   const mappedLeaderboard: LeaderboardUser[] = useMemo(() => {
     if (!leaderboardData) return [];
 
-    return leaderboardData.map((entry: LeaderboardEntryData) => {
-      // Parse earned string to number (remove $ and parse)
-      const totalEarned =
-        parseFloat(entry.earned.replace("$", "").replace(",", "")) || 0;
-
-      // Extract display name from username (remove @)
-      const displayName =
-        entry.username
-          .replace("@", "")
-          .split(".")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" ") || entry.username;
-
+    return leaderboardData.map((entry: LeaderboardEntryGraphQL) => {
       return {
         id: entry.address,
         rank: entry.rank,
         username: entry.username,
-        displayName,
+        displayName: entry.displayName,
         initials: entry.initials,
         wins: entry.wins,
-        losses: 0, // Contract doesn't track losses separately
+        losses: 0, // Not tracked separately
         accuracy: entry.accuracy,
-        totalEarned,
-        winStreak: 0, // Would need to fetch from user stats if available
+        totalEarned: entry.totalEarned,
+        winStreak: entry.winStreak,
       };
     });
   }, [leaderboardData]);

@@ -7,28 +7,37 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PredictionCard } from "@/components/predictions/prediction-card";
 import { PredictionsStats } from "@/components/predictions/predictions-stats";
-import { useUserPredictions } from "@/hooks/contracts";
+import { useUserPredictionsGraphQL } from "@/hooks/graphql";
+import type { UserPredictionGraphQL } from "@/hooks/graphql";
+import type { UserPrediction } from "@/hooks/contracts";
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
 export default function PredictionsPage() {
-  const { address, isConnected } = useAccount();
-  const { data: userPredictions, isLoading } = useUserPredictions();
+  const { isConnected } = useAccount();
+  const { data: userPredictions = [], isLoading } = useUserPredictionsGraphQL();
   const [activeTab, setActiveTab] = useState("all");
 
   const { createdMarkets, stakedPredictions } = useMemo(() => {
     if (!userPredictions) return { createdMarkets: [], stakedPredictions: [] };
-    const created = userPredictions.filter((p) => p.isCreator && p.stake === 0);
-    const staked = userPredictions.filter((p) => p.stake > 0);
+    const created = userPredictions.filter(
+      (p: UserPredictionGraphQL) => p.isCreator && p.stake === 0
+    );
+    const staked = userPredictions.filter(
+      (p: UserPredictionGraphQL) => p.stake > 0
+    );
     return { createdMarkets: created, stakedPredictions: staked };
   }, [userPredictions]);
 
   const filteredStaked = useMemo(() => {
     if (activeTab === "all") return stakedPredictions;
     if (activeTab === "active")
-      return stakedPredictions.filter((p) => p.status === "active");
-    return stakedPredictions.filter((p) => p.status !== "active");
+      return stakedPredictions.filter(
+        (p: UserPredictionGraphQL) => p.status === "active"
+      );
+    return stakedPredictions.filter(
+      (p: UserPredictionGraphQL) => p.status !== "active"
+    );
   }, [stakedPredictions, activeTab]);
 
   return (
@@ -78,17 +87,27 @@ export default function PredictionsPage() {
               <PredictionsStats
                 stats={{
                   total: stakedPredictions.length,
-                  active: stakedPredictions.filter((p) => p.status === "active")
-                    .length,
-                  won: stakedPredictions.filter((p) => p.status === "won")
-                    .length,
-                  lost: stakedPredictions.filter((p) => p.status === "lost")
-                    .length,
+                  active: stakedPredictions.filter(
+                    (p: UserPredictionGraphQL) => p.status === "active"
+                  ).length,
+                  won: stakedPredictions.filter(
+                    (p: UserPredictionGraphQL) => p.status === "won"
+                  ).length,
+                  lost: stakedPredictions.filter(
+                    (p: UserPredictionGraphQL) => p.status === "lost"
+                  ).length,
                   totalEarned: stakedPredictions
-                    .filter((p) => p.status === "won" && p.actualWin)
-                    .reduce((sum, p) => sum + (p.actualWin || 0), 0),
+                    .filter(
+                      (p: UserPredictionGraphQL) =>
+                        p.status === "won" && p.actualWin
+                    )
+                    .reduce(
+                      (sum: number, p: UserPredictionGraphQL) =>
+                        sum + (p.actualWin || 0),
+                      0
+                    ),
                   totalStaked: stakedPredictions.reduce(
-                    (sum, p) => sum + p.stake,
+                    (sum: number, p: UserPredictionGraphQL) => sum + p.stake,
                     0
                   ),
                   winRate: "0", // Handled inside component
@@ -113,16 +132,18 @@ export default function PredictionsPage() {
                         value="active"
                         label="Active"
                         count={
-                          stakedPredictions.filter((p) => p.status === "active")
-                            .length
+                          stakedPredictions.filter(
+                            (p: UserPredictionGraphQL) => p.status === "active"
+                          ).length
                         }
                       />
                       <PredictionTabTrigger
                         value="resolved"
                         label="Settled"
                         count={
-                          stakedPredictions.filter((p) => p.status !== "active")
-                            .length
+                          stakedPredictions.filter(
+                            (p: UserPredictionGraphQL) => p.status !== "active"
+                          ).length
                         }
                       />
                     </TabsList>
@@ -131,8 +152,11 @@ export default function PredictionsPage() {
                   <TabsContent value={activeTab} className="mt-0 outline-none">
                     {filteredStaked.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
-                        {filteredStaked.map((p) => (
-                          <PredictionCard key={p.id} prediction={p} />
+                        {filteredStaked.map((p: UserPredictionGraphQL) => (
+                          <PredictionCard
+                            key={p.id}
+                            prediction={p as UserPrediction}
+                          />
                         ))}
                       </div>
                     ) : (
@@ -157,8 +181,11 @@ export default function PredictionsPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
-                    {createdMarkets.map((p) => (
-                      <PredictionCard key={p.id} prediction={p} />
+                    {createdMarkets.map((p: UserPredictionGraphQL) => (
+                      <PredictionCard
+                        key={p.id}
+                        prediction={p as UserPrediction}
+                      />
                     ))}
                   </div>
                 </div>

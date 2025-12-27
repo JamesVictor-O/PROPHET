@@ -6,7 +6,6 @@ type PredictionMarket_MarketCreated {
   question: String!
   category: String!
   endTime: BigInt!
-  marketType: BigInt!
 }
 
 type PredictionMarket_PredictionMade {
@@ -23,6 +22,7 @@ type PredictionMarket_MarketResolved {
   marketId: BigInt!
   winningOutcome: BigInt!
   winningOutcomeIndex: BigInt!
+  totalPayout: BigInt!
 }
 
 type PredictionMarket_PayoutClaimed {

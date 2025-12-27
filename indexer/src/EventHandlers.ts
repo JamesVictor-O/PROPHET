@@ -1,4 +1,3 @@
-
 import { PredictionMarket, ReputationSystem, MarketFactory } from "generated";
 
 // Helper function to initialize global stats
@@ -25,17 +24,18 @@ PredictionMarket.MarketCreated.handler(async ({ event, context }: any) => {
     question: event.params.question,
     category: event.params.category,
     endTime: event.params.endTime,
-    marketType: event.params.marketType,
   });
 
   // Create Market aggregated entity
+  // Note: marketType is not in the event, we'll need to fetch it from contract state if needed
+  // For now, default to Binary (0) - can be updated later via contract read
   context.Market.set({
     id: event.params.marketId.toString(),
     marketId: event.params.marketId,
     creator: event.params.creator.toLowerCase(),
     question: event.params.question,
     category: event.params.category,
-    marketType: event.params.marketType,
+    marketType: 0n, // Default to Binary, can be updated from contract state if needed
     endTime: event.params.endTime,
     status: "Active",
     resolved: false,
@@ -157,6 +157,7 @@ PredictionMarket.MarketResolved.handler(async ({ event, context }: any) => {
     marketId: event.params.marketId,
     winningOutcome: event.params.winningOutcome,
     winningOutcomeIndex: event.params.winningOutcomeIndex,
+    totalPayout: event.params.totalPayout,
   });
 
   // Update Market entity
