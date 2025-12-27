@@ -132,15 +132,7 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
       }
 
       try {
-        // CRITICAL: We must use redeemDelegations (not sendUserOperationWithDelegation)
-        // because:
-        // 1. redeemDelegations executes FROM user's account (via DelegationManager.redeemDelegations)
-        // 2. sendUserOperationWithDelegation executes FROM session account (session account doesn't have USDC)
-        //
-        // Trade-off: redeemDelegations is a regular transaction, so it can't use paymaster.
-        // The session account (EOA) needs ETH for gas fees (one-time setup).
 
-        // Check session account balance
         const sessionAccountBalance = await publicClient.getBalance({
           address: sessionKey.address,
         });
@@ -156,18 +148,14 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         if (sessionAccountBalance < requiredBalance) {
           const balanceEth = Number(sessionAccountBalance) / 1e18;
           const requiredEth = Number(requiredBalance) / 1e18;
-
-          // Auto-fund session account from user's EOA (like playground server does)
-          // This mimics playground's server-side funding, but done client-side
           if (walletClient && userAddress) {
             try {
               console.log(
                 "💰 Auto-funding session account from user's EOA (one-time setup)..."
               );
 
-              // Send enough ETH to cover multiple transactions (like playground server pre-funds)
-              // Send 0.01 ETH which should cover many transactions
-              const fundingAmount = parseEther("0.01"); // 0.01 ETH
+            
+              const fundingAmount = parseEther("0.0001"); // 0.0001 ETH
 
               const fundingTxHash = await walletClient.sendTransaction({
                 to: sessionKey.address,

@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { Address } from "viem";
-import { formatEther } from "viem";
+import { formatTokenAmount } from "@/lib/utils";
+import { useChainId } from "wagmi";
 import { useTopUsers, useUserStats, useUsername } from "./useReputationSystem";
 
 export interface LeaderboardEntry {
@@ -183,6 +184,8 @@ export function useLeaderboard(limit: number = 10) {
     ]
   );
 
+  const chainId = useChainId();
+
   // Combine data into leaderboard entries
   const entries: LeaderboardEntry[] = useMemo(() => {
     if (!topUsers || topUsers.length === 0) return [];
@@ -205,7 +208,7 @@ export function useLeaderboard(limit: number = 10) {
       // Format winnings
       const earned =
         stats && stats.totalWinnings > 0
-          ? `$${Number(formatEther(stats.totalWinnings)).toFixed(2)}`
+          ? `$${Number(formatTokenAmount(stats.totalWinnings, chainId)).toFixed(2)}`
           : "$0.00";
 
       const initials = generateInitials(username, address);

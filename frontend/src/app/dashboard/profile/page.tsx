@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useAccount } from "wagmi";
-import { formatEther } from "viem";
+import { formatTokenAmount } from "@/lib/utils";
+import { useChainId } from "wagmi";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProfileHeader } from "@/components/profile/profile-header";
@@ -12,6 +13,7 @@ import { ProfileSettings } from "@/components/profile/profile-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserStats, useUsername, useLeaderboard } from "@/hooks/contracts";
 import { useUserPredictions, useAllMarkets } from "@/hooks/contracts";
+import { useUsernameUpdatesGraphQL } from "@/hooks/graphql";
 import { formatAddress } from "@/lib/wallet-config";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,6 +62,7 @@ function formatDisplayName(
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("overview");
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
 
   // Fetch contract data
   const { data: userStats, isLoading: isLoadingStats } = useUserStats(address);
@@ -68,6 +71,8 @@ export default function ProfilePage() {
   const { data: userPredictions, isLoading: isLoadingPredictions } =
     useUserPredictions();
   const { data: allMarkets, isLoading: isLoadingMarkets } = useAllMarkets();
+  const { data: usernameUpdates, isLoading: isLoadingUsernameUpdates } =
+    useUsernameUpdatesGraphQL(address || undefined);
 
   // Count markets created by user
   const marketsCreated = useMemo(() => {
@@ -113,7 +118,7 @@ export default function ProfilePage() {
         ? Math.round((wins / totalPredictionsMade) * 100)
         : 0;
     const totalEarned = Number(
-      formatEther(userStats.totalWinnings || BigInt(0))
+      formatTokenAmount(userStats.totalWinnings || BigInt(0), chainId)
     );
 
     // Calculate total staked from user predictions
@@ -137,7 +142,7 @@ export default function ProfilePage() {
       bestStreak,
       rank: userRank,
     };
-  }, [userStats, userPredictions, userRank, marketsCreated]);
+  }, [userStats, userPredictions, userRank, marketsCreated, chainId]);
 
   // Format user data
   const userData = useMemo(() => {
@@ -171,13 +176,24 @@ export default function ProfilePage() {
     };
   }, [address, username]);
 
-  // Convert predictions to activities
+  // Convert predictions and username updates to activities
   const activities = useMemo(() => {
-    if (!userPredictions || userPredictions.length === 0) return [];
+    const allActivities: Array<{
+      activity: {
+        id: string;
+        type: "prediction" | "achievement";
+        action: "Won" | "Lost" | "Placed" | "Unlocked";
+        market?: string;
+        achievement?: string;
+        amount?: number;
+        timestamp: string;
+      };
+      sortKey: number;
+    }> = [];
 
-    return userPredictions
-      .slice(0, 10) // Show last 10 activities
-      .map((pred) => {
+    // Add predictions as activities
+    if (userPredictions && userPredictions.length > 0) {
+      userPredictions.forEach((pred) => {
         let action: "Won" | "Lost" | "Placed" = "Placed";
         let amount = pred.stake;
 
@@ -188,22 +204,60 @@ export default function ProfilePage() {
           action = "Lost";
         }
 
-        return {
-          id: pred.id,
-          type: "prediction" as const,
-          action,
-          market: pred.marketQuestion,
-          amount,
-          timestamp: pred.resolvedAt || pred.timeLeft || "Recently",
-        };
+        // Extract timestamp from resolvedAt or use current time
+        const timestampStr = pred.resolvedAt || pred.timeLeft || "Recently";
+        const sortKey = pred.resolvedAt
+          ? new Date(pred.resolvedAt).getTime()
+          : Date.now();
+
+        allActivities.push({
+          activity: {
+            id: pred.id,
+            type: "prediction",
+            action,
+            market: pred.marketQuestion,
+            amount,
+            timestamp: timestampStr,
+          },
+          sortKey,
+        });
       });
-  }, [userPredictions]);
+    }
+
+    // Add username updates as activities
+    if (usernameUpdates && usernameUpdates.length > 0) {
+      usernameUpdates.forEach((update) => {
+        // Extract block number from ID for sorting (format: "blockNumber-transactionIndex-logIndex")
+        const blockNumber = parseInt(update.id.split("-")[0] || "0");
+        // Use block number as sort key (higher block = more recent)
+        const sortKey = blockNumber * 1000; // Multiply to ensure unique sorting
+
+        allActivities.push({
+          activity: {
+            id: update.id,
+            type: "achievement",
+            action: "Unlocked",
+            achievement: `Username set to @${update.username}`,
+            timestamp: "Recently",
+          },
+          sortKey,
+        });
+      });
+    }
+
+    // Sort by sortKey descending (most recent first) and take top 10
+    return allActivities
+      .sort((a, b) => b.sortKey - a.sortKey)
+      .slice(0, 10)
+      .map((item) => item.activity);
+  }, [userPredictions, usernameUpdates]);
 
   const isLoading =
     isLoadingStats ||
     isLoadingUsername ||
     isLoadingPredictions ||
-    isLoadingMarkets;
+    isLoadingMarkets ||
+    isLoadingUsernameUpdates;
 
   if (!isConnected) {
     return (

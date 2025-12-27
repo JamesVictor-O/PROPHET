@@ -5,10 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Wallet, Zap, TrendingUp } from "lucide-react";
 import { useAccount, useConnect } from "wagmi";
-import { isMiniPayAvailable } from "@/lib/wallet-config";
+import { isMiniPayAvailable, formatAddress } from "@/lib/wallet-config";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useRecentPredictionsGraphQL } from "@/hooks/graphql";
 
 export function Hero() {
   const { isConnected } = useAccount();
@@ -16,6 +17,15 @@ export function Hero() {
   // Use lazy initializers to avoid useEffect
   const [mounted] = useState(() => typeof window !== "undefined");
   const [isMiniPay] = useState(() => isMiniPayAvailable());
+
+  // Fetch recent prediction events for live ticker
+  const { data: recentPredictions = [], isLoading: isLoadingPredictions } =
+    useRecentPredictionsGraphQL(10);
+
+  // Get 3 most recent events for the ticker
+  const tickerItems = useMemo(() => {
+    return recentPredictions.slice(0, 3);
+  }, [recentPredictions]);
 
   const handleConnect = () => {
     const minipayConnector = connectors.find((c) => c.id === "injected");
@@ -151,22 +161,70 @@ export function Hero() {
             Live Prediction Stream
           </p>
           <div className="flex gap-12">
-            <TickerItem
-              user="0x4...21"
-              action="predicted YES"
-              market="BBNaija Finale"
-            />
-            <TickerItem
-              user="0x9...f0"
-              action="won $42.50"
-              market="Davido Album"
-              color="text-emerald-400"
-            />
-            <TickerItem
-              user="0x1...a2"
-              action="predicted NO"
-              market="Wizkid Tour"
-            />
+            {isLoadingPredictions ? (
+              // Show loading placeholders
+              <>
+                <TickerItem
+                  user="Loading..."
+                  action="syncing"
+                  market="..."
+                  color="text-slate-500"
+                />
+                <TickerItem
+                  user="Loading..."
+                  action="syncing"
+                  market="..."
+                  color="text-slate-500"
+                />
+                <TickerItem
+                  user="Loading..."
+                  action="syncing"
+                  market="..."
+                  color="text-slate-500"
+                />
+              </>
+            ) : tickerItems.length > 0 ? (
+              // Show real events
+              tickerItems.map((event) => (
+                <TickerItem
+                  key={event.id}
+                  user={formatAddress(event.user)}
+                  action={
+                    event.action === "won"
+                      ? `won ${event.amount}`
+                      : event.action
+                  }
+                  market={
+                    event.marketQuestion.length > 20
+                      ? `${event.marketQuestion.slice(0, 20)}...`
+                      : event.marketQuestion
+                  }
+                  color={event.color}
+                />
+              ))
+            ) : (
+              // Show fallback if no events
+              <>
+                <TickerItem
+                  user="0x0...000"
+                  action="predicted YES"
+                  market="No recent activity"
+                  color="text-slate-500"
+                />
+                <TickerItem
+                  user="0x0...000"
+                  action="predicted NO"
+                  market="No recent activity"
+                  color="text-slate-500"
+                />
+                <TickerItem
+                  user="0x0...000"
+                  action="predicted YES"
+                  market="No recent activity"
+                  color="text-slate-500"
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,0 +1,120 @@
+/* TypeScript file generated from Handlers.res by genType. */
+
+/* eslint-disable */
+/* tslint:disable */
+
+const HandlersJS = require('./Handlers.res.js');
+
+import type {HandlerTypes_eventConfig as Types_HandlerTypes_eventConfig} from './Types.gen';
+
+import type {MarketFactory_OwnershipTransferred_eventFilters as Types_MarketFactory_OwnershipTransferred_eventFilters} from './Types.gen';
+
+import type {MarketFactory_OwnershipTransferred_event as Types_MarketFactory_OwnershipTransferred_event} from './Types.gen';
+
+import type {Oracle_MarketResolved_eventFilters as Types_Oracle_MarketResolved_eventFilters} from './Types.gen';
+
+import type {Oracle_MarketResolved_event as Types_Oracle_MarketResolved_event} from './Types.gen';
+
+import type {PredictionMarket_MarketCreated_eventFilters as Types_PredictionMarket_MarketCreated_eventFilters} from './Types.gen';
+
+import type {PredictionMarket_MarketCreated_event as Types_PredictionMarket_MarketCreated_event} from './Types.gen';
+
+import type {PredictionMarket_MarketResolved_eventFilters as Types_PredictionMarket_MarketResolved_eventFilters} from './Types.gen';
+
+import type {PredictionMarket_MarketResolved_event as Types_PredictionMarket_MarketResolved_event} from './Types.gen';
+
+import type {PredictionMarket_PayoutClaimed_eventFilters as Types_PredictionMarket_PayoutClaimed_eventFilters} from './Types.gen';
+
+import type {PredictionMarket_PayoutClaimed_event as Types_PredictionMarket_PayoutClaimed_event} from './Types.gen';
+
+import type {PredictionMarket_PredictionMade_eventFilters as Types_PredictionMarket_PredictionMade_eventFilters} from './Types.gen';
+
+import type {PredictionMarket_PredictionMade_event as Types_PredictionMarket_PredictionMade_event} from './Types.gen';
+
+import type {ReputationSystem_ReputationUpdated_eventFilters as Types_ReputationSystem_ReputationUpdated_eventFilters} from './Types.gen';
+
+import type {ReputationSystem_ReputationUpdated_event as Types_ReputationSystem_ReputationUpdated_event} from './Types.gen';
+
+import type {ReputationSystem_UsernameSet_eventFilters as Types_ReputationSystem_UsernameSet_eventFilters} from './Types.gen';
+
+import type {ReputationSystem_UsernameSet_event as Types_ReputationSystem_UsernameSet_event} from './Types.gen';
+
+import type {chain as Types_chain} from './Types.gen';
+
+import type {contractRegistrations as Types_contractRegistrations} from './Types.gen';
+
+import type {fnWithEventConfig as Types_fnWithEventConfig} from './Types.gen';
+
+import type {genericContractRegisterArgs as Internal_genericContractRegisterArgs} from 'envio/src/Internal.gen';
+
+import type {genericContractRegister as Internal_genericContractRegister} from 'envio/src/Internal.gen';
+
+import type {genericHandlerArgs as Internal_genericHandlerArgs} from 'envio/src/Internal.gen';
+
+import type {genericHandler as Internal_genericHandler} from 'envio/src/Internal.gen';
+
+import type {handlerContext as Types_handlerContext} from './Types.gen';
+
+import type {onBlockArgs as Envio_onBlockArgs} from 'envio/src/Envio.gen';
+
+import type {onBlockOptions as Envio_onBlockOptions} from 'envio/src/Envio.gen';
+
+export const MarketFactory_OwnershipTransferred_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_MarketFactory_OwnershipTransferred_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_MarketFactory_OwnershipTransferred_eventFilters>> = HandlersJS.MarketFactory.OwnershipTransferred.contractRegister as any;
+
+export const MarketFactory_OwnershipTransferred_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_MarketFactory_OwnershipTransferred_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_MarketFactory_OwnershipTransferred_eventFilters>> = HandlersJS.MarketFactory.OwnershipTransferred.handler as any;
+
+export const Oracle_MarketResolved_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_Oracle_MarketResolved_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_Oracle_MarketResolved_eventFilters>> = HandlersJS.Oracle.MarketResolved.contractRegister as any;
+
+export const Oracle_MarketResolved_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_Oracle_MarketResolved_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_Oracle_MarketResolved_eventFilters>> = HandlersJS.Oracle.MarketResolved.handler as any;
+
+export const PredictionMarket_MarketCreated_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_MarketCreated_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketCreated_eventFilters>> = HandlersJS.PredictionMarket.MarketCreated.contractRegister as any;
+
+export const PredictionMarket_MarketCreated_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_MarketCreated_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketCreated_eventFilters>> = HandlersJS.PredictionMarket.MarketCreated.handler as any;
+
+export const PredictionMarket_PredictionMade_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_PredictionMade_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PredictionMade_eventFilters>> = HandlersJS.PredictionMarket.PredictionMade.contractRegister as any;
+
+export const PredictionMarket_PredictionMade_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_PredictionMade_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PredictionMade_eventFilters>> = HandlersJS.PredictionMarket.PredictionMade.handler as any;
+
+export const PredictionMarket_MarketResolved_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_MarketResolved_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketResolved_eventFilters>> = HandlersJS.PredictionMarket.MarketResolved.contractRegister as any;
+
+export const PredictionMarket_MarketResolved_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_MarketResolved_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketResolved_eventFilters>> = HandlersJS.PredictionMarket.MarketResolved.handler as any;
+
+export const PredictionMarket_PayoutClaimed_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_PayoutClaimed_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PayoutClaimed_eventFilters>> = HandlersJS.PredictionMarket.PayoutClaimed.contractRegister as any;
+
+export const PredictionMarket_PayoutClaimed_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_PayoutClaimed_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PayoutClaimed_eventFilters>> = HandlersJS.PredictionMarket.PayoutClaimed.handler as any;
+
+export const ReputationSystem_ReputationUpdated_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_ReputationSystem_ReputationUpdated_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_ReputationUpdated_eventFilters>> = HandlersJS.ReputationSystem.ReputationUpdated.contractRegister as any;
+
+export const ReputationSystem_ReputationUpdated_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_ReputationSystem_ReputationUpdated_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_ReputationUpdated_eventFilters>> = HandlersJS.ReputationSystem.ReputationUpdated.handler as any;
+
+export const ReputationSystem_UsernameSet_contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_ReputationSystem_UsernameSet_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_UsernameSet_eventFilters>> = HandlersJS.ReputationSystem.UsernameSet.contractRegister as any;
+
+export const ReputationSystem_UsernameSet_handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_ReputationSystem_UsernameSet_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_UsernameSet_eventFilters>> = HandlersJS.ReputationSystem.UsernameSet.handler as any;
+
+/** Register a Block Handler. It'll be called for every block by default. */
+export const onBlock: (_1:Envio_onBlockOptions<Types_chain>, _2:((_1:Envio_onBlockArgs<Types_handlerContext>) => Promise<void>)) => void = HandlersJS.onBlock as any;
+
+export const MarketFactory: { OwnershipTransferred: { handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_MarketFactory_OwnershipTransferred_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_MarketFactory_OwnershipTransferred_eventFilters>>; contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_MarketFactory_OwnershipTransferred_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_MarketFactory_OwnershipTransferred_eventFilters>> } } = HandlersJS.MarketFactory as any;
+
+export const Oracle: { MarketResolved: { handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_Oracle_MarketResolved_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_Oracle_MarketResolved_eventFilters>>; contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_Oracle_MarketResolved_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_Oracle_MarketResolved_eventFilters>> } } = HandlersJS.Oracle as any;
+
+export const ReputationSystem: { UsernameSet: { handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_ReputationSystem_UsernameSet_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_UsernameSet_eventFilters>>; contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_ReputationSystem_UsernameSet_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_UsernameSet_eventFilters>> }; ReputationUpdated: { handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_ReputationSystem_ReputationUpdated_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_ReputationUpdated_eventFilters>>; contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_ReputationSystem_ReputationUpdated_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_ReputationSystem_ReputationUpdated_eventFilters>> } } = HandlersJS.ReputationSystem as any;
+
+export const PredictionMarket: {
+  MarketResolved: {
+    handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_MarketResolved_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketResolved_eventFilters>>; 
+    contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_MarketResolved_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketResolved_eventFilters>>
+  }; 
+  PredictionMade: {
+    handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_PredictionMade_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PredictionMade_eventFilters>>; 
+    contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_PredictionMade_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PredictionMade_eventFilters>>
+  }; 
+  MarketCreated: {
+    handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_MarketCreated_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketCreated_eventFilters>>; 
+    contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_MarketCreated_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_MarketCreated_eventFilters>>
+  }; 
+  PayoutClaimed: {
+    handler: Types_fnWithEventConfig<Internal_genericHandler<Internal_genericHandlerArgs<Types_PredictionMarket_PayoutClaimed_event,Types_handlerContext,void>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PayoutClaimed_eventFilters>>; 
+    contractRegister: Types_fnWithEventConfig<Internal_genericContractRegister<Internal_genericContractRegisterArgs<Types_PredictionMarket_PayoutClaimed_event,Types_contractRegistrations>>,Types_HandlerTypes_eventConfig<Types_PredictionMarket_PayoutClaimed_eventFilters>>
+  }
+} = HandlersJS.PredictionMarket as any;

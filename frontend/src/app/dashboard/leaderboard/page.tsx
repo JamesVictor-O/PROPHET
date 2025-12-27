@@ -6,9 +6,19 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { LeaderboardEntry } from "@/components/leaderboard/leaderboard-entry";
 import { LeaderboardFilters } from "@/components/leaderboard/leaderboard-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Medal, Award, Loader2 } from "lucide-react";
+import {
+  Trophy,
+  Medal,
+  Award,
+  Loader2,
+  Target,
+  Zap,
+  TrendingUp,
+  Crown,
+} from "lucide-react";
 import { useLeaderboardGraphQL } from "@/hooks/graphql";
 import type { LeaderboardEntryGraphQL } from "@/hooks/graphql";
+import { cn } from "@/lib/utils";
 
 export interface LeaderboardUser {
   id: string;
@@ -27,240 +37,238 @@ export interface LeaderboardUser {
 export default function LeaderboardPage() {
   const [timeFilter, setTimeFilter] = useState<"all" | "month" | "week">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const {
+    data: leaderboardData,
+    isLoading,
+    isError,
+  } = useLeaderboardGraphQL(100);
 
-  // Fetch real leaderboard data from GraphQL (top 100 for full page)
-  const { data: leaderboardData, isLoading, isError } = useLeaderboardGraphQL(100);
-
-  // Map GraphQL data to component format
   const mappedLeaderboard: LeaderboardUser[] = useMemo(() => {
     if (!leaderboardData) return [];
-
-    return leaderboardData.map((entry: LeaderboardEntryGraphQL) => {
-      return {
-        id: entry.address,
-        rank: entry.rank,
-        username: entry.username,
-        displayName: entry.displayName,
-        initials: entry.initials,
-        wins: entry.wins,
-        losses: 0, // Not tracked separately
-        accuracy: entry.accuracy,
-        totalEarned: entry.totalEarned,
-        winStreak: entry.winStreak,
-      };
-    });
+    return leaderboardData.map((entry: LeaderboardEntryGraphQL) => ({
+      id: entry.address,
+      rank: entry.rank,
+      username: entry.username,
+      displayName: entry.displayName,
+      initials: entry.initials,
+      wins: entry.wins,
+      losses: 0,
+      accuracy: entry.accuracy,
+      totalEarned: entry.totalEarned,
+      winStreak: entry.winStreak,
+    }));
   }, [leaderboardData]);
 
-  const filteredLeaderboard = useMemo(() => {
-    // Note: Time and category filters would need contract support
-    // For now, just return all data
-    return mappedLeaderboard;
-  }, [mappedLeaderboard, timeFilter, categoryFilter]);
-
   const topThree = useMemo(
-    () => filteredLeaderboard.slice(0, 3),
-    [filteredLeaderboard]
+    () => mappedLeaderboard.slice(0, 3),
+    [mappedLeaderboard]
   );
-  const rest = useMemo(
-    () => filteredLeaderboard.slice(3),
-    [filteredLeaderboard]
-  );
+  const rest = useMemo(() => mappedLeaderboard.slice(3), [mappedLeaderboard]);
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-white">
+    <div className="min-h-screen bg-[#020617] text-white selection:bg-blue-500/30">
       <DashboardNav />
       <div className="pt-16 flex">
         <DashboardSidebar />
 
-        {/* Main Content */}
-        <main className="flex-1 lg:ml-64 p-3 sm:p-4 md:p-6 lg:p-8">
+        <main className="flex-1 lg:ml-64 p-4 md:p-8 relative overflow-hidden">
+          {/* Background Ambient Glow */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
+
           {/* Header Section */}
-          <div className="mb-4 sm:mb-6 md:mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">
-              Leaderboard
-            </h1>
-            <p className="text-sm sm:text-base text-gray-400">
-              Top prophets ranked by accuracy and earnings
-            </p>
+          <div className="relative z-10 mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-1 w-8 bg-blue-500 rounded-full" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">
+                  Hall of Fame
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase leading-none">
+                Prophet <span className="text-slate-500">Leaderboard</span>
+              </h1>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-1.5 rounded-2xl">
+              <LeaderboardFilters
+                timeFilter={timeFilter}
+                categoryFilter={categoryFilter}
+                onTimeFilterChange={setTimeFilter}
+                onCategoryFilterChange={setCategoryFilter}
+              />
+            </div>
           </div>
 
-          {/* Filters */}
-          <div className="mb-4 sm:mb-6">
-            <LeaderboardFilters
-              timeFilter={timeFilter}
-              categoryFilter={categoryFilter}
-              onTimeFilterChange={setTimeFilter}
-              onCategoryFilterChange={setCategoryFilter}
-            />
-          </div>
-
-          {/* Loading State */}
-          {isLoading && (
-            <div className="text-center py-8 sm:py-12">
-              <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-3 sm:mb-4 text-[#2563EB]" />
-              <p className="text-sm sm:text-base text-gray-400">
-                Loading leaderboard...
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="relative">
+                <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
+                <div className="absolute inset-0 blur-xl bg-blue-500/20 animate-pulse" />
+              </div>
+              <p className="mt-4 text-xs font-black uppercase tracking-widest text-slate-500">
+                Syncing Rankings...
               </p>
             </div>
-          )}
+          ) : (
+            <>
+              {/* The Podium Arena */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
+                {/* 2nd Place */}
+                {topThree[1] && (
+                  <PodiumCard user={topThree[1]} rank={2} color="silver" />
+                )}
 
-          {/* Error State */}
-          {isError && (
-            <Card className="bg-[#1E293B] border-dark-700">
-              <CardContent className="p-6 sm:p-8 md:p-12">
-                <div className="text-center">
-                  <p className="text-sm sm:text-base text-red-400 mb-2">
-                    Error loading leaderboard
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-400">
-                    Please check your connection and try again
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                {/* 1st Place */}
+                {topThree[0] && (
+                  <PodiumCard user={topThree[0]} rank={1} color="gold" />
+                )}
 
-          {/* Empty State */}
-          {!isLoading && !isError && filteredLeaderboard.length === 0 && (
-            <Card className="bg-[#1E293B] border-dark-700">
-              <CardContent className="p-6 sm:p-8 md:p-12">
-                <div className="text-center">
-                  <p className="text-sm sm:text-base text-gray-400 mb-2">
-                    No leaderboard data yet
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-500">
-                    Start making predictions to see the top prophets!
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                {/* 3rd Place */}
+                {topThree[2] && (
+                  <PodiumCard user={topThree[2]} rank={3} color="bronze" />
+                )}
+              </div>
 
-          {/* Top 3 Podium */}
-          {!isLoading && !isError && topThree.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-4 sm:mb-6 md:mb-8">
-              {/* 2nd Place */}
-              {topThree[1] && (
-                <Card className="bg-[#1E293B] border-dark-700 order-2 sm:order-1">
-                  <CardContent className="p-4 sm:p-5 md:p-6 text-center">
-                    <div className="flex flex-col items-center">
-                      <Medal className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-gray-400 mb-3 sm:mb-4" />
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gray-600 rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                        <span className="text-white font-bold text-base sm:text-lg md:text-xl">
-                          {topThree[1].initials}
-                        </span>
-                      </div>
-                      <div className="text-2xl sm:text-3xl font-bold text-gray-400 mb-1">
-                        2
-                      </div>
-                      <div className="font-semibold text-sm sm:text-base mb-1 truncate w-full px-2">
-                        {topThree[1].displayName}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-2 sm:mb-3 truncate w-full px-2">
-                        {topThree[1].username}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-1">
-                        {topThree[1].wins} wins • {topThree[1].accuracy}%
-                        accuracy
-                      </div>
-                      <div className="text-base sm:text-lg font-bold text-green-400">
-                        ${topThree[1].totalEarned.toLocaleString()}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* 1st Place */}
-              {topThree[0] && (
-                <Card className="bg-[#1E293B] border-[#2563EB] order-1 sm:order-2">
-                  <CardContent className="p-4 sm:p-5 md:p-6 text-center">
-                    <div className="flex flex-col items-center">
-                      <Trophy className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 text-[#2563EB] mb-3 sm:mb-4" />
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-[#2563EB] rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                        <span className="text-white font-bold text-lg sm:text-xl md:text-2xl">
-                          {topThree[0].initials}
-                        </span>
-                      </div>
-                      <div className="text-3xl sm:text-4xl font-bold text-[#2563EB] mb-1">
-                        1
-                      </div>
-                      <div className="font-semibold text-base sm:text-lg mb-1 truncate w-full px-2">
-                        {topThree[0].displayName}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-2 sm:mb-3 truncate w-full px-2">
-                        {topThree[0].username}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-1">
-                        {topThree[0].wins} wins • {topThree[0].accuracy}%
-                        accuracy
-                      </div>
-                      <div className="text-lg sm:text-xl font-bold text-green-400">
-                        ${topThree[0].totalEarned.toLocaleString()}
-                      </div>
-                      {topThree[0].winStreak > 0 && (
-                        <div className="mt-2 px-2 sm:px-3 py-1 bg-orange-500/10 text-orange-400 rounded-full text-[10px] sm:text-xs font-semibold">
-                          🔥 {topThree[0].winStreak} win streak
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* 3rd Place */}
-              {topThree[2] && (
-                <Card className="bg-[#1E293B] border-dark-700 order-3">
-                  <CardContent className="p-4 sm:p-5 md:p-6 text-center">
-                    <div className="flex flex-col items-center">
-                      <Award className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-orange-400 mb-3 sm:mb-4" />
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-orange-600 rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                        <span className="text-white font-bold text-base sm:text-lg md:text-xl">
-                          {topThree[2].initials}
-                        </span>
-                      </div>
-                      <div className="text-2xl sm:text-3xl font-bold text-orange-400 mb-1">
-                        3
-                      </div>
-                      <div className="font-semibold text-sm sm:text-base mb-1 truncate w-full px-2">
-                        {topThree[2].displayName}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-2 sm:mb-3 truncate w-full px-2">
-                        {topThree[2].username}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-400 mb-1">
-                        {topThree[2].wins} wins • {topThree[2].accuracy}%
-                        accuracy
-                      </div>
-                      <div className="text-base sm:text-lg font-bold text-green-400">
-                        ${topThree[2].totalEarned.toLocaleString()}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Rest of Leaderboard */}
-          {!isLoading && !isError && rest.length > 0 && (
-            <Card className="bg-[#1E293B] border-dark-700">
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="text-lg sm:text-xl">
-                  All Rankings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-dark-700">
-                  {rest.map((user) => (
-                    <LeaderboardEntry key={user.id} user={user} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+              {/* Main Table */}
+              <Card className="bg-[#0F172A]/40 backdrop-blur-xl border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                <CardHeader className="p-8 border-b border-white/5 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" /> Global Standing
+                  </CardTitle>
+                  <div className="flex gap-4 text-[10px] font-bold text-slate-500 uppercase">
+                    <span>Accuracy</span>
+                    <span>Total PnL</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-white/5">
+                    {rest.map((user) => (
+                      <LeaderboardEntry key={user.id} user={user} />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+function PodiumCard({
+  user,
+  rank,
+  color,
+}: {
+  user: LeaderboardUser;
+  rank: number;
+  color: "gold" | "silver" | "bronze";
+}) {
+  const styles = {
+    gold: {
+      border: "border-yellow-500/30",
+      bg: "from-yellow-500/10 to-transparent",
+      text: "text-yellow-500",
+      icon: <Crown className="w-8 h-8 text-yellow-500" />,
+      glow: "shadow-yellow-500/10",
+      height: "md:h-[420px]",
+    },
+    silver: {
+      border: "border-slate-400/30",
+      bg: "from-slate-400/10 to-transparent",
+      text: "text-slate-400",
+      icon: <Medal className="w-8 h-8 text-slate-400" />,
+      glow: "shadow-slate-400/5",
+      height: "md:h-[360px]",
+    },
+    bronze: {
+      border: "border-orange-500/30",
+      bg: "from-orange-500/10 to-transparent",
+      text: "text-orange-500",
+      icon: <Award className="w-8 h-8 text-orange-500" />,
+      glow: "shadow-orange-500/5",
+      height: "md:h-[330px]",
+    },
+  }[color];
+
+  return (
+    <div
+      className={cn(
+        "relative group transition-all duration-500 hover:-translate-y-2",
+        styles.height,
+        rank === 1
+          ? "order-1 md:order-2"
+          : rank === 2
+          ? "order-2 md:order-1"
+          : "order-3"
+      )}
+    >
+      <Card
+        className={cn(
+          "h-full bg-gradient-to-b border-t-2 overflow-hidden flex flex-col items-center justify-center p-6 rounded-[2.5rem] shadow-2xl",
+          styles.bg,
+          styles.border,
+          styles.glow
+        )}
+      >
+        {/* Animated Rank Watermark */}
+        <span className="absolute -bottom-4 -right-2 text-[120px] font-black italic text-white/[0.03] leading-none pointer-events-none">
+          {rank}
+        </span>
+
+        <div className="relative mb-6">
+          <div
+            className={cn(
+              "absolute -inset-4 rounded-full blur-2xl opacity-20 animate-pulse",
+              styles.text.replace("text", "bg")
+            )}
+          />
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center relative z-10 shadow-2xl">
+            <span className="text-2xl font-black text-white">
+              {user.initials}
+            </span>
+          </div>
+          <div className="absolute -top-6 left-1/2 -translate-x-1/2 drop-shadow-2xl">
+            {styles.icon}
+          </div>
+        </div>
+
+        <div className="text-center space-y-1 mb-6 relative z-10">
+          <h3 className="text-lg font-black tracking-tight text-white uppercase truncate max-w-[150px]">
+            {user.displayName}
+          </h3>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            {user.username}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 w-full mb-6 relative z-10">
+          <div className="bg-white/5 rounded-2xl p-3 border border-white/5 text-center">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">
+              Accuracy
+            </p>
+            <p className="text-sm font-bold text-white">{user.accuracy}%</p>
+          </div>
+          <div className="bg-white/5 rounded-2xl p-3 border border-white/5 text-center">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">
+              Earned
+            </p>
+            <p className="text-sm font-bold text-emerald-400">
+              ${user.totalEarned.toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        {user.winStreak > 0 && (
+          <div className="bg-orange-500/10 border border-orange-500/20 px-4 py-1.5 rounded-full flex items-center gap-2 animate-bounce">
+            <Zap className="w-3 h-3 text-orange-400 fill-orange-400" />
+            <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">
+              {user.winStreak} STREAK
+            </span>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

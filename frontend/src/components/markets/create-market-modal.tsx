@@ -38,7 +38,7 @@ import {
   useApproveCUSD,
 } from "@/hooks/contracts";
 import { toast } from "sonner";
-import { maxUint256, parseUnits, encodeFunctionData, type Abi } from "viem";
+import { maxUint256, parseUnits, type Abi } from "viem";
 import { defaultChain } from "@/lib/wallet-config";
 import { getContractAddress } from "@/lib/contracts";
 import { Address } from "viem";
@@ -48,7 +48,7 @@ import { MarketType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useRedeemDelegations } from "@/hooks/useRedeemDelegations";
 import { usePermissions } from "@/providers/PermissionProvider";
-import { MarketFactoryABI } from "@/lib/abis";
+import { PredictionMarketABI } from "@/lib/abis";
 
 interface CreateMarketModalProps {
   open: boolean;
@@ -179,8 +179,10 @@ export function CreateMarketModal({
   // Check if on correct network
   const isCorrectNetwork = chainId === defaultChain.id;
 
-  // Get MarketFactory address for approval
-  const factoryAddress = getContractAddress("factory") as Address;
+  // Get PredictionMarket address for approval and direct calls
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
 
   // Calculate stake amount in wei
   // Calculate stake amount in token's native decimals
@@ -192,12 +194,12 @@ export function CreateMarketModal({
         : parseUnits(formData.initialStake.toString(), 18) // cUSD: use 18 decimals
       : undefined;
 
-  // Check if approval is needed
+  // Check if approval is needed (for PredictionMarket, not MarketFactory)
   const {
     needsApproval: checkNeedsApproval,
     isLoading: isLoadingAllowance,
     refetch: refetchAllowance,
-  } = useCUSDAllowance(factoryAddress, stakeInWei);
+  } = useCUSDAllowance(predictionMarketAddress, stakeInWei);
 
   // Approval hook
   const {
@@ -213,7 +215,7 @@ export function CreateMarketModal({
   // Session transaction hook for one-tap betting (ERC-7715)
   const { canUseRedeem, redeemWithUSDCTransfer } = useRedeemDelegations();
 
-  const { permission, isPermissionValid } = usePermissions();
+  const { isPermissionValid } = usePermissions();
 
   const { data: tokenBalance } = useBalance({
     address,
@@ -508,6 +510,7 @@ export function CreateMarketModal({
                 endTime: BigInt(endTime),
                 initialStake: stakeInWei,
                 initialSide: initialSide as 0 | 1,
+                creatorAddress: address as `0x${string}`,
               });
             } else {
               // CrowdWisdom market
@@ -517,6 +520,7 @@ export function CreateMarketModal({
                 endTime: BigInt(endTime),
                 initialStake: stakeInWei,
                 initialOutcomeLabel: formData.initialOutcomeLabel,
+                creatorAddress: address as `0x${string}`,
               });
             }
             toast.info("Confirm market creation in your wallet");
@@ -611,11 +615,43 @@ export function CreateMarketModal({
       const createdMarketData = { ...formData };
 
       // Invalidate queries to refresh markets list
+      // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: ["marketCount"] });
       queryClient.invalidateQueries({ queryKey: ["allMarketIds"] });
       queryClient.invalidateQueries({ queryKey: ["allMarkets"] });
       queryClient.invalidateQueries({ queryKey: ["marketDetails"] });
       queryClient.invalidateQueries({ queryKey: ["predictionCount"] });
+
+      // Invalidate Wagmi cache for contract reads
+      // Wagmi uses query keys like: ["readContract", { address, abi, functionName, args }]
+      const predictionMarketAddress = getContractAddress(
+        "predictionMarket"
+      ) as Address;
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const queryKey = query.queryKey;
+          // Invalidate marketCounter reads
+          if (
+            Array.isArray(queryKey) &&
+            queryKey[0] === "readContract" &&
+            typeof queryKey[1] === "object" &&
+            queryKey[1] !== null &&
+            "address" in queryKey[1] &&
+            queryKey[1].address === predictionMarketAddress &&
+            "functionName" in queryKey[1] &&
+            (queryKey[1].functionName === "marketCounter" ||
+              queryKey[1].functionName === "getMarketInfo")
+          ) {
+            return true;
+          }
+          return false;
+        },
+      });
+
+      // Wait a bit for the transaction to be indexed, then refetch
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ["allMarkets"] });
+      }, 2000);
 
       setFormData({
         marketType: MarketType.Binary,
@@ -761,7 +797,7 @@ export function CreateMarketModal({
         }> = [];
 
         // Always add approval call as first contract call
-        // The session account needs to approve the factory to spend USDC
+        // The session account needs to approve PredictionMarket to spend USDC
         // Even if the user's account has approval, the session account is a different account
         contractCalls.push({
           to: tokenAddress,
@@ -779,15 +815,23 @@ export function CreateMarketModal({
             },
           ] as const satisfies Abi,
           functionName: "approve",
-          args: [factoryAddress, maxUint256],
+          args: [predictionMarketAddress, maxUint256],
         });
 
-        // Add market creation call
+        // Add market creation call - call PredictionMarket directly (no MarketFactory middleman)
         const marketType = formData.marketType === MarketType.Binary ? 0 : 1;
         const initialSide = formData.initialSide === "yes" ? 0 : 1;
 
+        // Call PredictionMarket.createMarket() directly with EOA address (required for session accounts)
+        if (!address) {
+          toast.error("Wallet not connected");
+          setIsProcessing(false);
+          setIsCreating(false);
+          return;
+        }
+
         contractCalls.push({
-          abi: MarketFactoryABI,
+          abi: PredictionMarketABI,
           functionName: "createMarket",
           args: [
             marketType,
@@ -799,14 +843,15 @@ export function CreateMarketModal({
             formData.marketType === MarketType.Binary
               ? ""
               : formData.initialOutcomeLabel,
+            address, // creatorAddress (EOA)
           ],
-          to: factoryAddress,
+          to: predictionMarketAddress,
         });
         setIsCreating(true);
         const result = await redeemWithUSDCTransfer({
-          usdcAmount: formData.initialStake.toString(), 
-          tokenDecimals: tokenDecimals, 
-          contractCalls: contractCalls, 
+          usdcAmount: formData.initialStake.toString(),
+          tokenDecimals: tokenDecimals,
+          contractCalls: contractCalls,
         });
 
         if (result.success) {
@@ -840,8 +885,8 @@ export function CreateMarketModal({
     console.log("📱 Using regular wallet flow (MetaMask popups required)");
 
     if (actuallyNeedsApproval) {
-      // Need to approve tokens first
-      if (!approve || !factoryAddress) {
+      // Need to approve tokens first (for PredictionMarket, not MarketFactory)
+      if (!approve || !predictionMarketAddress) {
         toast.error("Approval not available");
         setIsProcessing(false);
         return;
@@ -861,7 +906,7 @@ export function CreateMarketModal({
 
       try {
         // Approve unlimited so user never needs to approve again for this contract
-        approve([factoryAddress, maxUint256]);
+        approve([predictionMarketAddress, maxUint256]);
         // Approval confirmation will automatically trigger market creation via useEffect
       } catch (err) {
         // Reset refs on error
@@ -911,6 +956,7 @@ export function CreateMarketModal({
             endTime: BigInt(endTime),
             initialStake: stakeInWei,
             initialSide: initialSide as 0 | 1,
+            creatorAddress: address as `0x${string}`,
           });
         } else {
           // CrowdWisdom market
@@ -920,6 +966,7 @@ export function CreateMarketModal({
             endTime: BigInt(endTime),
             initialStake: stakeInWei,
             initialOutcomeLabel: formData.initialOutcomeLabel,
+            creatorAddress: address as `0x${string}`,
           });
         }
         toast.info("Confirm market creation in your wallet");
@@ -1726,7 +1773,6 @@ export function CreateMarketModal({
                     return maxDate.toISOString().slice(0, 16);
                   })()}
                   onChange={(e) => {
-                    // Only mark as manually changed if it's different from AI suggestion
                     if (validation?.suggestedEndDate) {
                       try {
                         const suggestedDate = new Date(

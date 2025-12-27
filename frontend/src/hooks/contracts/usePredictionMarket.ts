@@ -51,26 +51,19 @@ export function useIsResolved(marketId: bigint | number | undefined) {
 export function usePoolAmounts(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
-  const yesPool = useContractRead<bigint>({
+  // Use getMarketInfo to get yesPool and noPool from the Market struct
+  const { data: market, isLoading } = useContractRead<MarketStruct>({
     address,
     abi,
-    functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 0] : undefined,
-    enabled: marketId !== undefined && !!address,
-  });
-
-  const noPool = useContractRead<bigint>({
-    address,
-    abi,
-    functionName: "poolAmounts",
-    args: marketId !== undefined ? [BigInt(marketId), 1] : undefined,
+    functionName: "getMarketInfo",
+    args: marketId !== undefined ? [BigInt(marketId)] : undefined,
     enabled: marketId !== undefined && !!address,
   });
 
   return {
-    yesPool: yesPool.data,
-    noPool: noPool.data,
-    isLoading: yesPool.isLoading || noPool.isLoading,
+    yesPool: market?.yesPool,
+    noPool: market?.noPool,
+    isLoading,
   };
 }
 
@@ -82,9 +75,8 @@ export function useUserPrediction(
 
   return useContractRead<{
     user: Address;
-    side: Outcome; // For Binary markets: 0 = Yes, 1 = No
-    outcomeIndex: bigint; // For CrowdWisdom markets: 0, 1, 2...
-    amount: bigint;
+    side: Outcome; 
+    outcomeIndex: bigint; 
     timestamp: bigint;
   }>({
     address,
@@ -164,13 +156,16 @@ export function usePredict() {
     address,
     abi,
     functionName: "predict",
+    // Note: predict now requires [marketId, userAddress, side, amount]
+    // The userAddress (EOA) should be passed in the args
   });
 }
 
 /**
  * Hook for commenting and staking on a CrowdWisdom market
  * Creates a new outcome if it doesn't exist, or stakes on existing one
- * Args: [marketId, outcomeLabel, amount]
+ * Args: [marketId, userAddress, outcomeLabel, amount]
+ * Note: userAddress (EOA) should be passed in the args
  */
 export function useCommentAndStake() {
   const { address, abi } = usePredictionMarket();
@@ -184,7 +179,8 @@ export function useCommentAndStake() {
 
 /**
  * Hook for staking on an existing outcome in a CrowdWisdom market
- * Args: [marketId, outcomeIndex, amount]
+ * Args: [marketId, userAddress, outcomeIndex, amount]
+ * Note: userAddress (EOA) should be passed in the args
  */
 export function useStakeOnOutcome() {
   const { address, abi } = usePredictionMarket();
@@ -303,6 +299,8 @@ export function useOutcomePoolAmount(
 
 /**
  * Hook for claiming payout
+ * Args: [marketId, userAddress]
+ * Note: userAddress (EOA) should be passed in the args
  */
 export function useClaimPayout() {
   const { address, abi } = usePredictionMarket();
@@ -408,5 +406,49 @@ export function useMaxStakePerUser() {
     abi,
     functionName: "MAX_STAKE_PER_USER",
     enabled: !!address,
+  });
+}
+
+/**
+ * Hook for granting delegation to a session account
+ */
+export function useGrantDelegation() {
+  const { address, abi } = usePredictionMarket();
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "grantDelegation",
+  });
+}
+
+/**
+ * Hook for revoking delegation from a session account
+ */
+export function useRevokeDelegation() {
+  const { address, abi } = usePredictionMarket();
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "revokeDelegation",
+  });
+}
+
+/**
+ * Check if an address has delegation for a user
+ */
+export function useHasDelegation(
+  userAddress: Address | undefined,
+  delegateAddress: Address | undefined
+) {
+  const { address, abi } = usePredictionMarket();
+  return useContractRead<boolean>({
+    address,
+    abi,
+    functionName: "hasDelegation",
+    args:
+      userAddress && delegateAddress
+        ? [userAddress, delegateAddress]
+        : undefined,
+    enabled: !!userAddress && !!delegateAddress && !!address,
   });
 }

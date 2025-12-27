@@ -130,12 +130,14 @@ export function MarketCard({ market, onPredict }: MarketCardProps) {
         <div className="grid grid-cols-2 gap-3 mt-6">
           <Button
             variant="secondary"
+            onClick={() => onPredict(market.id, "yes")}
             className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border-none h-11 transition-all"
           >
             YES
           </Button>
           <Button
             variant="secondary"
+            onClick={() => onPredict(market.id, "no")}
             className="bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border-none h-11 transition-all"
           >
             NO

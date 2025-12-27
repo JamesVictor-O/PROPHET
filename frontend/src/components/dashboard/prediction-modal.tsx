@@ -301,6 +301,15 @@ export function PredictionModal({
     try {
       const stakeInWei = parseUnits(stake, tokenDecimals);
 
+      if (!address) {
+        toast.error("Wallet not connected");
+        setIsProcessing(false);
+        isPlacingPredictionRef.current = false;
+        return;
+      }
+
+      const userEOA = address as Address; // EOA address
+
       if (isCrowdWisdom) {
         // If user has existing prediction, must use existing outcome index
         if (hasExistingPrediction && existingOutcomeIndex !== null) {
@@ -314,6 +323,7 @@ export function PredictionModal({
           }
           writeStakeOnOutcome([
             BigInt(market.id),
+            userEOA, // EOA address
             BigInt(existingOutcomeIndex),
             stakeInWei,
           ]);
@@ -327,6 +337,7 @@ export function PredictionModal({
           }
           writeStakeOnOutcome([
             BigInt(market.id),
+            userEOA, // EOA address
             BigInt(selectedOutcomeIndex),
             stakeInWei,
           ]);
@@ -340,6 +351,7 @@ export function PredictionModal({
           }
           writeCommentAndStake([
             BigInt(market.id),
+            userEOA, // EOA address
             outcomeComment.trim(),
             stakeInWei,
           ]);
@@ -353,7 +365,7 @@ export function PredictionModal({
           return;
         }
         const sideUint8 = side === "yes" ? 0 : 1;
-        writePredict([BigInt(market.id), sideUint8, stakeInWei]);
+        writePredict([BigInt(market.id), userEOA, sideUint8, stakeInWei]); // EOA address added
       }
 
       toast.info("Confirm prediction in your wallet");
@@ -729,6 +741,16 @@ export function PredictionModal({
           });
         }
 
+        if (!address) {
+          toast.error("Wallet not connected");
+          setIsProcessing(false);
+          setIsStaking(false);
+          isPlacingPredictionRef.current = false;
+          return;
+        }
+
+        const userEOA = address as Address; // EOA address
+
         // Add prediction/stake call based on market type
         if (isCrowdWisdom) {
           // CrowdWisdom market
@@ -739,6 +761,7 @@ export function PredictionModal({
               functionName: "stakeOnOutcome",
               args: [
                 BigInt(Number(market.id)),
+                userEOA, // EOA address
                 BigInt(Number(existingOutcomeIndex)),
                 stakeAmount,
               ],
@@ -751,6 +774,7 @@ export function PredictionModal({
               functionName: "stakeOnOutcome",
               args: [
                 BigInt(market.id),
+                userEOA, // EOA address
                 BigInt(selectedOutcomeIndex),
                 stakeAmount,
               ],
@@ -761,7 +785,7 @@ export function PredictionModal({
             contractCalls.push({
               abi: PredictionMarketABI,
               functionName: "commentAndStake",
-              args: [BigInt(market.id), outcomeComment.trim(), stakeAmount],
+              args: [BigInt(market.id), userEOA, outcomeComment.trim(), stakeAmount], // EOA address added
               to: predictionMarketAddress,
             });
           }
@@ -771,7 +795,7 @@ export function PredictionModal({
           contractCalls.push({
             abi: PredictionMarketABI,
             functionName: "predict",
-            args: [BigInt(market.id), sideUint8, stakeAmount],
+            args: [BigInt(market.id), userEOA, sideUint8, stakeAmount], // EOA address added
             to: predictionMarketAddress,
           });
         }
@@ -1182,10 +1206,10 @@ export function PredictionModal({
                   id="stake"
                   name="stake"
                   type="number"
-                  placeholder={isCrowdWisdom ? "1.00" : "0.25"}
-                  min={isCrowdWisdom ? "1" : "0.25"}
+                  placeholder={isCrowdWisdom ? "1.00" : "0.025"}
+                  min={isCrowdWisdom ? "1" : "0.025"}
                   max="20"
-                  step="0.25"
+                  step="0.001"
                   value={stake}
                   style={{ fontSize: "16px" }} // Prevent auto-zoom on mobile iOS
                   onChange={(e) => {
@@ -1208,7 +1232,7 @@ export function PredictionModal({
                 </p>
               )}
               <p className="text-xs text-gray-400">
-                Minimum: ${isCrowdWisdom ? "1.00" : "0.25"} • Maximum: $20.00
+                Minimum: ${isCrowdWisdom ? "1.00" : "0.025"} • Maximum: $20.00
               </p>
             </div>
 
@@ -1301,7 +1325,7 @@ export function PredictionModal({
                 isProcessing ||
                 isLoadingAllowance ||
                 !stake ||
-                parseFloat(stake) < (isCrowdWisdom ? 1.0 : 0.25) ||
+                parseFloat(stake) < (isCrowdWisdom ? 1.0 : 0.025) ||
                 (isCrowdWisdom &&
                   selectedOutcomeIndex === null &&
                   !outcomeComment.trim()) ||

@@ -3,16 +3,18 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { Zap, Shield } from "lucide-react";
+import { Zap, Shield, X } from "lucide-react";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { PermissionSettingsModal } from "./permission-settings-modal";
 import { useSessionAccount } from "@/providers/SessionAccountProvider";
 import { useWalletClient, useChainId } from "wagmi";
 import { toast } from "sonner";
 import { getContractAddress } from "@/lib/contracts";
-import { parseUnits } from "viem";
+import { type Address } from "viem";
+import { parseUnits, encodeFunctionData } from "viem";
 import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
 import { defaultChain } from "@/lib/wallet-config";
+import { PredictionMarketABI } from "@/lib/abis";
 
 interface PermissionButtonProps {
   variant?: "default" | "outline" | "ghost";
@@ -28,12 +30,14 @@ export function PermissionButton({
   showIcon = true,
 }: PermissionButtonProps) {
   const { isConnected } = useAccount();
-  const { permission, isPermissionValid, savePermission } = usePermissions();
+  const { permission, isPermissionValid, savePermission, removePermission } =
+    usePermissions();
   const {
     sessionSmartAccount,
     sessionSmartAccountAddress,
     sessionKeyAddress,
     createSessionAccount,
+    clearSessionAccount,
     isLoading: isCreatingSession,
   } = useSessionAccount();
   const { data: walletClient } = useWalletClient();
@@ -41,6 +45,7 @@ export function PermissionButton({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGranting, setIsGranting] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const hasValidPermission = isPermissionValid();
 
@@ -161,16 +166,80 @@ export function PermissionButton({
     return null; // Don't show button if not connected
   }
 
+  const handleRevokePermission = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to revoke One-Tap Betting? You'll need to grant permission again to use it."
+      )
+    ) {
+      return;
+    }
+
+    setIsRevoking(true);
+    try {
+      // Step 1: Revoke contract-level delegation for PredictionMarket if session account exists
+      // NOTE: No longer revoking MarketFactory delegation since we call PredictionMarket directly
+      if (sessionSmartAccountAddress && walletClient) {
+        try {
+          const predictionMarketAddress = getContractAddress(
+            "predictionMarket"
+          ) as Address;
+
+          // Revoke delegation on PredictionMarket
+          const predictionMarketRevokeData = encodeFunctionData({
+            abi: PredictionMarketABI,
+            functionName: "revokeDelegation",
+            args: [sessionSmartAccountAddress],
+          });
+
+          // Execute revocation transaction
+          await walletClient.sendTransaction({
+            to: predictionMarketAddress,
+            data: predictionMarketRevokeData,
+          });
+
+          console.log("✅ PredictionMarket delegation revoked");
+        } catch (delegationError) {
+          console.warn(
+            "⚠️ Failed to revoke contract delegation (non-critical):",
+            delegationError
+          );
+          // Continue with permission removal even if delegation revocation fails
+        }
+      }
+
+      // Step 2: Remove permission from storage
+      removePermission();
+
+      // Step 3: Clear session account (optional - user can keep it for future use)
+      // clearSessionAccount();
+
+      toast.success("One-Tap Betting permission revoked");
+    } catch (error) {
+      console.error("Error revoking permission:", error);
+      toast.error("Failed to revoke permission");
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
   if (hasValidPermission) {
     return (
       <Button
         variant={variant}
         size={size}
-        className={`${className} border-green-500/50 text-green-400 hover:bg-green-500/10`}
-        disabled
+        onClick={handleRevokePermission}
+        disabled={isRevoking}
+        className={`${className} border-green-500/50 text-green-400 hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-colors`}
+        title="Click to revoke One-Tap Betting"
       >
-        {showIcon && <Shield className="w-4 h-4 mr-2" />}
-        One-Tap Active
+        {showIcon &&
+          (isRevoking ? (
+            <X className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Shield className="w-4 h-4 mr-2" />
+          ))}
+        {isRevoking ? "Revoking..." : "One-Tap Active"}
       </Button>
     );
   }

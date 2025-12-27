@@ -1,31 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Clock,
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  XCircle,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { Clock, TrendingUp, TrendingDown, Loader2, Target } from "lucide-react";
 import { UserPrediction } from "@/hooks/contracts";
 import { ShareButton } from "@/components/social/share-button";
-import { useContractWrite, useContractRead } from "@/hooks/contracts";
-import { useOutcomeLabel, useMarketOutcomes } from "@/hooks/contracts";
-import { PredictionMarketABI } from "@/lib/abis";
-import { getContractAddress } from "@/lib/contracts";
-import { useAccount, useWaitForTransactionReceipt } from "wagmi";
-import { Address } from "viem";
+import {
+  useOutcomeLabel,
+  useMarketOutcomes,
+  useClaimPayout,
+  useHasClaimed,
+} from "@/hooks/contracts";
+import { useAccount } from "wagmi";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { MarketType } from "@/lib/types";
-import { formatEther } from "viem";
 
 interface PredictionCardProps {
   prediction: UserPrediction;
@@ -39,366 +31,309 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
   const isCrowdWisdom = prediction.marketType === MarketType.CrowdWisdom;
   const [isClaiming, setIsClaiming] = useState(false);
 
-  const predictionMarketAddress = getContractAddress(
-    "predictionMarket"
-  ) as Address;
+  // Convert marketId from string to number for hooks
+  const marketIdNum = prediction.marketId
+    ? Number(prediction.marketId)
+    : undefined;
 
-  // Fetch outcome label for CrowdWisdom markets
+  // Get outcomes and pool amounts for CrowdWisdom markets
+  const { data: marketOutcomesData } = useMarketOutcomes(
+    isCrowdWisdom ? marketIdNum : undefined
+  );
+  const outcomes = marketOutcomesData?.[0] || [];
+  const poolAmounts = marketOutcomesData?.[1] || [];
+  const totalPoolAmount = poolAmounts.reduce(
+    (sum, amount) => sum + amount,
+    BigInt(0)
+  );
+
+  // Get outcome label for the user's prediction
   const { data: outcomeLabel } = useOutcomeLabel(
-    isCrowdWisdom && prediction.outcomeIndex !== undefined && prediction.marketId
-      ? BigInt(prediction.marketId)
-      : undefined,
+    isCrowdWisdom ? marketIdNum : undefined,
     isCrowdWisdom && prediction.outcomeIndex !== undefined
-      ? BigInt(prediction.outcomeIndex)
+      ? prediction.outcomeIndex
       : undefined
   );
 
-  // Fetch all outcomes for CrowdWisdom markets to show a chart
-  const { data: marketOutcomesData } = useMarketOutcomes(
-    isCrowdWisdom && prediction.marketId ? BigInt(prediction.marketId) : undefined
+  // Claim payout logic
+  const { data: hasClaimed } = useHasClaimed(
+    marketIdNum,
+    userAddress || undefined
   );
-
-  // Calculate outcome data for CrowdWisdom
-  const outcomes = marketOutcomesData?.[0] || [];
-  const poolAmounts = marketOutcomesData?.[1] || [];
-  const totalPoolAmount = poolAmounts.reduce((sum, amt) => sum + amt, BigInt(0));
-
-  // Check if user has already claimed payout
-  const { data: hasClaimed } = useContractRead<boolean>({
-    address: predictionMarketAddress,
-    abi: PredictionMarketABI,
-    functionName: "hasClaimed",
-    args:
-      userAddress && prediction.marketId
-        ? [BigInt(prediction.marketId), userAddress]
-        : undefined,
-    enabled:
-      !!userAddress && !!prediction.marketId && !!predictionMarketAddress,
-  });
-
-  // Claim payout function
   const {
     write: claimPayout,
-    hash: claimHash,
+    hash: claimTxHash,
     isPending: isClaimPending,
     isConfirmed: isClaimConfirmed,
-  } = useContractWrite({
-    address: predictionMarketAddress,
-    abi: PredictionMarketABI,
-    functionName: "claimPayout",
-  });
+    isConfirming,
+  } = useClaimPayout();
 
-  // Wait for transaction
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
-    hash: claimHash,
-  });
+  const canClaim =
+    (isWon || (isLost && prediction.actualWin && prediction.actualWin > 0)) &&
+    !hasClaimed;
 
   const handleClaimPayout = async () => {
-    if (!claimPayout || !prediction.marketId) {
-      toast.error("Unable to claim payout");
+    if (!userAddress || !marketIdNum) {
+      toast.error("Wallet not connected");
       return;
     }
 
     setIsClaiming(true);
     try {
-      claimPayout([BigInt(prediction.marketId)]);
-      toast.success("Transaction submitted! Waiting for confirmation...");
+      claimPayout([BigInt(marketIdNum), userAddress]);
     } catch (error) {
       console.error("Error claiming payout:", error);
       toast.error("Failed to claim payout");
+    } finally {
       setIsClaiming(false);
     }
   };
 
-  // Handle successful claim
-  if (isClaimConfirmed && !hasClaimed) {
-    // Transaction confirmed, refetch will update hasClaimed
-    setIsClaiming(false);
-    toast.success("Payout claimed successfully!");
-  }
-
-  const canClaim =
-    isWon && !hasClaimed && prediction.actualWin && prediction.actualWin > 0;
+  // Show success toast when claim is confirmed
+  useEffect(() => {
+    if (isClaimConfirmed && !isConfirming) {
+      toast.success("Payout claimed successfully!");
+    }
+  }, [isClaimConfirmed, isConfirming]);
 
   return (
     <Card
       className={cn(
-        "bg-[#1E293B] border-[#334155] transition-all duration-200",
-        isWon && "border-green-500/50",
-        isLost && "border-red-500/50"
+        "group relative bg-[#020617]/60 backdrop-blur-xl border-white/5 rounded-[2rem] overflow-hidden transition-all duration-500 hover:border-blue-500/30 shadow-2xl",
+        isWon && "border-emerald-500/30 bg-emerald-500/[0.02]",
+        isLost && "border-red-500/30 bg-red-500/[0.02]"
       )}
     >
-      <CardContent className="p-4 md:p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3 gap-2 md:items-center md:mb-4">
+      {/* Status Glow Bar */}
+      <div
+        className={cn(
+          "absolute top-0 left-0 right-0 h-1 opacity-50",
+          isActive ? "bg-blue-500" : isWon ? "bg-emerald-500" : "bg-red-500"
+        )}
+      />
+
+      <CardContent className="p-5 sm:p-7">
+        {/* Top Meta Row */}
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Badge
               className={cn(
-                "text-[10px] md:text-xs font-semibold",
+                "bg-white/5 text-[9px] font-black uppercase tracking-widest border-white/10 px-2 py-0.5",
                 prediction.categoryColor
               )}
             >
               {prediction.category}
             </Badge>
-            {prediction.isCreator && (
-              <Badge className="text-[10px] md:text-xs font-semibold bg-purple-500/10 text-purple-400 border-purple-500/20">
-                Created
-              </Badge>
-            )}
             {isCrowdWisdom && (
-              <Badge className="text-[10px] md:text-xs font-semibold bg-purple-500/10 text-purple-400 border-purple-500/20">
+              <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[9px] font-black uppercase tracking-widest">
                 CrowdWisdom
               </Badge>
             )}
           </div>
 
-          {isActive && prediction.timeLeft && (
-            <div className="flex items-center space-x-1">
-              <Clock className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
-              <span className="text-[11px] md:text-xs text-gray-400">
-                {prediction.timeLeft}
+          <div className="flex items-center gap-3">
+            {isActive ? (
+              <div className="flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-full">
+                <Clock className="w-3 h-3 text-blue-400" />
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter italic">
+                  {prediction.timeLeft}
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">
+                {prediction.marketStatus}
               </span>
-            </div>
-          )}
-
-          {!isActive && prediction.marketStatus === "resolved" && (
-            <span className="text-[11px] md:text-xs text-gray-400">
-              Resolved
-            </span>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Question */}
-        <h3 className="text-base md:text-lg font-bold mb-3 leading-snug">
-          {prediction.marketQuestion}
-        </h3>
+        {/* Question Area */}
+        <div className="space-y-4 mb-6">
+          <h3 className="text-base sm:text-xl font-black italic tracking-tight text-white leading-snug group-hover:text-blue-400 transition-colors">
+            {prediction.marketQuestion}
+          </h3>
 
-        {/* Prediction Details */}
-        <div className="space-y-2.5 md:space-y-3 mb-4">
-          {prediction.stake > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm md:text-sm text-gray-400">
-                Your Prediction
-              </span>
-              <div className="flex items-center space-x-2">
+          {/* Position Summary Pod */}
+          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                Your Position
+              </p>
+              <div className="flex items-center gap-2">
                 {isCrowdWisdom ? (
-                  <>
-                    <span className="text-sm md:text-sm font-semibold text-purple-400">
-                      {outcomeLabel || `Outcome #${prediction.outcomeIndex || 0}`}
-                    </span>
-                    <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">
-                      CrowdWisdom
-                    </Badge>
-                  </>
+                  <span className="text-sm font-bold text-purple-400 italic">
+                    {outcomeLabel || `Outcome #${prediction.outcomeIndex}`}
+                  </span>
                 ) : (
-                  <>
+                  <div className="flex items-center gap-2">
                     {prediction.side === "yes" ? (
-                      <TrendingUp className="w-4 h-4 text-green-400" />
+                      <TrendingUp className="w-4 h-4 text-emerald-400" />
                     ) : (
                       <TrendingDown className="w-4 h-4 text-red-400" />
                     )}
                     <span
                       className={cn(
-                        "text-sm md:text-sm font-semibold uppercase",
+                        "text-sm font-black uppercase italic",
                         prediction.side === "yes"
-                          ? "text-green-400"
+                          ? "text-emerald-400"
                           : "text-red-400"
                       )}
                     >
                       {prediction.side}
                     </span>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
-          )}
 
-          {prediction.stake > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Stake</span>
-              <span className="text-sm font-semibold">
+            <div className="text-right space-y-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                Amount At Stake
+              </p>
+              <p className="text-sm font-black text-white italic">
                 ${prediction.stake.toFixed(2)}
-              </span>
+              </p>
             </div>
-          )}
-
-          {prediction.stake === 0 && prediction.isCreator && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Status</span>
-              <span className="text-sm font-semibold text-purple-400">
-                Market Creator
-              </span>
-            </div>
-          )}
-
-          {isActive && prediction.stake > 0 ? (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Potential Win</span>
-              <span className="text-sm font-semibold text-green-400">
-                ${prediction.potentialWin.toFixed(2)}
-              </span>
-            </div>
-          ) : prediction.stake > 0 ? (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Result</span>
-              <div className="flex items-center space-x-2">
-                {isWon ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    <span className="text-sm font-semibold text-green-400">
-                      {`+$${prediction.actualWin?.toFixed(2)}`}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-sm font-semibold text-red-400">
-                      {`-$${prediction.stake.toFixed(2)}`}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : null}
+          </div>
         </div>
 
-        {/* Market Stats */}
-        <div className="pt-3 border-t border-[#334155]">
+        {/* Outcome Intelligence / Analytics */}
+        <div className="space-y-4 pt-4 border-t border-white/5">
           {!isCrowdWisdom ? (
-            <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3">
-              <div className="text-center">
-                <div className="text-lg md:text-xl font-bold text-green-400 mb-1">
-                  {prediction.yesPercent}%
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative group/bar">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1.5">
+                  <span>YES</span>
+                  <span>{prediction.yesPercent}%</span>
                 </div>
-                <div className="text-xs text-gray-400">YES</div>
+                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-1000"
+                    style={{ width: `${prediction.yesPercent}%` }}
+                  />
+                </div>
               </div>
-              <div className="text-center">
-                <div className="text-lg md:text-xl font-bold text-red-400 mb-1">
-                  {prediction.noPercent}%
+              <div className="relative group/bar">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-red-400 mb-1.5">
+                  <span>NO</span>
+                  <span>{prediction.noPercent}%</span>
                 </div>
-                <div className="text-xs text-gray-400">NO</div>
+                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] transition-all duration-1000"
+                    style={{ width: `${prediction.noPercent}%` }}
+                  />
+                </div>
               </div>
             </div>
           ) : (
-            <div className="mb-3 space-y-2">
-              <div className="text-xs text-gray-400 mb-2">Top Outcomes</div>
-              {outcomes.length > 0 ? (
-                <div className="space-y-1.5">
-                  {outcomes.slice(0, 3).map((label, index) => {
-                    const poolAmount = poolAmounts[index] || BigInt(0);
-                    const percentage = totalPoolAmount > BigInt(0)
-                      ? Number((poolAmount * BigInt(10000)) / totalPoolAmount) / 100
-                      : 0;
-                    const isUserOutcome = prediction.outcomeIndex === index;
-                    
-                    return (
-                      <div
-                        key={index}
+            <div className="space-y-3">
+              {outcomes.slice(0, 2).map((label, index) => {
+                const poolAmount = poolAmounts[index] || BigInt(0);
+                const percentage =
+                  totalPoolAmount > BigInt(0)
+                    ? Number((poolAmount * BigInt(10000)) / totalPoolAmount) /
+                      100
+                    : 0;
+                const isUserOutcome = prediction.outcomeIndex === index;
+                return (
+                  <div key={index} className="space-y-1.5">
+                    <div className="flex justify-between items-center px-1">
+                      <span
                         className={cn(
-                          "bg-[#0F172A] border rounded-lg p-2",
-                          isUserOutcome
-                            ? "border-purple-500/50 bg-purple-500/5"
-                            : "border-[#334155]"
+                          "text-[10px] font-black uppercase tracking-tighter truncate max-w-[70%]",
+                          isUserOutcome ? "text-purple-400" : "text-slate-500"
                         )}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={cn(
-                            "text-xs font-medium truncate flex-1 mr-2",
-                            isUserOutcome ? "text-purple-300" : "text-white"
-                          )}>
-                            {label}
-                            {isUserOutcome && (
-                              <Badge className="ml-1 bg-purple-500/20 text-purple-300 text-[8px] px-1">
-                                Your stake
-                              </Badge>
-                            )}
-                          </span>
-                          <span className="text-xs text-purple-400 font-semibold shrink-0">
-                            {percentage.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-[#1E293B] rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all",
-                              isUserOutcome
-                                ? "bg-gradient-to-r from-purple-500 to-purple-600"
-                                : "bg-purple-500/40"
-                            )}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {outcomes.length > 3 && (
-                    <div className="text-center">
-                      <span className="text-[10px] text-gray-500">
-                        +{outcomes.length - 3} more outcomes
+                        {isUserOutcome && "• "} {label}
+                      </span>
+                      <span className="text-[10px] font-black text-white tracking-tighter">
+                        {percentage.toFixed(1)}%
                       </span>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-xs text-gray-500 text-center py-2">
-                  No outcomes yet
-                </div>
-              )}
+                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-1000",
+                          isUserOutcome ? "bg-purple-500" : "bg-slate-700"
+                        )}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-            <span className="truncate">Pool: {prediction.pool}</span>
-            <span
+          {/* Dynamic Footer Info */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col">
+                <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">
+                  Contract Liquidity
+                </span>
+                <span className="text-[10px] font-bold text-slate-300 italic">
+                  {prediction.pool}
+                </span>
+              </div>
+              {isActive && (
+                <div className="flex flex-col border-l border-white/10 pl-4">
+                  <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">
+                    Est. Payout
+                  </span>
+                  <span className="text-[10px] font-black text-emerald-400 italic">
+                    ${prediction.potentialWin.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div
               className={cn(
-                "px-2 py-1 rounded-full text-xs font-semibold",
-                isActive && "bg-blue-500/10 text-blue-400",
-                isWon && "bg-green-500/10 text-green-400",
-                isLost && "bg-red-500/10 text-red-400"
+                "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em]",
+                isWon
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : isLost
+                  ? "bg-red-500/10 text-red-400"
+                  : "bg-blue-500/10 text-blue-400"
               )}
             >
-              {prediction.status.toUpperCase()}
-            </span>
+              {prediction.status}
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-3 border-t border-[#334155] space-y-2 md:space-y-3">
-            {/* Claim Payout Button - Only show if user won and hasn't claimed */}
+          {/* Tactical Action Grid */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
             {canClaim && (
               <Button
                 onClick={handleClaimPayout}
-                disabled={isClaiming || isClaimPending || isConfirming}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                className="col-span-2 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-500/20"
               >
                 {isClaiming || isClaimPending || isConfirming ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isConfirming ? "Confirming..." : "Claiming..."}
-                  </>
+                  <Loader2 className="animate-spin w-4 h-4" />
                 ) : (
-                  `Claim $${prediction.actualWin?.toFixed(2)}`
+                  `Settle Payout: $${prediction.actualWin?.toFixed(2)}`
                 )}
               </Button>
             )}
-
-            {/* View Market Button */}
-            <Link href={`/dashboard?market=${prediction.marketId}`}>
+            <Link
+              href={`/dashboard?market=${prediction.marketId}`}
+              className={cn(canClaim ? "col-span-1" : "col-span-1")}
+            >
               <Button
                 variant="outline"
-                className="w-full bg-[#0F172A] border-[#334155] hover:bg-[#334155] text-sm flex items-center justify-center"
+                className="w-full h-11 bg-white/5 border-white/10 hover:bg-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300"
               >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                View Market
+                <Target className="w-3 h-3 mr-2 text-blue-500" /> Intelligence
               </Button>
             </Link>
-
-            {/* Share Button */}
             <ShareButton
               marketId={prediction.marketId}
               marketQuestion={prediction.marketQuestion}
               category={prediction.category}
               variant="outline"
-              className="w-full bg-[#0F172A] border-[#334155] hover:bg-[#334155] text-sm"
+              className="w-full h-11 bg-white/5 border-white/10 hover:bg-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-300"
             />
           </div>
         </div>
