@@ -5,6 +5,8 @@
 
 import { useMemo } from "react";
 import { Address } from "viem";
+import { useChainId } from "wagmi";
+import { formatTokenAmount } from "@/lib/utils";
 import { useAllMarketIds } from "./useMarketFactory";
 import {
   useMarketDetails,
@@ -44,7 +46,8 @@ function formatMarketData(
   marketId: bigint,
   address: Address | undefined,
   marketDetails: MarketStruct | undefined,
-  isLoading: boolean
+  isLoading: boolean,
+  chainId: number
 ): MarketInfo | null {
   if (!address || !marketDetails) {
     return {
@@ -103,7 +106,7 @@ function formatMarketData(
   // Format pool amount
   const poolFormatted =
     totalPool > BigInt(0)
-      ? `$${(Number(totalPool) / 1e18).toFixed(2)}`
+      ? `$${Number(formatTokenAmount(totalPool, chainId)).toFixed(2)}`
       : "$0.00";
 
   return {
@@ -136,11 +139,13 @@ function formatMarketData(
  * Fetches up to 10 markets for now (can be extended)
  */
 export function useAllMarkets() {
+  const chainId = useChainId();
   const {
     data: marketIds,
     isLoading: isLoadingIds,
     isError: isErrorIds,
     error: marketIdsError,
+    refetch: refetchMarketIds,
   } = useAllMarketIds();
 
   // Log error details for debugging
@@ -236,7 +241,8 @@ export function useAllMarkets() {
           limitedIds[0] || BigInt(0),
           marketAddress,
           details1.data,
-          details1.isLoading
+          details1.isLoading,
+          chainId
         ),
         predictionCount: predictionCount1.data ?? 0,
       },
@@ -245,7 +251,8 @@ export function useAllMarkets() {
           limitedIds[1] || BigInt(0),
           marketAddress,
           details2.data,
-          details2.isLoading
+          details2.isLoading,
+          chainId
         ),
         predictionCount: predictionCount2.data ?? 0,
       },
@@ -254,7 +261,8 @@ export function useAllMarkets() {
           limitedIds[2] || BigInt(0),
           marketAddress,
           details3.data,
-          details3.isLoading
+          details3.isLoading,
+          chainId
         ),
         predictionCount: predictionCount3.data ?? 0,
       },
@@ -263,7 +271,8 @@ export function useAllMarkets() {
           limitedIds[3] || BigInt(0),
           marketAddress,
           details4.data,
-          details4.isLoading
+          details4.isLoading,
+          chainId
         ),
         predictionCount: predictionCount4.data ?? 0,
       },
@@ -272,7 +281,8 @@ export function useAllMarkets() {
           limitedIds[4] || BigInt(0),
           marketAddress,
           details5.data,
-          details5.isLoading
+          details5.isLoading,
+          chainId
         ),
         predictionCount: predictionCount5.data ?? 0,
       },
@@ -281,7 +291,8 @@ export function useAllMarkets() {
           limitedIds[5] || BigInt(0),
           marketAddress,
           details6.data,
-          details6.isLoading
+          details6.isLoading,
+          chainId
         ),
         predictionCount: predictionCount6.data ?? 0,
       },
@@ -290,7 +301,8 @@ export function useAllMarkets() {
           limitedIds[6] || BigInt(0),
           marketAddress,
           details7.data,
-          details7.isLoading
+          details7.isLoading,
+          chainId
         ),
         predictionCount: predictionCount7.data ?? 0,
       },
@@ -299,7 +311,8 @@ export function useAllMarkets() {
           limitedIds[7] || BigInt(0),
           marketAddress,
           details8.data,
-          details8.isLoading
+          details8.isLoading,
+          chainId
         ),
         predictionCount: predictionCount8.data ?? 0,
       },
@@ -308,7 +321,8 @@ export function useAllMarkets() {
           limitedIds[8] || BigInt(0),
           marketAddress,
           details9.data,
-          details9.isLoading
+          details9.isLoading,
+          chainId
         ),
         predictionCount: predictionCount9.data ?? 0,
       },
@@ -317,7 +331,8 @@ export function useAllMarkets() {
           limitedIds[9] || BigInt(0),
           marketAddress,
           details10.data,
-          details10.isLoading
+          details10.isLoading,
+          chainId
         ),
         predictionCount: predictionCount10.data ?? 0,
       },
@@ -358,9 +373,16 @@ export function useAllMarkets() {
   // Only treat as error if there's an actual error AND we have data (meaning it failed after loading)
   const hasError = isErrorIds && marketIdsError !== null;
 
+  // Refetch function that refetches market IDs (which will trigger refetch of all market details)
+  const refetch = async () => {
+    await refetchMarketIds();
+    // Note: Individual market details will refetch automatically when marketIds change
+  };
+
   return {
     data: markets,
     isLoading,
     isError: hasError,
+    refetch,
   };
 }

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { graphqlQuery } from "./useGraphQL";
-import { formatEther } from "viem";
+import { formatTokenAmount } from "@/lib/utils";
 
 export interface PredictionEventGraphQL {
   id: string;
@@ -73,6 +73,7 @@ const categoryDisplayNames: Record<string, string> = {
 
 export function useUserPredictionsGraphQL() {
   const { address } = useAccount();
+  const chainId = useChainId();
 
   return useQuery({
     queryKey: ["userPredictionsGraphQL", address],
@@ -146,7 +147,7 @@ export function useUserPredictionsGraphQL() {
         const isCreator =
           market.creator.toLowerCase() === address.toLowerCase();
         const stakeAmount = BigInt(prediction.amount);
-        const stake = Number(formatEther(stakeAmount));
+        const stake = Number(formatTokenAmount(stakeAmount, chainId));
         const side = prediction.side === "0" ? "yes" : "no";
 
         const totalPoolNum = Number(BigInt(market.totalPool));
@@ -180,7 +181,7 @@ export function useUserPredictionsGraphQL() {
         // Format pool
         const poolFormatted =
           totalPoolNum > 0
-            ? `$${Number(formatEther(BigInt(market.totalPool))).toFixed(2)}`
+            ? `$${Number(formatTokenAmount(BigInt(market.totalPool), chainId)).toFixed(2)}`
             : "$0.00";
 
         // Calculate potential winnings
@@ -189,7 +190,7 @@ export function useUserPredictionsGraphQL() {
         if (!market.resolved && winningPool > 0 && stakeAmount > BigInt(0)) {
           const poolAfterFees = totalPoolNum * 0.93;
           potentialWin = (Number(stakeAmount) / winningPool) * poolAfterFees;
-          potentialWin = Number(formatEther(BigInt(Math.floor(potentialWin))));
+          potentialWin = Number(formatTokenAmount(BigInt(Math.floor(potentialWin)), chainId));
         }
 
         // Determine status
@@ -209,7 +210,7 @@ export function useUserPredictionsGraphQL() {
                 const poolAfterFees = totalPoolNum * 0.93;
                 actualWin =
                   (Number(stakeAmount) / winningPoolAmount) * poolAfterFees;
-                actualWin = Number(formatEther(BigInt(Math.floor(actualWin))));
+                actualWin = Number(formatTokenAmount(BigInt(Math.floor(actualWin)), chainId));
               }
               status = "won";
             } else {

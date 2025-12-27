@@ -15,6 +15,9 @@ export {
   useCreateMarket,
   useCreateBinaryMarket,
   useCreateCrowdWisdomMarket,
+  useGrantDelegation,
+  useRevokeDelegation,
+  useHasDelegation,
 } from "./useMarketFactory";
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { parseUnits } from "viem";
+import { parseUnits, encodeFunctionData, type Address } from "viem";
 import { erc7715ProviderActions } from "@metamask/smart-accounts-kit/actions";
 import { useSessionAccount } from "@/providers/SessionAccountProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -11,6 +11,7 @@ import { useChainId, useWalletClient } from "wagmi";
 import { toast } from "sonner";
 import { getContractAddress } from "@/lib/contracts";
 import { defaultChain } from "@/lib/wallet-config";
+import { PredictionMarketABI } from "@/lib/abis";
 
 interface GrantPermissionsButtonProps {
   onSuccess?: () => void;
@@ -40,29 +41,13 @@ export function GrantPermissionsButton({
   const tokenSymbol =
     defaultChain.id === 84532 || defaultChain.id === 8453 ? "USDC" : "cUSD";
   const tokenAddress = getContractAddress("cUSD");
-
-  /**
-   * Handles the permission granting process for ERC20 token periodic allowance.
-   *
-   * This function:
-   * 1. Creates a session account if not exists
-   * 2. Extends wallet client with ERC-7715 actions
-   * 3. Requests execution permissions for token spending
-   * 4. Stores the granted permission
-   */
   const handleGrantPermissions = async () => {
     try {
       setIsLoading(true);
-
-      // Step 1: Create session smart account if needed
-      // The session smart account is a separate smart account owned by the session key
       if (!sessionSmartAccount || !sessionSmartAccountAddress) {
         toast.info("Creating session smart account...");
         await createSessionAccount();
-        // Wait a bit for the state to update
         await new Promise((resolve) => setTimeout(resolve, 500));
-        // Note: We need to get the session account from context after creation
-        // For now, we'll prompt the user to try again
         toast.info(
           "Session smart account created. Please click again to grant permissions."
         );
@@ -79,19 +64,9 @@ export function GrantPermissionsButton({
 
       // Step 2: Extend wallet client with ERC-7715 actions
       const client = walletClient.extend(erc7715ProviderActions());
-
-      // Step 3: Set up permission parameters
       const currentTime = Math.floor(Date.now() / 1000);
-      // Permission valid for 24 hours
       const expiry = currentTime + 24 * 60 * 60;
-
-      // Maximum amount per period (e.g., 20 USDC/cUSD per day)
       const maxPeriodAmount = parseUnits("20", tokenDecimals);
-
-      // Step 4: Request the permission
-      // CRITICAL: Use sessionKeyAddress (the EOA) to match what we use when redeeming
-      // The permission grants the user's smart account the ability to delegate to this session EOA
-      // When redeeming, we use sessionKey (EOA) to sign, so permission must be granted to EOA address
       if (!sessionKeyAddress) {
         toast.error("Session key address not available. Please try again.");
         setIsLoading(false);
@@ -105,16 +80,16 @@ export function GrantPermissionsButton({
           signer: {
             type: "account",
             data: {
-              address: sessionKeyAddress, // Session EOA address (matches what we use when redeeming)
+              address: sessionKeyAddress,
             },
           },
-          isAdjustmentAllowed: true, // Allow MetaMask to suggest adjustments
+          isAdjustmentAllowed: true,
           permission: {
             type: "erc20-token-periodic",
             data: {
               tokenAddress: tokenAddress as `0x${string}`,
               periodAmount: maxPeriodAmount,
-              periodDuration: 86400, // 24 hours in seconds
+              periodDuration: 86400,
               justification: `Permission to spend up to 20 ${tokenSymbol} per day for Prophet predictions`,
             },
           },
@@ -124,6 +99,40 @@ export function GrantPermissionsButton({
       // Step 5: Save the first permission
       if (permissions && permissions.length > 0) {
         savePermission(permissions[0]);
+        if (sessionSmartAccountAddress && walletClient) {
+          try {
+            const predictionMarketAddress = getContractAddress(
+              "predictionMarket"
+            ) as Address;
+
+            // Grant delegation on PredictionMarket
+            const predictionMarketDelegationData = encodeFunctionData({
+              abi: PredictionMarketABI,
+              functionName: "grantDelegation",
+              args: [sessionSmartAccountAddress],
+            });
+            const predictionMarketHash = await walletClient.sendTransaction({
+              to: predictionMarketAddress,
+              data: predictionMarketDelegationData,
+            });
+
+            console.log("✅ PredictionMarket delegation granted:", {
+              predictionMarket: predictionMarketHash,
+            });
+
+            toast.success("Contract delegation granted for session accounts");
+          } catch (delegationError) {
+            console.warn(
+              "⚠️ Failed to grant contract delegation (non-critical):",
+              delegationError
+            );
+            // Don't fail the whole flow if delegation fails - user can grant it manually later
+            toast.warning(
+              "Permission granted, but contract delegation failed. You may need to grant it manually."
+            );
+          }
+        }
+
         toast.success(
           "🎉 One-tap betting enabled! No more approval popups for 24 hours."
         );

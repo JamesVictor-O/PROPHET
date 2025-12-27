@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Address } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
+import { formatTokenAmount } from "@/lib/utils";
 import { useContractRead } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
@@ -124,6 +125,7 @@ function useUserStakesForMarket(
 
 export function useUserPredictions() {
   const { address: userAddress } = useAccount();
+  const chainId = useChainId();
 
   // Get ALL market IDs directly (not limited to 10 like useAllMarkets)
   const { data: allMarketIds, isLoading: isLoadingMarketIds } =
@@ -291,7 +293,7 @@ export function useUserPredictions() {
             : "no"
           : "yes"; // Default side for created markets without prediction (won't be used for calculations)
         const stakeAmount = prediction?.amount || BigInt(0);
-        const stake = Number(stakeAmount) / 1e18;
+        const stake = Number(formatTokenAmount(stakeAmount, chainId));
 
         // For created markets without stake, we still want to show them
         // but with 0 stake and no potential winnings calculation
@@ -337,7 +339,11 @@ export function useUserPredictions() {
 
         // Format pool amount
         const poolFormatted =
-          totalPoolNum > 0 ? `$${(totalPoolNum / 1e18).toFixed(2)}` : "$0.00";
+          totalPoolNum > 0
+            ? `$${Number(
+                formatTokenAmount(BigInt(totalPoolNum), chainId)
+              ).toFixed(2)}`
+            : "$0.00";
 
         // Calculate potential/actual winnings (only if user has a stake)
         const winningPool = hasPrediction
@@ -352,8 +358,10 @@ export function useUserPredictions() {
           // Potential winnings = (stake / winningPool) * (totalPool - fees)
           // Assuming 7% total fees (5% platform + 2% creator)
           const poolAfterFees = totalPoolNum * 0.93;
-          potentialWin =
-            ((Number(stakeAmount) / winningPool) * poolAfterFees) / 1e18;
+          const potentialWinBigInt = BigInt(
+            Math.floor((Number(stakeAmount) / winningPool) * poolAfterFees)
+          );
+          potentialWin = Number(formatTokenAmount(potentialWinBigInt, chainId));
         }
 
         // Determine status based on market resolution and winning outcome
@@ -381,9 +389,12 @@ export function useUserPredictions() {
               if (winningPoolAmount > 0 && stakeAmount > BigInt(0)) {
                 // After fees: 93% to winners (7% total fees)
                 const poolAfterFees = totalPoolNum * 0.93;
-                actualWin =
-                  ((Number(stakeAmount) / winningPoolAmount) * poolAfterFees) /
-                  1e18;
+                const actualWinBigInt = BigInt(
+                  Math.floor(
+                    (Number(stakeAmount) / winningPoolAmount) * poolAfterFees
+                  )
+                );
+                actualWin = Number(formatTokenAmount(actualWinBigInt, chainId));
               }
               status = "won";
             } else {

@@ -1,9 +1,9 @@
 export const CONTRACTS = {
   baseSepolia: {
-    factory: "0xe44Ea520518CCD7709CD13BCd37161518fA2e580",
-    oracle: "0x99C0b5dd3A58Da47D3e38FC857CB8F1e3db66a22",
-    reputationSystem: "0xE562ef4B289ee17FB3c9B254bB44F018C573BF55",
-    predictionMarket: "0x7FcfD3947A638377c37f445A794c1Ec0590c05f3",
+    factory: "0x1cF71f7e4a5e79B2bEd17655eb22E31422d9A3f1",
+    oracle: "0x7b99147Fbcc797713357D29EAeF5e7bB5d8BA018",
+    reputationSystem: "0xD763b4dC216B84C378aeAFD007166609F6F1f62C",
+    predictionMarket: "0x1d06d3fDb2e9DC1bD870A26198559237640Ce310",
     cUSD: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia testnet
     chainId: 84532, // Base Sepolia chain ID
     explorer: "https://sepolia.basescan.org",

@@ -6,14 +6,16 @@ import { useAccount } from "wagmi";
 import { Home, BarChart3, Trophy, User, Zap } from "lucide-react";
 import { useUserStatsGraphQL } from "@/hooks/graphql";
 import { useUserPredictions } from "@/hooks/contracts";
-import { formatEther } from "viem";
+import { formatTokenAmount } from "@/lib/utils";
 import { useMemo } from "react";
+import { useChainId } from "wagmi";
 import { PermissionButton } from "@/components/wallet/permission-button";
 import { cn } from "@/lib/utils";
 
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { address } = useAccount();
+  const chainId = useChainId();
   const { data: userStats } = useUserStatsGraphQL(address);
   const { data: userPredictions } = useUserPredictions();
 
@@ -25,7 +27,7 @@ export function DashboardSidebar() {
     const winRate =
       totalPredictions > 0 ? Math.round((wins / totalPredictions) * 100) : 0;
     const totalEarned = Number(
-      formatEther(userStats.totalWinnings || BigInt(0))
+      formatTokenAmount(userStats.totalWinnings || BigInt(0), chainId)
     );
     const activePredictions = userPredictions
       ? userPredictions.filter((p) => p.status === "active").length

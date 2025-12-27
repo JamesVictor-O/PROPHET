@@ -37,6 +37,7 @@ export default function DashboardPage() {
     data: marketsData,
     isLoading: isLoadingMarkets,
     isError,
+    refetch: refetchMarkets,
   } = useAllMarkets();
 
   // Unified formatting for a professional look
@@ -152,7 +153,14 @@ export default function DashboardPage() {
       <CreateMarketModal
         open={createMarketModalOpen}
         onOpenChange={setCreateMarketModalOpen}
-        onCreateMarket={(data) => console.log("Market Init:", data)}
+        onCreateMarket={async (market) => {
+          // Market created callback - refetch markets to show the new one
+          console.log("Market created:", market);
+          // Wait a moment for the transaction to be indexed, then refetch
+          setTimeout(() => {
+            refetchMarkets();
+          }, 2000);
+        }}
       />
     </div>
   );

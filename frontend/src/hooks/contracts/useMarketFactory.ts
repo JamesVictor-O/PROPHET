@@ -1,7 +1,7 @@
 import { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useContractRead, useContractWrite } from "./useContract";
-import { MarketFactoryABI } from "@/lib/abis";
+import { MarketFactoryABI, PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress, getContracts } from "@/lib/contracts";
 
 export function useMarketFactory() {
@@ -26,68 +26,93 @@ export function useMarketFactory() {
 
 /**
  * Get total number of markets
+ * Reads marketCounter[1] from PredictionMarket directly
  */
 export function useMarketCount() {
-  const { address, abi } = useMarketFactory();
+  const { chainId } = useAccount();
+  const contracts = getContracts("baseSepolia");
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
+  const isCorrectNetwork = !chainId || chainId === contracts.chainId;
+
   return useContractRead<bigint>({
-    address,
-    abi,
-    functionName: "getMarketCount",
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
+    functionName: "marketCounter",
+    args: [BigInt(1)], // marketCounter[1] stores the count
+    enabled: isCorrectNetwork && !!predictionMarketAddress,
   });
 }
 
 /**
  * Get market address by ID
+ * NOTE: With direct PredictionMarket calls, all markets are in the same contract
+ * This function returns the PredictionMarket address for any market ID
  */
 export function useMarketAddress(marketId: bigint | number | undefined) {
-  const { address, abi } = useMarketFactory();
-  return useContractRead<Address>({
-    address,
-    abi,
-    functionName: "getMarketAddress",
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
+  const { data: marketInfo } = useContractRead({
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
+    functionName: "getMarketInfo", // Just to validate market exists
     args: marketId !== undefined ? [BigInt(marketId)] : undefined,
     enabled: marketId !== undefined,
   });
+
+  // Always return PredictionMarket address (all markets are in the same contract)
+  return {
+    data: marketInfo ? predictionMarketAddress : undefined,
+    isLoading: marketInfo === undefined && marketId !== undefined,
+    isError: false,
+  };
 }
 
 /**
  * Get market ID by index
+ * Since markets are sequential (1, 2, 3...), index + 1 = marketId
  */
 export function useMarketIdByIndex(index: number | undefined) {
-  const { address, abi } = useMarketFactory();
-  return useContractRead<bigint>({
-    address,
-    abi,
-    functionName: "getMarketId",
-    args: index !== undefined ? [BigInt(index)] : undefined,
-    enabled: index !== undefined,
-  });
+  return {
+    data: index !== undefined ? BigInt(index + 1) : undefined,
+    isLoading: false,
+    isError: false,
+  };
 }
 
 /**
  * Get all market IDs
- * Since getAllMarketIds doesn't exist in the deployed contract,
- * we use getMarketCount and generate sequential IDs (1, 2, 3...)
+ * Reads marketCounter[1] from PredictionMarket and generates sequential IDs (1, 2, 3...)
  */
 export function useAllMarketIds() {
-  const { address, abi, isCorrectNetwork } = useMarketFactory();
+  const { chainId } = useAccount();
+  const contracts = getContracts("baseSepolia");
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
+  const isCorrectNetwork = !chainId || chainId === contracts.chainId;
+
   const {
     data: marketCount,
     isLoading: isLoadingCount,
     isError: isErrorCount,
     error: countError,
+    refetch: refetchMarketCount,
   } = useContractRead<bigint>({
-    address,
-    abi,
-    functionName: "getMarketCount",
-    enabled: isCorrectNetwork && !!address,
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
+    functionName: "marketCounter",
+    args: [BigInt(1)], // marketCounter[1] stores the count
+    enabled: isCorrectNetwork && !!predictionMarketAddress,
   });
 
   // Log detailed error information
   if (isErrorCount && countError) {
     console.error("Error fetching market count:", {
-      address,
-      functionName: "getMarketCount",
+      address: predictionMarketAddress,
+      functionName: "marketCounter",
       error: countError,
       isCorrectNetwork,
       chainId:
@@ -110,21 +135,25 @@ export function useAllMarketIds() {
     isLoading: isLoadingCount,
     isError: isErrorCount,
     error: countError,
+    refetch: refetchMarketCount,
   };
 }
 
 /**
  * Hook for creating a Binary market (Yes/No)
- * Simplified wrapper that sets marketType = 0 and initialOutcomeLabel = ""
+ * Calls PredictionMarket.createMarket() directly (no MarketFactory middleman)
  *
  * Args: [question, category, endTime, initialStake, initialSide]
  * where initialSide = 0 (Yes) or 1 (No)
  */
 export function useCreateBinaryMarket() {
-  const { address, abi } = useMarketFactory();
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
+
   const writeContract = useContractWrite({
-    address,
-    abi,
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
     functionName: "createMarket",
   });
 
@@ -134,6 +163,7 @@ export function useCreateBinaryMarket() {
     endTime: bigint;
     initialStake: bigint;
     initialSide: 0 | 1; // 0 = Yes, 1 = No
+    creatorAddress: Address; // EOA address
   }) => {
     if (!writeContract.write) {
       throw new Error("Write function not available");
@@ -146,6 +176,7 @@ export function useCreateBinaryMarket() {
       args.initialStake,
       args.initialSide,
       "", // initialOutcomeLabel (empty for Binary)
+      args.creatorAddress, // EOA address
     ];
     console.log("Creating Binary market with args:", contractArgs);
     writeContract.write(contractArgs);
@@ -158,10 +189,13 @@ export function useCreateBinaryMarket() {
 }
 
 export function useCreateCrowdWisdomMarket() {
-  const { address, abi } = useMarketFactory();
+  const predictionMarketAddress = getContractAddress(
+    "predictionMarket"
+  ) as Address;
+
   const writeContract = useContractWrite({
-    address,
-    abi,
+    address: predictionMarketAddress,
+    abi: PredictionMarketABI,
     functionName: "createMarket",
   });
 
@@ -171,18 +205,20 @@ export function useCreateCrowdWisdomMarket() {
     endTime: bigint;
     initialStake: bigint;
     initialOutcomeLabel: string;
+    creatorAddress: Address; // EOA address
   }) => {
     if (!writeContract.write) {
       throw new Error("Write function not available");
     }
     const contractArgs: readonly unknown[] = [
-      1,
+      1, // MarketType.CrowdWisdom
       args.question,
       args.category,
       args.endTime,
       args.initialStake,
-      0,
+      0, // initialSide (not used for CrowdWisdom)
       args.initialOutcomeLabel,
+      args.creatorAddress, // EOA address
     ];
     console.log("Creating CrowdWisdom market with args:", contractArgs);
     writeContract.write(contractArgs);
@@ -200,5 +236,49 @@ export function useCreateMarket() {
     address,
     abi,
     functionName: "createMarket",
+  });
+}
+
+/**
+ * Hook for granting delegation to a session account
+ */
+export function useGrantDelegation() {
+  const { address, abi } = useMarketFactory();
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "grantDelegation",
+  });
+}
+
+/**
+ * Hook for revoking delegation from a session account
+ */
+export function useRevokeDelegation() {
+  const { address, abi } = useMarketFactory();
+  return useContractWrite({
+    address,
+    abi,
+    functionName: "revokeDelegation",
+  });
+}
+
+/**
+ * Check if an address has delegation for a user
+ */
+export function useHasDelegation(
+  userAddress: Address | undefined,
+  delegateAddress: Address | undefined
+) {
+  const { address, abi } = useMarketFactory();
+  return useContractRead<boolean>({
+    address,
+    abi,
+    functionName: "hasDelegation",
+    args:
+      userAddress && delegateAddress
+        ? [userAddress, delegateAddress]
+        : undefined,
+    enabled: !!userAddress && !!delegateAddress && !!address,
   });
 }

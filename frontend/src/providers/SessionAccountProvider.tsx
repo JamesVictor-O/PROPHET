@@ -60,8 +60,6 @@ export const SessionAccountProvider = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const publicClient = usePublicClient();
-
-  // Load session account from localStorage on mount
   useEffect(() => {
     const loadSessionAccount = async () => {
       try {
@@ -69,8 +67,6 @@ export const SessionAccountProvider = ({
         if (storedKey && publicClient) {
           console.log("🔑 Loading existing session account from storage...");
           const account = privateKeyToAccount(storedKey as `0x${string}`);
-
-          // Create smart account from stored private key
           const smartAccount = await toMetaMaskSmartAccount({
             client: publicClient,
             implementation: Implementation.Hybrid,
@@ -89,7 +85,6 @@ export const SessionAccountProvider = ({
         }
       } catch (err) {
         console.error("Error loading session account:", err);
-        // If corrupt, clear it
         localStorage.removeItem(SESSION_KEY_STORAGE_KEY);
       }
     };
@@ -99,11 +94,6 @@ export const SessionAccountProvider = ({
     }
   }, [publicClient]);
 
-  /**
-   * Creates a session smart account.
-   * This is a MetaMask Smart Account that will be used to execute transactions
-   * with ERC-7715 permissions. The account is created from a generated private key.
-   */
   const createSessionAccount = useCallback(async () => {
     if (!publicClient) {
       throw new Error("Public client not found");
