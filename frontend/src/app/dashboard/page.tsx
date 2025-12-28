@@ -78,7 +78,6 @@ export default function DashboardPage() {
         <DashboardSidebar />
 
         <main className="flex-1 lg:ml-64 px-6 py-10 lg:px-12 max-w-[1600px] mx-auto transition-all">
-          {/* 1. High-End Page Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
             <div className="space-y-2">
               <h1 className="text-4xl font-light tracking-tight text-white leading-tight">
@@ -154,9 +153,6 @@ export default function DashboardPage() {
         open={createMarketModalOpen}
         onOpenChange={setCreateMarketModalOpen}
         onCreateMarket={async (market) => {
-          // Market created callback - refetch markets to show the new one
-          console.log("Market created:", market);
-          // Wait a moment for the transaction to be indexed, then refetch
           setTimeout(() => {
             refetchMarkets();
           }, 2000);
