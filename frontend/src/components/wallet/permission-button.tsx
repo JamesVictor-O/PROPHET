@@ -253,7 +253,6 @@ export function PermissionButton({
         className={`${className} bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-semibold`}
         disabled={isGranting || isCreatingSession}
       >
-        {showIcon && <Zap className="w-4 h-4 mr-2" />}
         {isGranting || isCreatingSession ? "Setting up..." : "One-Tap Betting"}
       </Button>
 
