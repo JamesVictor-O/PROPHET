@@ -9,16 +9,19 @@ import {
 } from "@/lib/wallet-config";
 import { formatAddress } from "@/lib/wallet-config";
 import { Wallet, LogOut, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface WalletConnectProps {
   variant?: "default" | "outline" | "ghost";
   showBalance?: boolean;
   showAddress?: boolean;
+  className?: string;
 }
 
 export function WalletConnect({
   showBalance = true,
   showAddress = false,
+  className,
 }: WalletConnectProps) {
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
@@ -52,7 +55,10 @@ export function WalletConnect({
     return (
       <button
         disabled
-        className="h-9 px-4 text-gray-300 bg-transparent border-none disabled:opacity-50 font-medium text-sm transition-opacity flex items-center"
+        className={cn(
+          "h-9 px-4 text-gray-300 bg-transparent border-none disabled:opacity-50 font-medium text-sm transition-opacity flex items-center",
+          className
+        )}
       >
         <Wallet className="w-4 h-4 mr-2 text-gray-400" />
         Connect Wallet
@@ -75,7 +81,10 @@ export function WalletConnect({
         )}
         <button
           onClick={handleDisconnect}
-          className="h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 transition-opacity flex items-center gap-2"
+          className={cn(
+            "h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 transition-opacity flex items-center gap-2",
+            className
+          )}
         >
           <Wallet className="w-4 h-4 text-gray-400" />
           <span className={showAddress ? "" : "hidden sm:inline"}>
@@ -91,7 +100,10 @@ export function WalletConnect({
     return (
       <button
         disabled
-        className="h-9 px-4 text-sm font-medium text-gray-400 bg-transparent border-none disabled:opacity-50 flex items-center"
+        className={cn(
+          "h-9 px-4 text-sm font-medium text-gray-400 bg-transparent border-none disabled:opacity-50 flex items-center",
+          className
+        )}
       >
         <Wallet className="w-4 h-4 mr-2" />
         Connecting...
@@ -107,7 +119,10 @@ export function WalletConnect({
     <button
       onClick={handleConnect}
       disabled={isPending}
-      className="h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 disabled:opacity-50 transition-opacity flex items-center"
+      className={cn(
+        "h-9 px-4 text-sm font-medium text-gray-300 bg-transparent border-none hover:opacity-80 disabled:opacity-50 transition-opacity flex items-center",
+        className
+      )}
     >
       <Wallet className="w-4 h-4 mr-2 text-gray-400" />
       {isPending ? "Connecting..." : "Connect Wallet"}
