@@ -3,24 +3,14 @@
 import { useState } from "react";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { AfricanEventCard } from "@/components/home/african-event-card";
 import { useAfricanEvents } from "@/hooks/useAfricanEvents";
-import {
-  Loader2,
-  TrendingUp,
-  Sparkles,
-  Calendar,
-  Zap,
-  Globe,
-  Plus,
-} from "lucide-react";
+import { Loader2, TrendingUp, Calendar, Zap, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreateMarketModal } from "@/components/markets/create-market-modal";
-import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   const [createMarketModalOpen, setCreateMarketModalOpen] = useState(false);
-  const { data: events, isLoading, error, refetch } = useAfricanEvents();
+  const { data: events, isLoading } = useAfricanEvents();
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 selection:bg-blue-500/30 font-sans">
@@ -29,19 +19,22 @@ export default function HomePage() {
       <div className="pt-16 flex">
         <DashboardSidebar />
 
-        <main className="flex-1 lg:ml-64 transition-all">
+        <main className="flex-1 lg:ml-64 transition-all pb-20 lg:pb-8">
           {/* Top Intelligence Bar (Ticker Style) */}
-          <div className="border-b border-white/5 bg-black/20 backdrop-blur-md px-4 py-3 overflow-hidden whitespace-nowrap">
-            <div className="flex items-center gap-8 animate-marquee">
+          <div className="border-b border-white/5 bg-black/20 backdrop-blur-md px-2 sm:px-4 py-2 sm:py-3 overflow-hidden">
+            <div className="flex items-center gap-4 sm:gap-8 animate-marquee">
               {[
                 "NG 3-2 TUN (AFCON)",
                 "CONGO VS MOROCCO - MON",
                 "BBN APPLICATIONS OPEN",
                 "TECH FEST LAGOS - DEC",
               ].map((news, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 sm:gap-2 shrink-0"
+                >
+                  <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500" />
+                  <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-slate-400">
                     {news}
                   </span>
                 </div>
@@ -49,28 +42,20 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="px-4 sm:px-8 py-8 lg:px-12 max-w-[1600px] mx-auto">
+          <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8 lg:px-12 max-w-[1600px] mx-auto">
             {/* Professional Header */}
-            <header className="mb-12 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="h-[1px] w-8 bg-blue-600" />
-                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500">
-                  Intelligence Feed
-                </span>
-              </div>
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <h1 className="text-4xl md:text-6xl font-black italic tracking-tighter uppercase leading-none">
-                  Global <span className="text-slate-600">Flashpoints</span>
+            <header className="mb-8 sm:mb-12 space-y-3 sm:space-y-2">
+
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-black italic tracking-tighter uppercase leading-tight sm:leading-none">
+                  Global <span className="text-slate-600">Updates</span>
                 </h1>
-                <p className="text-slate-500 text-sm max-w-xs font-medium italic border-l border-white/10 pl-4">
-                  Real-time events curated for precision prediction. Turn news
-                  into assets.
-                </p>
+              
               </div>
             </header>
 
             {/* Quick Filter / Categorization */}
-            <div className="flex flex-wrap gap-2 mb-10 pb-4 border-b border-white/5">
+            <div className="flex flex-wrap gap-2 mb-6 sm:mb-10 pb-3 sm:pb-4 border-b border-white/5 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               {[
                 "All Updates",
                 "Sports",
@@ -80,7 +65,7 @@ export default function HomePage() {
               ].map((cat) => (
                 <button
                   key={cat}
-                  className="px-4 py-2 rounded-full border border-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all duration-300"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-white/5 text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest hover:bg-white hover:text-black transition-all duration-300 whitespace-nowrap shrink-0"
                 >
                   {cat}
                 </button>
@@ -89,51 +74,53 @@ export default function HomePage() {
 
             {/* Loading State */}
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-32">
+              <div className="flex flex-col items-center justify-center py-16 sm:py-32">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
               </div>
             ) : (
-              <div className="grid grid-cols-12 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
                 {/* Column 1: TRENDING (The "Big" News) */}
-                <div className="col-span-12 lg:col-span-8 space-y-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <TrendingUp className="w-4 h-4 text-blue-500" />
-                    <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">
+                <div className="lg:col-span-8 space-y-6 sm:space-y-8">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                    <h2 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">
                       High Volatility Updates
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     {events?.trending?.map((event, index) => (
                       <div
                         key={index}
-                        className="group relative border border-white/5 p-6 hover:bg-white/[0.02] transition-all duration-500 overflow-hidden"
+                        className="group relative border border-white/5 p-4 sm:p-6 hover:bg-white/2 transition-all duration-500 overflow-hidden"
                       >
                         {/* Side Accent */}
                         <div className="absolute top-0 left-0 w-[2px] h-0 group-hover:h-full bg-blue-500 transition-all duration-500" />
 
-                        <div className="flex justify-between items-start mb-4">
-                          <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest border border-blue-500/20 px-2 py-0.5">
+                        <div className="flex justify-between items-start mb-3 sm:mb-4 gap-2">
+                          <span className="text-[8px] sm:text-[9px] font-black text-blue-500 uppercase tracking-wider sm:tracking-widest border border-blue-500/20 px-1.5 sm:px-2 py-0.5 shrink-0">
                             Hot Topic
                           </span>
-                          <span className="text-[9px] font-bold text-slate-600 italic">
+                          <span className="text-[8px] sm:text-[9px] font-bold text-slate-600 italic shrink-0">
                             2m ago
                           </span>
                         </div>
 
-                        <h3 className="text-xl font-bold text-white mb-4 leading-tight group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-base sm:text-lg md:text-xl font-bold text-white mb-3 sm:mb-4 leading-tight group-hover:text-blue-400 transition-colors line-clamp-2">
                           {event.title}
                         </h3>
 
-                        <p className="text-slate-500 text-xs mb-6 line-clamp-2 font-medium leading-relaxed">
+                        <p className="text-[11px] sm:text-xs text-slate-500 mb-4 sm:mb-6 line-clamp-2 sm:line-clamp-3 font-medium leading-relaxed">
                           {event.description}
                         </p>
 
                         <Button
                           onClick={() => setCreateMarketModalOpen(true)}
-                          className="w-full bg-transparent border border-white/10 hover:bg-white hover:text-black text-[10px] font-black uppercase tracking-widest h-11 transition-all"
+                          className="w-full bg-transparent border border-white/10 hover:bg-white hover:text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest h-9 sm:h-11 transition-all"
                         >
-                          Predict This Event <Plus className="ml-2 w-3 h-3" />
+                          <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                            Predict This Event
+                            <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                          </span>
                         </Button>
                       </div>
                     ))}
@@ -141,35 +128,35 @@ export default function HomePage() {
                 </div>
 
                 {/* Column 2: FEED / ANNOUNCEMENTS (The "Side" Intel) */}
-                <div className="col-span-12 lg:col-span-4 space-y-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Calendar className="w-4 h-4 text-emerald-500" />
-                    <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">
+                <div className="lg:col-span-4 space-y-6 sm:space-y-8 mt-6 lg:mt-0">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+                    <h2 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white">
                       Calendar & Intel
                     </h2>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {events?.latest?.map((event, index) => (
                       <div
                         key={index}
-                        className="border-b border-white/5 pb-4 group cursor-pointer"
+                        className="border-b border-white/5 pb-3 sm:pb-4 group cursor-pointer"
                       >
-                        <div className="flex gap-4">
-                          <div className="w-12 h-12 shrink-0 border border-white/10 flex flex-col items-center justify-center bg-white/[0.02]">
-                            <span className="text-[10px] font-black text-white leading-none">
+                        <div className="flex gap-3 sm:gap-4">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 border border-white/10 flex flex-col items-center justify-center bg-white/2">
+                            <span className="text-[9px] sm:text-[10px] font-black text-white leading-none">
                               24
                             </span>
-                            <span className="text-[8px] font-bold text-slate-500 uppercase">
+                            <span className="text-[7px] sm:text-[8px] font-bold text-slate-500 uppercase">
                               DEC
                             </span>
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 sm:truncate">
                               {event.title}
                             </h4>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-1">
-                              {event.location || "Continental Update"}
+                            <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-1">
+                              {event.country || "Continental Update"}
                             </p>
                           </div>
                         </div>
@@ -178,17 +165,17 @@ export default function HomePage() {
                   </div>
 
                   {/* PROPHET CTA */}
-                  <div className="p-8 border border-blue-500/20 bg-blue-500/[0.02] relative overflow-hidden">
-                    <Zap className="absolute -bottom-4 -right-4 w-24 h-24 text-blue-500/10 rotate-12" />
-                    <h3 className="text-lg font-black italic uppercase leading-tight mb-2">
+                  <div className="p-5 sm:p-6 md:p-8 border border-blue-500/20 bg-blue-500/2 relative overflow-hidden">
+                    <Zap className="absolute -bottom-2 -right-2 sm:-bottom-4 sm:-right-4 w-16 h-16 sm:w-24 sm:h-24 text-blue-500/10 rotate-12" />
+                    <h3 className="text-sm sm:text-base md:text-lg font-black italic uppercase leading-tight mb-2">
                       Have your own Intel?
                     </h3>
-                    <p className="text-xs text-slate-400 mb-6">
+                    <p className="text-[10px] sm:text-xs text-slate-400 mb-4 sm:mb-6">
                       Create a custom market and earn protocol fees.
                     </p>
                     <Button
                       onClick={() => setCreateMarketModalOpen(true)}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-[10px]"
+                      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider sm:tracking-widest text-[9px] sm:text-[10px] h-9 sm:h-10"
                     >
                       Create Market
                     </Button>
@@ -219,6 +206,11 @@ export default function HomePage() {
           display: flex;
           width: fit-content;
           animation: marquee 30s linear infinite;
+        }
+        @media (max-width: 640px) {
+          .animate-marquee {
+            animation-duration: 20s;
+          }
         }
       `}</style>
     </div>
