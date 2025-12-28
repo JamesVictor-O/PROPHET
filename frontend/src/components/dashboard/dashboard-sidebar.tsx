@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
-import { Home, BarChart3, Trophy, User, Zap } from "lucide-react";
+import { Home, BarChart3, Trophy, User, Zap, Globe } from "lucide-react";
 import { useUserStatsGraphQL } from "@/hooks/graphql";
 import { useUserPredictions } from "@/hooks/contracts";
 import { formatTokenAmount } from "@/lib/utils";
@@ -37,6 +37,7 @@ export function DashboardSidebar() {
   }, [userStats, userPredictions]);
 
   const navItems = [
+    { id: "home", label: "Home", icon: Globe, href: "/dashboard/home" },
     { id: "markets", label: "Markets", icon: Home, href: "/dashboard" },
     {
       id: "predictions",
