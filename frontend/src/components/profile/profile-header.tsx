@@ -41,7 +41,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
         {/* 2. User Info & Typography */}
         <div className="flex-1 space-y-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col gap-3 flex-wrap">
               <h1 className="text-4xl md:text-5xl font-light tracking-tight text-white leading-tight">
                 {user.displayName}
               </h1>
@@ -61,24 +61,7 @@ export function ProfileHeader({ user, stats }: ProfileHeaderProps) {
             </p>
           </div>
 
-          {/* 3. Biography & Meta Metadata */}
-          <div className="max-w-xl">
-            <p className="text-slate-400 leading-relaxed font-medium text-sm">
-              {user.bio ||
-                "Quantitative predictor specializing in global film markets and geopolitical outcomes."}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-6 pt-2">
-            <MetaItem
-              icon={<Calendar className="w-3.5 h-3.5" />}
-              text={`Member since ${user.joinDate || "Jan 2024"}`}
-            />
-            <MetaItem
-              icon={<MapPin className="w-3.5 h-3.5" />}
-              text="Decentralized"
-            />
-          </div>
+        
         </div>
 
         {/* 4. Strategic Secondary Stats (Desktop Only) */}

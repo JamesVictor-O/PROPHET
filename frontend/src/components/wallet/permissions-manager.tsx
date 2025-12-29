@@ -5,6 +5,7 @@ import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { useSessionAccount } from "@/providers/SessionAccountProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, X, CheckCircle2, Clock, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export function PermissionsManager() {
 
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
   // Get token info based on chain
   const tokenDecimals =
@@ -180,11 +182,11 @@ export function PermissionsManager() {
     }
   };
 
-  const handleRevokePermission = async () => {
-    if (!window.confirm("Revoke one-tap betting permission?")) {
-      return;
-    }
+  const handleRevokeClick = () => {
+    setRevokeConfirmOpen(true);
+  };
 
+  const handleRevokePermission = async () => {
     setIsRevoking(true);
     try {
       removePermission();
@@ -324,7 +326,7 @@ export function PermissionsManager() {
 
             {/* Revoke Button */}
             <Button
-              onClick={handleRevokePermission}
+              onClick={handleRevokeClick}
               disabled={isRevoking}
               variant="outline"
               className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
@@ -335,6 +337,18 @@ export function PermissionsManager() {
           </>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={revokeConfirmOpen}
+        onOpenChange={setRevokeConfirmOpen}
+        title="Revoke One-Tap Betting"
+        description="Are you sure you want to revoke one-tap betting permission? You'll need to grant permission again to use it."
+        confirmText="Revoke"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={handleRevokePermission}
+        isLoading={isRevoking}
+      />
     </Card>
   );
 }

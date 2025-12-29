@@ -123,6 +123,7 @@ export function CreateMarketModal({
   const [isCreating, setIsCreating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiCategorySelected, setAiCategorySelected] = useState(false);
+  const [categoryManuallySelected, setCategoryManuallySelected] = useState(false);
 
   // Refs to prevent multiple executions
   const marketCreationTriggeredRef = useRef(false);
@@ -262,6 +263,7 @@ export function CreateMarketModal({
 
   const handleCategoryChange = (value: string) => {
     setFormData((prev) => ({ ...prev, category: value }));
+    setCategoryManuallySelected(true); // Mark as manually selected
     if (errors.category) {
       setErrors((prev) => ({ ...prev, category: undefined }));
     }
@@ -1015,7 +1017,7 @@ export function CreateMarketModal({
 
   // Auto-fill category from AI validation (only if user hasn't manually set it)
   useEffect(() => {
-    if (validation?.category && !aiCategorySelected) {
+    if (validation?.category && !aiCategorySelected && !categoryManuallySelected) {
       const categoryExists = categories.some(
         (cat) => cat.value === validation.category
       );
@@ -1024,7 +1026,7 @@ export function CreateMarketModal({
         setAiCategorySelected(true);
       }
     }
-  }, [validation?.category, aiCategorySelected, formData.category]);
+  }, [validation?.category, aiCategorySelected, categoryManuallySelected, formData.category]);
 
   // Auto-fill end date from AI validation (only if user hasn't manually set it)
   useEffect(() => {
@@ -1149,6 +1151,7 @@ export function CreateMarketModal({
       setIsCreating(false);
       setNeedsApproval(false);
       setAiCategorySelected(false);
+      setCategoryManuallySelected(false);
       setAiEndDateSelected(false);
       setAiQuestionSuggested(false);
       setSuggestedQuestion("");

@@ -10,6 +10,7 @@ import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Address } from "viem";
 import { PermissionsManager } from "@/components/wallet/permissions-manager";
+import { StrategyExecutorTest } from "./strategy-executor-test";
 
 interface ProfileSettingsProps {
   user: {
@@ -173,6 +174,7 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         </CardContent>
       </Card>
       <PermissionsManager />
+      <StrategyExecutorTest />
       <Card className="bg-[#1E293B] border-dark-700">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
@@ -190,7 +192,6 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
           </div>
         </CardContent>
       </Card>
-
     </div>
   );
 }

@@ -289,7 +289,16 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         if (params.contractCalls && params.contractCalls.length > 0) {
           console.log("🔄 Executing contract calls after USDC transfer...");
 
-          // Wait a bit for the transfer to be confirmed
+          // Wait for the block to be mined and nonce to update
+          // This ensures the blockchain state is fully updated before the next transaction
+          console.log("⏳ Waiting for block confirmation and nonce update...");
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          
+          // Get fresh block number to ensure state is updated
+          const currentBlock = await publicClient.getBlockNumber();
+          console.log("✅ Current block:", currentBlock.toString());
+          
+          // Additional wait to ensure nonce is propagated
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
           // Execute contract calls using session smart account
@@ -332,29 +341,62 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
             `📦 Executing ${sessionCalls.length} contract calls from session account...`
           );
 
-          // Execute using sendUserOperationWithDelegation
-          const userOpHash = await (
-            client as unknown as {
-              sendUserOperationWithDelegation: (args: {
-                account: typeof sessionSmartAccount;
-                calls: Array<{
-                  to: `0x${string}`;
-                  value: bigint;
-                  data: `0x${string}`;
-                }>;
-                permissionsContext: string;
-                delegationManager: `0x${string}`;
-                maxFeePerGas: bigint;
-                maxPriorityFeePerGas: bigint;
-              }) => Promise<`0x${string}`>;
+          // Execute using sendUserOperationWithDelegation with retry logic for nonce issues
+          let userOpHash: `0x${string}`;
+          let retries = 0;
+          const maxRetries = 3;
+          
+          while (retries < maxRetries) {
+            try {
+              // Wait a bit longer on retries to ensure nonce is updated
+              if (retries > 0) {
+                console.log(`🔄 Retry ${retries}/${maxRetries} - waiting for nonce update...`);
+                await new Promise((resolve) => setTimeout(resolve, 3000 * retries));
+                
+                // Get fresh block to ensure state is updated
+                const freshBlock = await publicClient.getBlockNumber();
+                console.log("✅ Fresh block:", freshBlock.toString());
+              }
+              
+              userOpHash = await (
+                client as unknown as {
+                  sendUserOperationWithDelegation: (args: {
+                    account: typeof sessionSmartAccount;
+                    calls: Array<{
+                      to: `0x${string}`;
+                      value: bigint;
+                      data: `0x${string}`;
+                    }>;
+                    permissionsContext: string;
+                    delegationManager: `0x${string}`;
+                    maxFeePerGas: bigint;
+                    maxPriorityFeePerGas: bigint;
+                  }) => Promise<`0x${string}`>;
+                }
+              ).sendUserOperationWithDelegation({
+                account: sessionSmartAccount,
+                calls: sessionCalls,
+                permissionsContext: permission.context,
+                delegationManager: delegationManager as `0x${string}`,
+                ...fee,
+              });
+              
+              // Success - break out of retry loop
+              break;
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              
+              // Check if it's a nonce error
+              if (errorMessage.includes("nonce") && retries < maxRetries - 1) {
+                retries++;
+                console.log(`⚠️ Nonce error detected, retrying... (${retries}/${maxRetries})`);
+                continue;
+              }
+              
+              // If it's not a nonce error or we've exhausted retries, throw
+              throw error;
             }
-          ).sendUserOperationWithDelegation({
-            account: sessionSmartAccount,
-            calls: sessionCalls,
-            permissionsContext: permission.context,
-            delegationManager: delegationManager as `0x${string}`,
-            ...fee,
-          });
+          }
 
           // Wait for receipt
           const sessionReceipt = await client.waitForUserOperationReceipt({

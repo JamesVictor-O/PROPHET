@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Zap, Shield, X } from "lucide-react";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { PermissionSettingsModal } from "./permission-settings-modal";
@@ -46,6 +47,7 @@ export function PermissionButton({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
   const hasValidPermission = isPermissionValid();
 
@@ -166,15 +168,11 @@ export function PermissionButton({
     return null; // Don't show button if not connected
   }
 
-  const handleRevokePermission = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to revoke One-Tap Betting? You'll need to grant permission again to use it."
-      )
-    ) {
-      return;
-    }
+  const handleRevokeClick = () => {
+    setRevokeConfirmOpen(true);
+  };
 
+  const handleRevokePermission = async () => {
     setIsRevoking(true);
     try {
       // Step 1: Revoke contract-level delegation for PredictionMarket if session account exists
@@ -225,22 +223,36 @@ export function PermissionButton({
 
   if (hasValidPermission) {
     return (
-      <Button
-        variant={variant}
-        size={size}
-        onClick={handleRevokePermission}
-        disabled={isRevoking}
-        className={`${className} border-green-500/50 text-green-400 hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-colors`}
-        title="Click to revoke One-Tap Betting"
-      >
-        {showIcon &&
-          (isRevoking ? (
-            <X className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Shield className="w-4 h-4 mr-2" />
-          ))}
-        {isRevoking ? "Revoking..." : "One-Tap Active"}
-      </Button>
+      <>
+        <Button
+          variant={variant}
+          size={size}
+          onClick={handleRevokeClick}
+          disabled={isRevoking}
+          className={`${className} border-green-500/50 text-green-400 hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-colors`}
+          title="Click to revoke One-Tap Betting"
+        >
+          {showIcon &&
+            (isRevoking ? (
+              <X className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Shield className="w-4 h-4 mr-2" />
+            ))}
+          {isRevoking ? "Revoking..." : "One-Tap Active"}
+        </Button>
+
+        <ConfirmDialog
+          open={revokeConfirmOpen}
+          onOpenChange={setRevokeConfirmOpen}
+          title="Revoke One-Tap Betting"
+          description="Are you sure you want to revoke One-Tap Betting? You'll need to grant permission again to use it."
+          confirmText="Revoke"
+          cancelText="Cancel"
+          variant="destructive"
+          onConfirm={handleRevokePermission}
+          isLoading={isRevoking}
+        />
+      </>
     );
   }
 

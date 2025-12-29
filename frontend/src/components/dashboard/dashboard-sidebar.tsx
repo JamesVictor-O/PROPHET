@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
-import { Home, BarChart3, Trophy, User, Zap, Globe } from "lucide-react";
+import { Home, BarChart3, Trophy, User, Zap, Globe, Bot } from "lucide-react";
 import { useUserStatsGraphQL } from "@/hooks/graphql";
 import { useUserPredictions } from "@/hooks/contracts";
 import { formatTokenAmount } from "@/lib/utils";
@@ -44,6 +44,12 @@ export function DashboardSidebar() {
       label: "Predictions",
       icon: BarChart3,
       href: "/dashboard/predictions",
+    },
+    {
+      id: "strategies",
+      label: "Strategies",
+      icon: Bot,
+      href: "/dashboard/strategies",
     },
     {
       id: "leaderboard",
