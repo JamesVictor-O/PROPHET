@@ -12,9 +12,9 @@ COPY generated/package*.json ./generated/
 # Install root dependencies
 RUN npm ci
 
-# Install generated dependencies
+# Install generated dependencies (use npm install since lock file may not exist)
 WORKDIR /app/generated
-RUN npm ci
+RUN npm install --production=false
 
 # Build stage
 FROM base AS builder
