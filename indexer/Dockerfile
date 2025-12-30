@@ -32,15 +32,17 @@ COPY --from=deps /app/generated/node_modules ./generated/node_modules
 COPY . .
 
 # Force install envio binary for linux-x64 platform
-# This ensures the binary is available even if --ignore-scripts was used in deps stage
-RUN cd node_modules/envio && \
-    if [ ! -f "bin/envio-linux-x64" ] && [ ! -f "bin/envio" ]; then \
-      echo "Installing envio binary..." && \
-      npm run postinstall || \
-      (npm install --no-save --ignore-scripts=false 2>&1 | head -20) || \
-      (npm rebuild 2>&1 | head -20) || true; \
-    fi && \
-    ls -la bin/ || true
+# Railway uses --ignore-scripts, so we need to explicitly install the binary here
+RUN echo "Checking for envio binary..." && \
+    ls -la node_modules/envio/bin/ 2>/dev/null || echo "bin directory not found" && \
+    echo "Installing envio binary..." && \
+    cd node_modules/envio && \
+    npm run postinstall 2>&1 | head -30 || \
+    (echo "postinstall failed, trying npm install..." && npm install --no-save --ignore-scripts=false 2>&1 | head -30) || \
+    (echo "npm install failed, trying rebuild..." && npm rebuild 2>&1 | head -30) || \
+    (echo "All methods failed, checking what's in bin..." && ls -la bin/ || echo "bin directory missing") && \
+    echo "Final check:" && \
+    ls -la bin/ 2>/dev/null || (echo "ERROR: envio binary still not found!" && exit 1)
 
 # Run codegen to generate types
 RUN npm run codegen
