@@ -19,21 +19,55 @@ interface AfricanEventsResponse {
 }
 
 // API endpoint - Update this with your actual API endpoint
-const AFRICAN_EVENTS_API = process.env.NEXT_PUBLIC_AFRICAN_EVENTS_API || "/api/african-events";
+const AFRICAN_EVENTS_API =
+  process.env.NEXT_PUBLIC_AFRICAN_EVENTS_API || "/api/african-events";
 
 async function fetchAfricanEvents(): Promise<AfricanEventsResponse> {
   try {
+    console.log("🟢 [useAfricanEvents] Fetching from:", AFRICAN_EVENTS_API);
     // Try to fetch from API
-    const response = await fetch(AFRICAN_EVENTS_API);
-    
+    const response = await fetch(AFRICAN_EVENTS_API, {
+      cache: "no-store", // Always fetch fresh data
+    });
+
+    console.log("🟢 [useAfricanEvents] Response status:", response.status);
+
     if (!response.ok) {
-      throw new Error("Failed to fetch events");
+      const errorText = await response.text();
+      console.error(
+        "❌ [useAfricanEvents] API error:",
+        response.status,
+        errorText.substring(0, 200)
+      );
+      throw new Error(`Failed to fetch events: ${response.status}`);
     }
-    
+
     const data = await response.json();
+    console.log("✅ [useAfricanEvents] Received data:", {
+      hasTrending: !!data.trending,
+      trendingCount: data.trending?.length || 0,
+      hasLatest: !!data.latest,
+      latestCount: data.latest?.length || 0,
+    });
+
+    // Check if we got real data or mock data
+    if (data.trending && data.trending.length > 0) {
+      const firstArticle = data.trending[0];
+      if (firstArticle.url && firstArticle.url !== "https://example.com") {
+        console.log("✅ [useAfricanEvents] Real news data received!");
+      } else {
+        console.warn(
+          "⚠️ [useAfricanEvents] Mock data detected (URL is example.com)"
+        );
+      }
+    }
+
     return data;
   } catch (error) {
-    console.warn("API not available, using mock data:", error);
+    console.error(
+      "❌ [useAfricanEvents] API not available, using mock data:",
+      error
+    );
     // Fallback to mock data for development
     return getMockAfricanEvents();
   }
@@ -42,7 +76,7 @@ async function fetchAfricanEvents(): Promise<AfricanEventsResponse> {
 // Mock data for development/demo
 function getMockAfricanEvents(): AfricanEventsResponse {
   const now = new Date();
-  
+
   return {
     trending: [
       {
@@ -163,7 +197,9 @@ function getMockAfricanEvents(): AfricanEventsResponse {
         category: "Technology",
         country: "Ethiopia",
         source: "Tech Africa",
-        publishedAt: new Date(now.getTime() - 11 * 60 * 60 * 1000).toISOString(),
+        publishedAt: new Date(
+          now.getTime() - 11 * 60 * 60 * 1000
+        ).toISOString(),
         url: "https://example.com",
         tags: ["Tech", "Startups", "East Africa"],
       },
@@ -179,4 +215,3 @@ export function useAfricanEvents() {
     staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
   });
 }
-
