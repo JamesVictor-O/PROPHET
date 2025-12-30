@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && cd generated && npm install && cd .. && npm run codegen"
+buildCommand = "npm install && cd generated && npm install --legacy-peer-deps && cd .. && npm run codegen"
 
 [deploy]
 startCommand = "npm start"
