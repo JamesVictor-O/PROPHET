@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { useStrategies } from "./useStrategies";
 import { useAllMarkets } from "./contracts/useAllMarkets";
+import { useMarketsGraphQL } from "./graphql/useMarketsGraphQL";
 import { useRedeemDelegations } from "./useRedeemDelegations";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
@@ -18,7 +19,13 @@ export function useStrategyExecutor() {
   const { address } = useAccount();
   const { strategies, addExecution, updateStrategy, getStrategyExecutions } =
     useStrategies();
-  const { data: markets } = useAllMarkets();
+
+  // Use Envio GraphQL for real-time market data (listens for MarketCreated events)
+  const { data: marketsFromEnvio } = useMarketsGraphQL(50);
+
+  // Fallback to contract polling if Envio is not available
+  const { data: marketsFromContract } = useAllMarkets();
+
   const { redeemWithUSDCTransfer, canUseRedeem } = useRedeemDelegations();
   const executorRef = useRef<StrategyExecutor | null>(null);
   const lastStrategyIdsRef = useRef<string>(""); // Track last strategy IDs to prevent unnecessary restarts
@@ -27,10 +34,26 @@ export function useStrategyExecutor() {
   const tokenDecimals =
     defaultChain.id === 84532 || defaultChain.id === 8453 ? 6 : 18;
 
-  // Get markets function for executor
+  // Get markets function for executor - prefer Envio, fallback to contract
   const getMarkets = useCallback(async (): Promise<MarketInfo[]> => {
-    return (markets as MarketInfo[]) || [];
-  }, [markets]);
+    // Use Envio data if available (real-time from MarketCreated events)
+    if (marketsFromEnvio && marketsFromEnvio.length > 0) {
+      console.log(
+        `[useStrategyExecutor] Using ${marketsFromEnvio.length} markets from Envio GraphQL`
+      );
+      return marketsFromEnvio;
+    }
+
+    // Fallback to contract data if Envio is not available
+    if (marketsFromContract && marketsFromContract.length > 0) {
+      console.log(
+        `[useStrategyExecutor] Using ${marketsFromContract.length} markets from contract polling`
+      );
+      return marketsFromContract as MarketInfo[];
+    }
+
+    return [];
+  }, [marketsFromEnvio, marketsFromContract]);
 
   // Execute prediction function
   const executePrediction = useCallback(
