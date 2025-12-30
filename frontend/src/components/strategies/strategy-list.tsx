@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useChainId } from "wagmi";
 import { useStrategies } from "@/hooks/useStrategies";
+import { CONTRACTS } from "@/lib/contracts";
 import { CreateStrategyModal } from "./create-strategy-modal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type {
@@ -351,6 +353,24 @@ function ExecutionHistoryList({
 }
 
 function ExecutionCard({ execution }: { execution: StrategyExecution }) {
+  const chainId = useChainId();
+
+  // Get explorer URL based on current chain
+  const getExplorerUrl = (txHash: string): string => {
+    // Find the network that matches the current chain ID
+    const network = Object.entries(CONTRACTS).find(
+      ([, config]) => config.chainId === chainId
+    );
+
+    if (network) {
+      const explorer = network[1].explorer;
+      return `${explorer}/tx/${txHash}`;
+    }
+
+    // Default to Base Sepolia if chain ID not found
+    return `https://sepolia.basescan.org/tx/${txHash}`;
+  };
+
   const getStatusIcon = () => {
     switch (execution.status) {
       case "success":
@@ -444,7 +464,7 @@ function ExecutionCard({ execution }: { execution: StrategyExecution }) {
         </div>
         {execution.txHash && (
           <a
-            href={`https://basescan.org/tx/${execution.txHash}`}
+            href={getExplorerUrl(execution.txHash)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
