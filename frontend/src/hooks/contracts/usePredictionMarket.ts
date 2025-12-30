@@ -76,7 +76,8 @@ export function useUserPrediction(
   return useContractRead<{
     user: Address;
     side: Outcome; 
-    outcomeIndex: bigint; 
+    outcomeIndex: bigint;
+    amount: bigint;
     timestamp: bigint;
   }>({
     address,
