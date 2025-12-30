@@ -9,7 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install root dependencies (omit optional to skip generated dependency)
-RUN npm ci --omit=optional
+# Skip postinstall script since generated directory doesn't exist yet
+RUN npm ci --omit=optional --ignore-scripts
 
 # Now copy and install generated dependencies
 COPY generated/package*.json ./generated/

@@ -10,7 +10,7 @@
     "dev": "envio dev",
     "prestart": "npm run codegen",
     "start": "envio start",
-    "postinstall": "cd generated && npm install --legacy-peer-deps",
+    "postinstall": "if [ -d generated ]; then cd generated && npm install --legacy-peer-deps; fi",
     "test": "npm run mocha"
   },
   "devDependencies": {
