@@ -5,16 +5,16 @@ FROM node:18-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
-# Copy package files
+# Copy package files (exclude generated to avoid optional dependency issues)
 COPY package*.json ./
+
+# Install root dependencies (omit optional to skip generated dependency)
+RUN npm ci --omit=optional
+
+# Now copy and install generated dependencies
 COPY generated/package*.json ./generated/
-
-# Install root dependencies
-RUN npm ci
-
-# Install generated dependencies (use npm install since lock file may not exist)
 WORKDIR /app/generated
-RUN npm install --production=false
+RUN npm install --production=false --legacy-peer-deps
 
 # Build stage
 FROM base AS builder
