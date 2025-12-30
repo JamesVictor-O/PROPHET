@@ -62,10 +62,17 @@ export class StrategyExecutor {
       `[StrategyExecutor] Starting executor with ${this.strategies.length} strategies, checking every ${intervalMs}ms`
     );
     this.isRunning = true;
+
+    // Wait 2 seconds before first execution to ensure execution history is loaded from localStorage
+    // This prevents re-executing on markets that were already predicted on when navigating to the page
+    setTimeout(() => {
+      console.log(
+        "[StrategyExecutor] Executing strategies (after initial delay to load execution history)..."
+      );
+      this.executeStrategies();
+    }, 2000);
+
     this.intervalId = setInterval(() => this.executeStrategies(), intervalMs);
-    // Execute immediately
-    console.log("[StrategyExecutor] Executing strategies immediately...");
-    this.executeStrategies();
   }
 
   stop() {
@@ -143,25 +150,16 @@ export class StrategyExecutor {
           const marketId = parseInt(match.market.id);
           const executionKey = `${strategy.id}-${marketId}`;
 
-          // Check if we have a pending execution for this market (in-memory, immediate)
-          if (this.pendingExecutions.has(executionKey)) {
-            console.log(
-              `[StrategyExecutor] Execution already pending for market ${marketId} and strategy ${strategy.id}`
-            );
-            continue;
-          }
-
-          // Check if we've already predicted on this market (from execution history)
+          // Check if we've already predicted on this market (checks both execution history and pending)
+          // This is the primary check - it checks both successful executions and pending executions
           const hasPredicted = await this.hasPredictedOnMarket(
             strategy.id,
             marketId
           );
           if (hasPredicted) {
             console.log(
-              `[StrategyExecutor] Already predicted on market ${marketId} for strategy ${strategy.id}`
+              `[StrategyExecutor] Skipping market ${marketId} for strategy ${strategy.id} - already predicted or pending`
             );
-            // Remove from pendingExecutions if it's there (cleanup from previous cycle)
-            this.pendingExecutions.delete(executionKey);
             continue;
           }
 
@@ -504,12 +502,29 @@ export class StrategyExecutor {
     marketId: number
   ): Promise<boolean> {
     const executions = this.getExecutions(strategyId);
-    // Check both successful and pending executions to prevent duplicates
-    return executions.some(
-      (e) =>
-        e.marketId === marketId &&
-        (e.status === "success" || e.status === "pending")
+    // Only check successful executions - if we successfully predicted on a market, never predict again
+    // Pending executions might have failed, so we don't count them
+    const hasSuccessfulExecution = executions.some(
+      (e) => e.marketId === marketId && e.status === "success"
     );
+
+    if (hasSuccessfulExecution) {
+      console.log(
+        `[StrategyExecutor] Already successfully predicted on market ${marketId} for strategy ${strategyId} (found ${executions.length} total executions)`
+      );
+      return true;
+    }
+
+    // Also check if there's a pending execution (in case one is currently in progress)
+    const executionKey = `${strategyId}-${marketId}`;
+    if (this.pendingExecutions.has(executionKey)) {
+      console.log(
+        `[StrategyExecutor] Execution already pending for market ${marketId} and strategy ${strategyId}`
+      );
+      return true;
+    }
+
+    return false;
   }
 
   private getTodayExecutions(strategyId: string, today: string): number {
