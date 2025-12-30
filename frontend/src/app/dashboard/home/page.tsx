@@ -4,7 +4,7 @@ import { useState } from "react";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { useAfricanEvents } from "@/hooks/useAfricanEvents";
-import { Loader2, TrendingUp, Calendar, Zap, Plus } from "lucide-react";
+import { Loader2, Calendar, Zap, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreateMarketModal } from "@/components/markets/create-market-modal";
 
@@ -23,34 +23,47 @@ export default function HomePage() {
           {/* Top Intelligence Bar (Ticker Style) */}
           <div className="border-b border-white/5 bg-black/20 backdrop-blur-md px-2 sm:px-4 py-2 sm:py-3 overflow-hidden">
             <div className="flex items-center gap-4 sm:gap-8 animate-marquee">
-              {[
-                "NG 3-2 TUN (AFCON)",
-                "CONGO VS MOROCCO - MON",
-                "BBN APPLICATIONS OPEN",
-                "TECH FEST LAGOS - DEC",
-              ].map((news, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-1.5 sm:gap-2 shrink-0"
-                >
-                  <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500" />
-                  <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-slate-400">
-                    {news}
-                  </span>
-                </div>
-              ))}
+              {events && events.trending && events.trending.length > 0
+                ? events.trending.slice(0, 8).map((event) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center gap-1.5 sm:gap-2 shrink-0"
+                    >
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500" />
+                      <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-slate-400 line-clamp-1 max-w-[200px] sm:max-w-none">
+                        {event.title.length > 50
+                          ? `${event.title.substring(0, 50)}...`
+                          : event.title}
+                      </span>
+                    </div>
+                  ))
+                : // Fallback while loading
+                  [
+                    "NG 3-2 TUN (AFCON)",
+                    "CONGO VS MOROCCO - MON",
+                    "BBN APPLICATIONS OPEN",
+                    "TECH FEST LAGOS - DEC",
+                  ].map((news, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 sm:gap-2 shrink-0"
+                    >
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500" />
+                      <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-slate-400">
+                        {news}
+                      </span>
+                    </div>
+                  ))}
             </div>
           </div>
 
           <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-8 lg:px-12 max-w-[1600px] mx-auto">
             {/* Professional Header */}
             <header className="mb-8 sm:mb-12 space-y-3 sm:space-y-2">
-
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-black italic tracking-tighter uppercase leading-tight sm:leading-none">
                   Global <span className="text-slate-600">Updates</span>
                 </h1>
-              
               </div>
             </header>
 
@@ -145,10 +158,13 @@ export default function HomePage() {
                         <div className="flex gap-3 sm:gap-4">
                           <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 border border-white/10 flex flex-col items-center justify-center bg-white/2">
                             <span className="text-[9px] sm:text-[10px] font-black text-white leading-none">
-                              24
+                              {new Date(event.publishedAt).getDate()}
                             </span>
                             <span className="text-[7px] sm:text-[8px] font-bold text-slate-500 uppercase">
-                              DEC
+                              {new Date(event.publishedAt).toLocaleDateString(
+                                "en-US",
+                                { month: "short" }
+                              )}
                             </span>
                           </div>
                           <div className="min-w-0 flex-1">
@@ -156,7 +172,8 @@ export default function HomePage() {
                               {event.title}
                             </h4>
                             <p className="text-[9px] sm:text-[10px] text-slate-500 font-medium uppercase tracking-tight mt-1">
-                              {event.country || "Continental Update"}
+                              {event.country || "Continental Update"} •{" "}
+                              {event.source}
                             </p>
                           </div>
                         </div>
