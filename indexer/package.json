@@ -8,7 +8,9 @@
     "mocha": "ts-mocha test/**/*.ts",
     "codegen": "envio codegen",
     "dev": "envio dev",
+    "prestart": "npm run codegen",
     "start": "envio start",
+    "postinstall": "cd generated && npm install",
     "test": "npm run mocha"
   },
   "devDependencies": {

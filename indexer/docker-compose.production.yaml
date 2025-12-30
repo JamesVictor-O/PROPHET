@@ -1,0 +1,73 @@
+services:
+  envio-postgres:
+    image: postgres:17.5
+    restart: always
+    ports:
+      - "${ENVIO_PG_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${ENVIO_PG_PASSWORD:-testing}
+      POSTGRES_USER: ${ENVIO_PG_USER:-postgres}
+      POSTGRES_DB: ${ENVIO_PG_DATABASE:-envio-dev}
+    networks:
+      - prophet-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ENVIO_PG_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  graphql-engine:
+    image: hasura/graphql-engine:v2.43.0
+    ports:
+      - "${HASURA_EXTERNAL_PORT:-8080}:8080"
+    user: 1001:1001
+    depends_on:
+      envio-postgres:
+        condition: service_healthy
+    restart: always
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${ENVIO_PG_USER:-postgres}:${ENVIO_PG_PASSWORD:-testing}@envio-postgres:5432/${ENVIO_PG_DATABASE:-envio-dev}
+      HASURA_GRAPHQL_ENABLE_CONSOLE: ${HASURA_GRAPHQL_ENABLE_CONSOLE:-false}
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,webhook-log,websocket-log,query-log
+      HASURA_GRAPHQL_NO_OF_RETRIES: 10
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:-testing}
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
+      PORT: 8080
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 5s
+      timeout: 2s
+      retries: 50
+      start_period: 5s
+    networks:
+      - prophet-net
+
+  envio-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      envio-postgres:
+        condition: service_healthy
+      graphql-engine:
+        condition: service_started
+    restart: always
+    environment:
+      ENVIO_PG_DATABASE_URL: postgres://${ENVIO_PG_USER:-postgres}:${ENVIO_PG_PASSWORD:-testing}@envio-postgres:5432/${ENVIO_PG_DATABASE:-envio-dev}
+      TUI_OFF: "true"
+      NODE_ENV: production
+    networks:
+      - prophet-net
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./schema.graphql:/app/schema.graphql:ro
+
+volumes:
+  db_data:
+
+networks:
+  prophet-net:
+    name: prophet-network

@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm"]
+
+[phases.install]
+cmds = [
+  "npm ci",
+  "cd generated && npm ci && cd ..",
+  "npm run codegen"
+]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npm start"
+
