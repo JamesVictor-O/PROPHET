@@ -21,9 +21,17 @@ RUN npm install --production=false --legacy-peer-deps
 FROM base AS builder
 WORKDIR /app
 
-# Copy all files
+# Copy package files first
+COPY package*.json ./
+
+# Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/generated/node_modules ./generated/node_modules
+
+# Ensure envio binary is installed for this platform (linux-x64)
+RUN cd node_modules/envio && npm run postinstall 2>/dev/null || npm install --no-save 2>/dev/null || true
+
+# Copy source files
 COPY . .
 
 # Run codegen to generate types
