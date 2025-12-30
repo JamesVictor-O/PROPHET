@@ -23,7 +23,7 @@ export function useStrategies() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Load strategies from localStorage
-  useEffect(() => {
+  const loadStrategies = useCallback(() => {
     if (!address) {
       setStrategies([]);
       setExecutions([]);
@@ -39,10 +39,21 @@ export function useStrategies() {
       const storedExecutions = localStorage.getItem(executionsKey);
 
       if (storedStrategies) {
-        setStrategies(JSON.parse(storedStrategies));
+        const parsed = JSON.parse(storedStrategies);
+        setStrategies(parsed);
+        console.log("[useStrategies] Loaded strategies from localStorage:", {
+          count: parsed.length,
+          active: parsed.filter(
+            (s: PredictionStrategy) => s.status === "active"
+          ).length,
+        });
       }
       if (storedExecutions) {
-        setExecutions(JSON.parse(storedExecutions));
+        const parsedExecutions = JSON.parse(storedExecutions);
+        setExecutions(parsedExecutions);
+        console.log("[useStrategies] Loaded executions from localStorage:", {
+          count: parsedExecutions.length,
+        });
       }
     } catch (error) {
       console.error("Error loading strategies:", error);
@@ -51,14 +62,63 @@ export function useStrategies() {
     }
   }, [address]);
 
+  useEffect(() => {
+    loadStrategies();
+  }, [loadStrategies]);
+
+  // Listen for storage events (when localStorage changes in other tabs/components)
+  useEffect(() => {
+    if (!address) return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      const strategiesKey = getStorageKey(address);
+      const executionsKey = getExecutionsKey(address);
+
+      // If strategies or executions changed, reload
+      if (e.key === strategiesKey || e.key === executionsKey) {
+        console.log("[useStrategies] Storage changed, reloading strategies");
+        loadStrategies();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    // Also listen for custom events (for same-tab updates)
+    const handleCustomStorageChange = () => {
+      console.log("[useStrategies] Custom storage event, reloading strategies");
+      loadStrategies();
+    };
+
+    window.addEventListener("strategiesUpdated", handleCustomStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener(
+        "strategiesUpdated",
+        handleCustomStorageChange
+      );
+    };
+  }, [address, loadStrategies]);
+
   // Save strategies to localStorage
   const saveStrategies = useCallback(
     (newStrategies: PredictionStrategy[]) => {
-      if (!address) return;
+      if (!address) {
+        console.warn("[useStrategies] Cannot save strategies: no address");
+        return;
+      }
       try {
         const key = getStorageKey(address);
         localStorage.setItem(key, JSON.stringify(newStrategies));
+        console.log("[useStrategies] Saving strategies to state:", {
+          count: newStrategies.length,
+          active: newStrategies.filter((s) => s.status === "active").length,
+        });
         setStrategies(newStrategies);
+        console.log("[useStrategies] State updated via setStrategies");
+
+        // Dispatch custom event to notify other instances
+        window.dispatchEvent(new Event("strategiesUpdated"));
       } catch (error) {
         console.error("Error saving strategies:", error);
       }
@@ -74,6 +134,12 @@ export function useStrategies() {
         const key = getExecutionsKey(address);
         localStorage.setItem(key, JSON.stringify(newExecutions));
         setExecutions(newExecutions);
+        console.log("[useStrategies] Saving executions to state:", {
+          count: newExecutions.length,
+        });
+
+        // Dispatch custom event to notify other instances
+        window.dispatchEvent(new Event("strategiesUpdated"));
       } catch (error) {
         console.error("Error saving executions:", error);
       }
@@ -102,7 +168,17 @@ export function useStrategies() {
         },
       };
       const updated = [...strategies, newStrategy];
+      console.log("[useStrategies] Creating strategy, updating state:", {
+        currentCount: strategies.length,
+        newCount: updated.length,
+        newStrategy: {
+          id: newStrategy.id,
+          name: newStrategy.name,
+          status: newStrategy.status,
+        },
+      });
       saveStrategies(updated);
+      console.log("[useStrategies] Strategy saved, state should update now");
       return newStrategy;
     },
     [strategies, saveStrategies]

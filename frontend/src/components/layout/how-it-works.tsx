@@ -2,7 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Check,
   ArrowRight,
   Zap,
   Sparkles,
@@ -41,19 +40,14 @@ export function HowItWorks() {
       id="how-it-works"
       className="py-32 px-6 bg-[#020617] relative overflow-hidden"
     >
-      {/* Dynamic Background Elements */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
       <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-emerald-600/10 blur-[100px] rounded-full" />
 
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Livelier Header */}
         <div className="flex flex-col items-center text-center mb-24 space-y-6">
-          <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white text-[10px] uppercase tracking-[0.3em] font-black">
-            <Sparkles className="w-3 h-3 text-yellow-400" /> The Prophet Path
-          </div>
-          <h2 className="text-5xl md:text-8xl font-black tracking-tighter text-white uppercase italic">
+          <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white uppercase italic">
             Zero{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-emerald-400">
+            <span className="text-transparent text-white">
               Friction.
             </span>
           </h2>
@@ -100,15 +94,12 @@ export function HowItWorks() {
             </div>
           ))}
         </div>
-
-        {/* "The Winning Moment" Interactive Card */}
         <div className="relative group perspective-1000">
-          <div className="absolute -inset-4 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition-opacity duration-700" />
+          <div className="absolute -inset-4  rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition-opacity duration-700" />
 
           <Card className="relative bg-black/40 backdrop-blur-3xl border-white/10 rounded-[2.5rem] overflow-hidden">
             <CardContent className="p-1 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-5 h-full">
-                {/* Visual Narrative Side */}
                 <div className="lg:col-span-3 p-8 md:p-16 space-y-10">
                   <div className="space-y-4">
                     <h4 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter leading-none">

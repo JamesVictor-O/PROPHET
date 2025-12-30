@@ -1,19 +1,19 @@
 /**
  * Set-and-Forget Prediction Strategy Types
- * 
+ *
  * This module defines the types for automated prediction strategies
  * that leverage ERC-7715 permissions to automatically place predictions.
  */
 
 export type StrategyStatus = "active" | "paused" | "completed" | "cancelled";
 
-export type StrategyTrigger = 
-  | "new_market"           // Trigger on new markets matching criteria
-  | "odds_threshold"        // Trigger when odds reach threshold
-  | "pool_size"            // Trigger when pool reaches size
-  | "time_based";          // Trigger at specific time
+export type StrategyTrigger =
+  | "new_market" // Trigger on new markets matching criteria
+  | "odds_threshold" // Trigger when odds reach threshold
+  | "pool_size" // Trigger when pool reaches size
+  | "time_based"; // Trigger at specific time
 
-export type MarketCategory = 
+export type MarketCategory =
   | "all"
   | "sports"
   | "politics"
@@ -32,6 +32,9 @@ export interface StrategyCondition {
   // For odds_threshold
   minYesPercent?: number;
   maxYesPercent?: number;
+  // Contrarian strategy: if YES > threshold, stake NO (and vice versa)
+  contrarian?: boolean;
+  contrarianThreshold?: number; // Default: 80% for YES, 20% for NO
   // For pool_size
   minPoolSize?: number; // in USDC/cUSD
   // For time_based
@@ -39,6 +42,8 @@ export interface StrategyCondition {
   // For new_market
   categories?: MarketCategory[];
   keywords?: string[]; // Keywords to match in market question
+  // For trending markets
+  topTrending?: number;
 }
 
 export interface StrategyAction {
@@ -62,16 +67,16 @@ export interface PredictionStrategy {
   status: StrategyStatus;
   createdAt: string;
   updatedAt: string;
-  
+
   // Conditions that trigger the strategy
   conditions: StrategyCondition[];
-  
+
   // Actions to take when triggered
   action: StrategyAction;
-  
+
   // Limits and safety constraints
   limits?: StrategyLimits;
-  
+
   // Statistics
   stats?: {
     totalPredictions: number;
@@ -80,7 +85,7 @@ export interface PredictionStrategy {
     totalWinnings: number;
     lastExecuted?: string;
   };
-  
+
   // AI-specific settings
   aiSettings?: {
     useAI: boolean; // Use AI to decide yes/no when side is "auto"
@@ -103,4 +108,3 @@ export interface StrategyExecution {
   aiConfidence?: number;
   reason?: string; // Why this prediction was made
 }
-

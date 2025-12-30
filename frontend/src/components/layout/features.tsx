@@ -50,12 +50,6 @@ export function Features() {
       <div className="max-w-7xl mx-auto">
         {/* Aggressive Header */}
         <div className="mb-20 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="h-px w-12 bg-blue-500" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500">
-              The Arsenal
-            </span>
-          </div>
           <h2 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter uppercase leading-none">
             Built for the <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-white to-slate-700">
@@ -96,30 +90,11 @@ export function Features() {
                   </p>
                 </div>
               </div>
-
-              {/* Decorative Arrow */}
               <div className="absolute top-8 right-8 opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center">
                   <Zap className="w-4 h-4 text-white fill-white" />
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Floating Sub-Features Ticker */}
-        <div className="mt-12 flex flex-wrap justify-center md:justify-start gap-4">
-          {subFeatures.map((sf, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 px-6 py-3 rounded-full bg-white/[0.03] border border-white/5 text-slate-400 group hover:bg-white/10 transition-all cursor-default"
-            >
-              <span className="text-blue-500 group-hover:scale-125 transition-transform">
-                {sf.icon}
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                {sf.text}
-              </span>
             </div>
           ))}
         </div>

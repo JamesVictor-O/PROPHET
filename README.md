@@ -58,7 +58,6 @@ Prophet showcases the **most creative and advanced use of ERC-7715** in producti
 **How It Works**:
 
 ```typescript
-
 const strategy = {
   name: "Sports Market Auto-Bet",
   conditions: [
@@ -69,8 +68,8 @@ const strategy = {
     },
   ],
   action: {
-    stakeAmount: 0.025, 
-    side: "auto", 
+    stakeAmount: 0.025,
+    side: "auto",
     minConfidence: 50,
   },
   limits: {
@@ -78,7 +77,6 @@ const strategy = {
     maxPredictionsPerDay: 5,
   },
 };
-
 ```
 
 **Architecture**:
