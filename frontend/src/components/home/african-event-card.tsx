@@ -1,8 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Clock, MapPin, ArrowRight, Sparkles } from "lucide-react";
+import { TrendingUp, Clock, MapPin, ArrowRight, Sparkles, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { useState } from "react";
 
 export interface AfricanEvent {
   id: string;
@@ -42,6 +44,7 @@ export function AfricanEventCard({
 }: AfricanEventCardProps) {
   const isTrending = variant === "trending";
   const timeAgo = formatTimeAgo(event.publishedAt);
+  const [imageError, setImageError] = useState(false);
 
   return (
     <div
@@ -62,20 +65,47 @@ export function AfricanEventCard({
         )}
       />
 
+      {/* Image Section */}
+      {event.imageUrl && !imageError && (
+        <div className="relative w-full h-48 sm:h-56 overflow-hidden">
+          <Image
+            src={event.imageUrl}
+            alt={event.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-110"
+            onError={() => setImageError(true)}
+            unoptimized // News API images may be from external domains
+          />
+          {/* Gradient overlay on image */}
+          <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
+          {/* Category badge on image */}
+          <div className="absolute top-3 left-3">
+            <span className="text-[10px] uppercase tracking-widest text-white font-bold bg-black/50 backdrop-blur-sm border border-white/20 px-2 py-1 rounded-lg">
+              {event.category}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="relative p-5 space-y-4">
+      <div className={cn("relative space-y-4", event.imageUrl && !imageError ? "p-5" : "p-5")}>
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              {isTrending && (
-                <TrendingUp className="w-4 h-4 text-blue-400 flex-shrink-0" />
-              )}
-              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold truncate">
-                {event.category}
-              </span>
-            </div>
-            <h3 className="text-base font-bold text-white line-clamp-2 leading-snug mb-2">
+            {(!event.imageUrl || imageError) && (
+              <div className="flex items-center gap-2 mb-2">
+                {isTrending && (
+                  <TrendingUp className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                )}
+                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold truncate">
+                  {event.category}
+                </span>
+              </div>
+            )}
+            <h3 className={cn(
+              "font-bold text-white line-clamp-2 leading-snug mb-2",
+              event.imageUrl && !imageError ? "text-base sm:text-lg" : "text-base"
+            )}>
               {event.title}
             </h3>
           </div>
