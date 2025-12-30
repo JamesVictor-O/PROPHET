@@ -28,6 +28,19 @@ export function StrategyExecutorTest() {
     executions: allExecutions,
   } = useStrategies();
   const { isRunning, activeStrategiesCount } = useStrategyExecutor();
+
+  // Debug: Log strategies whenever they change
+  useEffect(() => {
+    console.log("[StrategyExecutorTest] Strategies updated:", {
+      count: strategies.length,
+      active: strategies.filter((s) => s.status === "active").length,
+      strategies: strategies.map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+      })),
+    });
+  }, [strategies]);
   const { canUseRedeem } = useRedeemDelegations();
 
   const [testStrategyId, setTestStrategyId] = useState<string | null>(null);
@@ -105,11 +118,20 @@ export function StrategyExecutorTest() {
           "id" | "createdAt" | "updatedAt" | "status"
         >
       );
+      console.log("✅ Test strategy created:", strategy);
       setTestStrategyId(strategy.id);
       setTestStatus(
-        `✅ Test strategy created!\n\nStrategy ID: ${strategy.id}\n\nThis strategy will automatically place predictions on sports markets when conditions are met.\n\nMonitor the execution count below to see when predictions are placed.`
+        `✅ Test strategy created!\n\nStrategy ID: ${strategy.id}\n\nThis strategy will automatically place predictions on sports markets when conditions are met.\n\nMonitor the execution count below to see when predictions are placed.\n\nNote: Make sure you have granted One-Tap Betting permission for the executor to work.`
       );
       toast.success("Test strategy created successfully");
+
+      // Force a small delay to ensure state updates propagate
+      setTimeout(() => {
+        console.log("🔍 Checking executor state after strategy creation...");
+        console.log("Active strategies count:", activeStrategiesCount);
+        console.log("Is running:", isRunning);
+        console.log("Can use redeem:", canUseRedeem);
+      }, 1000);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -188,6 +210,12 @@ export function StrategyExecutorTest() {
                 </>
               )}
             </div>
+            {/* Debug info */}
+            <div className="mt-2 text-xs text-slate-600">
+              <p>Wallet: {isConnected ? "✓" : "✗"}</p>
+              <p>Permission: {canUseRedeem ? "✓" : "✗"}</p>
+              <p>Strategies: {activeStrategiesCount}</p>
+            </div>
           </div>
 
           <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
@@ -220,12 +248,32 @@ export function StrategyExecutorTest() {
         )}
 
         {isConnected && !canUseRedeem && (
-          <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-yellow-400">
-                Please grant One-Tap Betting permission in Settings to test the
-                executor
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-400 space-y-1">
+                <p className="font-semibold">
+                  ⚠️ Executor cannot start without One-Tap Betting permission
+                </p>
+                <p>
+                  Please grant One-Tap Betting permission in Settings →
+                  Permissions to enable the executor.
+                </p>
+                <p className="text-red-300/80 mt-2">
+                  Current status: Wallet connected ✓ | Permission ✗
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isConnected && canUseRedeem && activeStrategiesCount === 0 && (
+          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-400">
+                Ready to test! Create a test strategy below to start the
+                executor.
               </p>
             </div>
           </div>

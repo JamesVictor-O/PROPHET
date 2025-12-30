@@ -47,6 +47,11 @@ export function CreateStrategyModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
+  // Strategy template
+  const [selectedTemplate, setSelectedTemplate] = useState<
+    "custom" | "fan_loyalty" | "contrarian" | "diversifier"
+  >("custom");
+
   // Conditions
   const [triggerType, setTriggerType] =
     useState<StrategyCondition["type"]>("new_market");
@@ -56,12 +61,13 @@ export function CreateStrategyModal({
   const [minYesPercent, setMinYesPercent] = useState<number | undefined>();
   const [maxYesPercent, setMaxYesPercent] = useState<number | undefined>();
   const [minPoolSize, setMinPoolSize] = useState<number | undefined>();
+  const [contrarian, setContrarian] = useState(false);
+  const [contrarianThreshold, setContrarianThreshold] = useState(80);
+  const [topTrending, setTopTrending] = useState<number | undefined>();
 
   // Action
   const [stakeAmount, setStakeAmount] = useState("");
   const [side, setSide] = useState<"yes" | "no" | "auto">("auto");
-  const [minConfidence, setMinConfidence] = useState(50);
-  const [useAI, setUseAI] = useState(true);
 
   // Limits
   const [maxTotalStake, setMaxTotalStake] = useState<number | undefined>();
@@ -79,6 +85,55 @@ export function CreateStrategyModal({
 
   const handleRemoveKeyword = (keyword: string) => {
     setKeywords(keywords.filter((k) => k !== keyword));
+  };
+
+  const handleTemplateSelect = (
+    template: "custom" | "fan_loyalty" | "contrarian" | "diversifier"
+  ) => {
+    setSelectedTemplate(template);
+    if (template === "fan_loyalty") {
+      setName("Fan Loyalty Auto-Stake");
+      setDescription(
+        "Always stake on markets containing your favorite keywords"
+      );
+      setTriggerType("new_market");
+      setCategories(["all"]);
+      setSide("yes");
+      setStakeAmount("5");
+      setContrarian(false);
+      setTopTrending(undefined);
+    } else if (template === "contrarian") {
+      setName("Smart Value Hunter");
+      setDescription("Bet against the crowd when odds are extreme (>80%)");
+      setTriggerType("odds_threshold");
+      setCategories(["all"]);
+      setMinYesPercent(80);
+      setMaxYesPercent(100);
+      setSide("auto");
+      setStakeAmount("10");
+      setContrarian(true);
+      setContrarianThreshold(80);
+      setTopTrending(undefined);
+    } else if (template === "diversifier") {
+      setName("Fixed Budget Diversifier");
+      setDescription("Stake on top trending markets to stay involved");
+      setTriggerType("new_market");
+      setCategories(["all"]);
+      setSide("yes");
+      setStakeAmount("1");
+      setTopTrending(3);
+      setContrarian(false);
+    } else {
+      // Custom - reset to defaults
+      setName("");
+      setDescription("");
+      setTriggerType("new_market");
+      setCategories(["all"]);
+      setSide("auto");
+      setStakeAmount("");
+      setContrarian(false);
+      setTopTrending(undefined);
+    }
   };
 
   const handleCreate = async () => {
@@ -103,13 +158,15 @@ export function CreateStrategyModal({
           minYesPercent,
           maxYesPercent,
           minPoolSize,
+          contrarian: contrarian || undefined,
+          contrarianThreshold: contrarian ? contrarianThreshold : undefined,
+          topTrending: topTrending || undefined,
         },
       ];
 
       const action: StrategyAction = {
         stakeAmount: parseFloat(stakeAmount),
         side,
-        minConfidence,
       };
 
       const limits: StrategyLimits | undefined =
@@ -128,8 +185,8 @@ export function CreateStrategyModal({
         action,
         limits,
         aiSettings: {
-          useAI,
-          confidenceThreshold: minConfidence,
+          useAI: false,
+          confidenceThreshold: 50,
         },
       });
 
@@ -157,11 +214,13 @@ export function CreateStrategyModal({
     setMinPoolSize(undefined);
     setStakeAmount("");
     setSide("auto");
-    setMinConfidence(50);
-    setUseAI(true);
     setMaxTotalStake(undefined);
     setMaxPredictionsPerDay(undefined);
     setExpiryDate("");
+    setContrarian(false);
+    setContrarianThreshold(80);
+    setTopTrending(undefined);
+    setSelectedTemplate("custom");
   };
 
   return (
@@ -178,6 +237,63 @@ export function CreateStrategyModal({
         </DialogHeader>
 
         <div className="space-y-6 sm:space-y-8 py-4 sm:py-6 px-4 sm:px-0">
+          {/* Strategy Templates */}
+          <div className="space-y-3">
+            <Label className="text-white text-sm font-semibold">
+              Quick Start Templates
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleTemplateSelect("fan_loyalty")}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  selectedTemplate === "fan_loyalty"
+                    ? "border-blue-500 bg-blue-500/10"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                }`}
+              >
+                <div className="text-white font-semibold text-sm mb-1">
+                  Fan Loyalty
+                </div>
+                <div className="text-slate-400 text-xs">
+                  Auto-stake on keywords
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTemplateSelect("contrarian")}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  selectedTemplate === "contrarian"
+                    ? "border-blue-500 bg-blue-500/10"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                }`}
+              >
+                <div className="text-white font-semibold text-sm mb-1">
+                  Contrarian
+                </div>
+                <div className="text-slate-400 text-xs">
+                  Bet against the crowd
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTemplateSelect("diversifier")}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  selectedTemplate === "diversifier"
+                    ? "border-blue-500 bg-blue-500/10"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                }`}
+              >
+                <div className="text-white font-semibold text-sm mb-1">
+                  Diversifier
+                </div>
+                <div className="text-slate-400 text-xs">
+                  Top trending markets
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Basic Info */}
           <div className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
@@ -361,6 +477,71 @@ export function CreateStrategyModal({
               </div>
             )}
 
+            {/* Contrarian Strategy */}
+            <div className="space-y-3 p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="contrarian"
+                  checked={contrarian}
+                  onChange={(e) => setContrarian(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
+                />
+                <Label
+                  htmlFor="contrarian"
+                  className="text-white text-sm font-semibold cursor-pointer"
+                >
+                  Contrarian Strategy (Bet against the crowd)
+                </Label>
+              </div>
+              {contrarian && (
+                <div className="space-y-2 pl-6">
+                  <Label className="text-slate-400 text-xs">
+                    Threshold (%)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="50"
+                    max="95"
+                    value={contrarianThreshold}
+                    onChange={(e) =>
+                      setContrarianThreshold(parseInt(e.target.value) || 80)
+                    }
+                    className="bg-white/5 border-white/10 text-white h-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="80"
+                  />
+                  <p className="text-slate-500 text-xs">
+                    If YES odds exceed {contrarianThreshold}%, automatically
+                    stake NO (and vice versa)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Trending Markets */}
+            <div className="space-y-2">
+              <Label className="text-white text-sm font-semibold">
+                Top Trending Markets (optional)
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                max="10"
+                value={topTrending || ""}
+                onChange={(e) =>
+                  setTopTrending(
+                    e.target.value ? parseInt(e.target.value) : undefined
+                  )
+                }
+                className="bg-white/5 border-white/10 text-white h-11 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                placeholder="e.g., 3 for top 3 trending"
+              />
+              <p className="text-slate-500 text-xs">
+                Stake on the top N trending markets (sorted by pool
+                size/activity)
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-white text-sm font-semibold">
                 Keywords (optional)
@@ -452,7 +633,7 @@ export function CreateStrategyModal({
                     value="auto"
                     className="text-white hover:bg-white/5"
                   >
-                    Auto (AI decides)
+                    Auto (Smart selection)
                   </SelectItem>
                   <SelectItem
                     value="yes"
@@ -471,40 +652,12 @@ export function CreateStrategyModal({
             </div>
 
             {side === "auto" && (
-              <div className="space-y-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-white text-sm font-semibold">
-                      Min Confidence
-                    </Label>
-                    <span className="text-blue-400 font-bold text-sm">
-                      {minConfidence}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={minConfidence}
-                    onChange={(e) => setMinConfidence(parseInt(e.target.value))}
-                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                </div>
-                <div className="flex items-center gap-3 pt-2 border-t border-white/10">
-                  <input
-                    type="checkbox"
-                    id="useAI"
-                    checked={useAI}
-                    onChange={(e) => setUseAI(e.target.checked)}
-                    className="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
-                  />
-                  <Label
-                    htmlFor="useAI"
-                    className="text-white text-sm font-medium cursor-pointer"
-                  >
-                    Use AI for side selection
-                  </Label>
-                </div>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-sm text-blue-400">
+                  Auto mode will intelligently select the side based on market
+                  conditions and odds. For contrarian strategies, it will
+                  automatically bet against extreme odds.
+                </p>
               </div>
             )}
           </div>

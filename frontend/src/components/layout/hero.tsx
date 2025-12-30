@@ -73,7 +73,7 @@ export function Hero() {
                   href="/dashboard"
                   className="flex items-center gap-3 text-xs font-black uppercase tracking-widest"
                 >
-                  Enter Dashboard
+                  Get Started
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
                 </Link>
               </Button>
@@ -154,7 +154,7 @@ export function Hero() {
         </div>
       </div>
 
-      {/* Bottom Ticker - The "Social Proof" */}
+    
       <div className="absolute bottom-0 w-full py-6 bg-white/[0.02] border-t border-white/5 backdrop-blur-sm hidden md:block">
         <div className="max-w-[1400px] mx-auto px-12 flex justify-between items-center">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">

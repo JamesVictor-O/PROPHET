@@ -49,11 +49,8 @@ export function WhyProphet() {
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Aggressive Header */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-24">
-          <div className="max-w-2xl space-y-6">
-            <h2 className="text-[10px] uppercase tracking-[0.5em] text-blue-500 font-black">
-              The Prophet Edge
-            </h2>
-            <h3 className="text-5xl md:text-8xl font-black text-white italic tracking-tighter leading-[0.85] uppercase">
+          <div className="max-w-2xl space-y-4">
+            <h3 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter leading-[0.85] uppercase">
               Engineered for <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-500 to-slate-800">
                 The Culture.
@@ -82,14 +79,7 @@ export function WhyProphet() {
               />
 
               <div className="space-y-12">
-                <div
-                  className={cn(
-                    "inline-flex p-4 rounded-2xl bg-white/5 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6",
-                    feature.accent
-                  )}
-                >
-                  {feature.icon}
-                </div>
+               
 
                 <div className="space-y-4">
                   <p
@@ -107,13 +97,6 @@ export function WhyProphet() {
                     {feature.description}
                   </p>
                 </div>
-
-                <div className="pt-4 flex items-center gap-2 text-white/20 group-hover:text-white transition-colors duration-500">
-                  <span className="text-[10px] font-black uppercase tracking-widest">
-                    Learn Protocol
-                  </span>
-                  <ArrowUpRight className="w-4 h-4" />
-                </div>
               </div>
 
               {/* Decorative Number */}
@@ -122,13 +105,6 @@ export function WhyProphet() {
               </span>
             </div>
           ))}
-        </div>
-
-        {/* Bottom Banner - "The flex" */}
-        <div className="mt-24 flex flex-wrap justify-center gap-12 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
-          <TrustBadge icon={<Zap />} text="High Frequency" />
-          <TrustBadge icon={<Globe />} text="Decentralized" />
-          <TrustBadge icon={<Shield />} text="Audit Verified" />
         </div>
       </div>
     </section>

@@ -132,9 +132,15 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
       }
 
       try {
+        // IMPORTANT: We need to check ETH balance for the session key EOA because:
+        // 1. `redeemDelegations()` is a REGULAR transaction (not UserOperation) → needs ETH
+        // 2. `sendUserOperationWithDelegation()` is a UserOperation → uses paymaster (no ETH needed)
+        // 
+        // The session key EOA needs ETH to pay for the redeemDelegations transaction.
+        // The paymaster only covers the UserOperation that comes after.
 
-        const sessionAccountBalance = await publicClient.getBalance({
-          address: sessionKey.address,
+        const sessionKeyBalance = await publicClient.getBalance({
+          address: sessionKey.address, // Session key EOA (not Smart Account)
         });
 
         const estimatedGas = BigInt(200000);
@@ -145,16 +151,16 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         const estimatedGasCost = estimatedGas * maxFeePerGas;
         const requiredBalance = estimatedGasCost + estimatedGasCost / BigInt(5);
 
-        if (sessionAccountBalance < requiredBalance) {
-          const balanceEth = Number(sessionAccountBalance) / 1e18;
+        if (sessionKeyBalance < requiredBalance) {
+          const balanceEth = Number(sessionKeyBalance) / 1e18;
           const requiredEth = Number(requiredBalance) / 1e18;
+          
           if (walletClient && userAddress) {
             try {
               console.log(
-                "💰 Auto-funding session account from user's EOA (one-time setup)..."
+                "💰 Auto-funding session key EOA for redeemDelegations transaction..."
               );
 
-            
               const fundingAmount = parseEther("0.0001"); // 0.0001 ETH
 
               const fundingTxHash = await walletClient.sendTransaction({
@@ -165,34 +171,32 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
               console.log("✅ Funding transaction sent:", fundingTxHash);
               console.log("⏳ Waiting for funding transaction to confirm...");
 
-              // Wait for funding transaction to be confirmed
               await publicClient.waitForTransactionReceipt({
                 hash: fundingTxHash,
               });
 
               console.log(
-                "✅ Session account funded successfully! Continuing with redemption..."
+                "✅ Session key EOA funded successfully! Continuing with redeemDelegations..."
               );
-              // Continue with redemption after funding
             } catch (fundingError) {
               const fundingMessage =
                 fundingError instanceof Error
                   ? fundingError.message
                   : String(fundingError);
               console.error(
-                "❌ Failed to auto-fund session account:",
+                "❌ Failed to auto-fund session key EOA:",
                 fundingMessage
               );
 
               return {
                 success: false,
-                error: `One-time setup: Please approve the ETH transfer to fund the session account for gas fees. This is a one-time setup (like playground).`,
+                error: `Session key EOA needs ETH for gas. Please send ~0.0001 ETH to ${sessionKey.address} to pay for the redeemDelegations transaction. Note: The UserOperation step uses paymaster and doesn't need ETH.`,
               };
             }
           } else {
             return {
               success: false,
-              error: `Session account needs ETH for gas. Current: ${balanceEth.toFixed(
+              error: `Session key EOA needs ETH for gas. Current: ${balanceEth.toFixed(
                 6
               )} ETH. Required: ${requiredEth.toFixed(6)} ETH. Send ETH to: ${
                 sessionKey.address

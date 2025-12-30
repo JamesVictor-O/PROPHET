@@ -124,18 +124,37 @@ export function useStrategyExecutor() {
 
   // Initialize executor - only start if there are active strategies AND user has permissions
   useEffect(() => {
+    console.log("[useStrategyExecutor] useEffect triggered", {
+      address: !!address,
+      canUseRedeem,
+      strategiesCount: strategies.length,
+    });
+
     if (!address || !canUseRedeem) {
+      console.log("[useStrategyExecutor] Cannot start: missing prerequisites", {
+        address: !!address,
+        canUseRedeem,
+      });
       executorRef.current?.stop();
       executorRef.current = null;
       return;
     }
 
-    // Filter out test strategies that should be auto-deleted
-    const activeStrategies = strategies.filter(
-      (s) => s.status === "active" && s.name !== "Test Strategy (Auto-Delete)"
+    // Get all active strategies (test strategies are included if explicitly created)
+    const activeStrategies = strategies.filter((s) => s.status === "active");
+    console.log(
+      `[useStrategyExecutor] Found ${activeStrategies.length} active strategies out of ${strategies.length} total`,
+      activeStrategies.map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+      }))
     );
 
     if (activeStrategies.length === 0) {
+      console.log(
+        "[useStrategyExecutor] No active strategies, stopping executor"
+      );
       executorRef.current?.stop();
       executorRef.current = null;
       return;
@@ -172,6 +191,10 @@ export function useStrategyExecutor() {
 
     executorRef.current = executor;
     // Start with a longer interval to prevent rapid-fire executions
+    console.log(
+      `[useStrategyExecutor] Starting executor with ${activeStrategies.length} active strategies:`,
+      activeStrategies.map((s) => ({ id: s.id, name: s.name }))
+    );
     executor.start(60000); // Check every 60 seconds instead of 30
 
     return () => {
@@ -189,10 +212,19 @@ export function useStrategyExecutor() {
     updateStrategy,
   ]);
 
-  const activeStrategies = strategies.filter(
-    (s) => s.status === "active" && s.name !== "Test Strategy (Auto-Delete)"
-  );
+  // Get all active strategies for display (test strategies included)
+  const activeStrategies = strategies.filter((s) => s.status === "active");
   const isRunning = address && canUseRedeem && activeStrategies.length > 0;
+
+  // Debug: Log whenever isRunning or activeStrategiesCount changes
+  useEffect(() => {
+    console.log("[useStrategyExecutor] Return values updated:", {
+      isRunning,
+      activeStrategiesCount: activeStrategies.length,
+      totalStrategies: strategies.length,
+      activeStrategyIds: activeStrategies.map((s) => s.id),
+    });
+  }, [isRunning, activeStrategies.length, strategies.length, activeStrategies]);
 
   return {
     isRunning,

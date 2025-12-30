@@ -47,7 +47,10 @@ export class StrategyExecutor {
   }
 
   start(intervalMs: number = 30000) {
-    if (this.isRunning) return;
+    if (this.isRunning) {
+      console.log("[StrategyExecutor] Already running, skipping start");
+      return;
+    }
     // Don't start if stopped due to error
     if (this.stoppedDueToError) {
       console.log(
@@ -55,9 +58,13 @@ export class StrategyExecutor {
       );
       return;
     }
+    console.log(
+      `[StrategyExecutor] Starting executor with ${this.strategies.length} strategies, checking every ${intervalMs}ms`
+    );
     this.isRunning = true;
     this.intervalId = setInterval(() => this.executeStrategies(), intervalMs);
     // Execute immediately
+    console.log("[StrategyExecutor] Executing strategies immediately...");
     this.executeStrategies();
   }
 
@@ -92,8 +99,27 @@ export class StrategyExecutor {
       console.log(
         `[StrategyExecutor] Checking ${markets.length} markets against ${activeStrategies.length} active strategies`
       );
+      console.log(
+        `[StrategyExecutor] Active strategies:`,
+        activeStrategies.map((s) => ({
+          id: s.id,
+          name: s.name,
+          categories: s.conditions[0]?.categories,
+        }))
+      );
+      console.log(
+        `[StrategyExecutor] Available markets:`,
+        markets.map((m) => ({
+          id: m.id,
+          category: m.category,
+          question: m.question.substring(0, 50),
+        }))
+      );
 
       for (const strategy of activeStrategies) {
+        console.log(
+          `[StrategyExecutor] Processing strategy: ${strategy.id} (${strategy.name})`
+        );
         // Check limits
         if (this.shouldSkipStrategy(strategy, now)) {
           console.log(
@@ -105,14 +131,19 @@ export class StrategyExecutor {
         // Find matching markets
         const matches = this.findMatchingMarkets(markets, strategy);
         console.log(
-          `[StrategyExecutor] Strategy ${strategy.id} matched ${matches.length} markets`
+          `[StrategyExecutor] Strategy ${strategy.id} matched ${matches.length} markets`,
+          matches.map((m) => ({
+            marketId: m.market.id,
+            category: m.market.category,
+            confidence: m.confidence,
+          }))
         );
 
         for (const match of matches) {
           const marketId = parseInt(match.market.id);
           const executionKey = `${strategy.id}-${marketId}`;
 
-          // Check if we have a pending execution for this market
+          // Check if we have a pending execution for this market (in-memory, immediate)
           if (this.pendingExecutions.has(executionKey)) {
             console.log(
               `[StrategyExecutor] Execution already pending for market ${marketId} and strategy ${strategy.id}`
@@ -120,7 +151,7 @@ export class StrategyExecutor {
             continue;
           }
 
-          // Check if we've already predicted on this market
+          // Check if we've already predicted on this market (from execution history)
           const hasPredicted = await this.hasPredictedOnMarket(
             strategy.id,
             marketId
@@ -129,16 +160,8 @@ export class StrategyExecutor {
             console.log(
               `[StrategyExecutor] Already predicted on market ${marketId} for strategy ${strategy.id}`
             );
-            // Make sure it's not in pending set either
+            // Remove from pendingExecutions if it's there (cleanup from previous cycle)
             this.pendingExecutions.delete(executionKey);
-            continue;
-          }
-
-          // Double-check: if executionKey is in pending, skip
-          if (this.pendingExecutions.has(executionKey)) {
-            console.log(
-              `[StrategyExecutor] Execution already pending for market ${marketId} and strategy ${strategy.id} (double-check)`
-            );
             continue;
           }
 
@@ -173,7 +196,6 @@ export class StrategyExecutor {
             match.confidence
           );
 
-          // If execution failed due to permission limit, stop ALL strategies and executor
           // All strategies share the same permission limit, so if one hits it, all must stop
           if (executionResult === "permission_limit_exceeded") {
             console.log(
@@ -264,12 +286,27 @@ export class StrategyExecutor {
   ): MarketMatch[] {
     const matches: MarketMatch[] = [];
 
-    for (const market of markets) {
+    // Check if any condition requires trending markets
+    const needsTrending = strategy.conditions.some(
+      (c) => c.topTrending !== undefined && c.topTrending > 0
+    );
+
+    // If trending is required, sort markets by pool size (trending = most active)
+    let marketsToCheck = markets;
+    if (needsTrending) {
+      marketsToCheck = [...markets].sort((a, b) => {
+        const poolA = parseFloat(a.poolFormatted.replace(/[^0-9.]/g, "")) || 0;
+        const poolB = parseFloat(b.poolFormatted.replace(/[^0-9.]/g, "")) || 0;
+        return poolB - poolA; // Descending order (largest first)
+      });
+    }
+
+    for (const market of marketsToCheck) {
       // Skip resolved markets
       if (market.resolved || market.status === 1) continue; // MarketStatus.Resolved = 1
 
       for (const condition of strategy.conditions) {
-        if (this.matchesCondition(market, condition)) {
+        if (this.matchesCondition(market, condition, marketsToCheck)) {
           const confidence = this.calculateConfidence(
             market,
             condition,
@@ -297,7 +334,8 @@ export class StrategyExecutor {
 
   private matchesCondition(
     market: MarketInfo,
-    condition: StrategyCondition
+    condition: StrategyCondition,
+    sortedMarkets?: MarketInfo[]
   ): boolean {
     // Category match
     if (condition.categories && condition.categories.length > 0) {
@@ -343,12 +381,20 @@ export class StrategyExecutor {
       if (poolSize < condition.minPoolSize) return false;
     }
 
+    // Trending markets: only match if market is in top N
+    if (condition.topTrending && condition.topTrending > 0 && sortedMarkets) {
+      const marketIndex = sortedMarkets.findIndex((m) => m.id === market.id);
+      if (marketIndex === -1 || marketIndex >= condition.topTrending) {
+        return false;
+      }
+    }
+
     return true;
   }
 
   private calculateConfidence(
     market: MarketInfo,
-    _condition: StrategyCondition,
+    condition: StrategyCondition,
     _strategy: PredictionStrategy
   ): number {
     let confidence = 60; // Base confidence (increased from 50)
@@ -359,29 +405,55 @@ export class StrategyExecutor {
     if (poolSize > 100) confidence += 10;
     if (poolSize > 500) confidence += 10;
 
-    // Higher confidence for markets closer to 50/50 (more uncertainty = more opportunity)
     const yesPercent = market.yesPercent;
-    if (yesPercent >= 45 && yesPercent <= 55) confidence += 15;
 
-    // For new markets with no pool yet, give higher confidence
-    if (poolSize === 0 || poolSize < 0.1) {
-      confidence = 70; // New markets get higher confidence
+    // For contrarian strategies, higher confidence when odds are extreme
+    if (condition.contrarian) {
+      const threshold = condition.contrarianThreshold || 80;
+      if (yesPercent > threshold || yesPercent < 100 - threshold) {
+        confidence += 20; // High confidence for contrarian bets on extreme odds
+      } else {
+        confidence -= 30; // Low confidence if not extreme enough for contrarian
+      }
+    } else {
+      // Higher confidence for markets closer to 50/50 (more uncertainty = more opportunity)
+      if (yesPercent >= 45 && yesPercent <= 55) confidence += 15;
+
+      // For new markets with no pool yet, give higher confidence
+      if (poolSize === 0 || poolSize < 0.1) {
+        confidence = 70; // New markets get higher confidence
+      } else {
+        // Lower confidence for extreme odds (unless contrarian)
+        if (yesPercent < 20 || yesPercent > 80) confidence -= 10;
+      }
     }
-
-    // Lower confidence for extreme odds
-    if (yesPercent < 20 || yesPercent > 80) confidence -= 10;
 
     return Math.min(100, Math.max(0, confidence));
   }
 
   private recommendSide(
     market: MarketInfo,
-    _condition: StrategyCondition,
+    condition: StrategyCondition,
     strategy: PredictionStrategy
   ): "yes" | "no" {
     // If strategy has specific side preference
     if (strategy.action.side !== "auto") {
       return strategy.action.side;
+    }
+
+    // Contrarian strategy: bet against the crowd when odds are extreme
+    if (condition.contrarian) {
+      const threshold = condition.contrarianThreshold || 80;
+      // If YES > threshold (overbought), bet NO
+      if (market.yesPercent > threshold) {
+        return "no";
+      }
+      // If YES < (100 - threshold) (oversold), bet YES
+      if (market.yesPercent < 100 - threshold) {
+        return "yes";
+      }
+      // If not extreme enough, don't bet (will be filtered by confidence)
+      return market.yesPercent < 50 ? "yes" : "no";
     }
 
     // Simple heuristic: bet on the side with better odds (lower percentage = better odds)
@@ -528,15 +600,17 @@ export class StrategyExecutor {
         reason: `Matched condition: ${strategy.conditions[0].type}`,
       };
 
-      // Remove from pending set after execution completes
-      this.pendingExecutions.delete(executionKey);
-
+      // Add execution to state first
       this.onExecution(execution);
+
+      // Keep in pendingExecutions until next cycle to prevent duplicate predictions
+      // The execution will be in getExecutions() by then, and hasPredictedOnMarket will return true
+      // We'll remove it in the next cycle when hasPredictedOnMarket confirms it's there
+      // This prevents the race condition where we remove it before state updates
+
       return result.success ? "success" : "failed";
     } catch (error) {
       const errorMessage = (error as Error).message.toLowerCase();
-
-      // Check if error is permission limit exceeded
       if (
         errorMessage.includes("transfer-amount-exceeded") ||
         errorMessage.includes("erc20periodtransferenforcer") ||
@@ -547,7 +621,6 @@ export class StrategyExecutor {
             (error as Error).message
           }`
         );
-        // Remove from pending
         this.pendingExecutions.delete(executionKey);
 
         const execution: StrategyExecution = {
@@ -579,7 +652,6 @@ export class StrategyExecutor {
         error: (error as Error).message,
       };
 
-      // Remove from pending set after execution fails
       this.pendingExecutions.delete(executionKey);
 
       this.onExecution(execution);
