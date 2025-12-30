@@ -7,6 +7,8 @@ import { useAfricanEvents } from "@/hooks/useAfricanEvents";
 import { Loader2, Calendar, Zap, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreateMarketModal } from "@/components/markets/create-market-modal";
+import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   const [createMarketModalOpen, setCreateMarketModalOpen] = useState(false);
@@ -104,37 +106,111 @@ export default function HomePage() {
                     {events?.trending?.map((event, index) => (
                       <div
                         key={index}
-                        className="group relative border border-white/5 p-4 sm:p-6 hover:bg-white/2 transition-all duration-500 overflow-hidden"
+                        className="group relative border border-white/5 overflow-hidden hover:bg-white/2 transition-all duration-500 rounded-xl"
                       >
                         {/* Side Accent */}
-                        <div className="absolute top-0 left-0 w-[2px] h-0 group-hover:h-full bg-blue-500 transition-all duration-500" />
+                        <div className="absolute top-0 left-0 w-[2px] h-0 group-hover:h-full bg-blue-500 transition-all duration-500 z-10" />
 
-                        <div className="flex justify-between items-start mb-3 sm:mb-4 gap-2">
-                          <span className="text-[8px] sm:text-[9px] font-black text-blue-500 uppercase tracking-wider sm:tracking-widest border border-blue-500/20 px-1.5 sm:px-2 py-0.5 shrink-0">
-                            Hot Topic
-                          </span>
-                          <span className="text-[8px] sm:text-[9px] font-bold text-slate-600 italic shrink-0">
-                            2m ago
-                          </span>
+                        {/* Image */}
+                        {event.imageUrl && (
+                          <div className="relative w-full h-48 sm:h-56 overflow-hidden">
+                            <Image
+                              src={event.imageUrl}
+                              alt={event.title}
+                              fill
+                              className="object-cover transition-transform duration-500 group-hover:scale-110"
+                              unoptimized
+                            />
+                            {/* Gradient overlay */}
+                            <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
+                            {/* Category badge */}
+                            <div className="absolute top-3 left-3 z-20">
+                              <span className="text-[8px] sm:text-[9px] font-black text-blue-400 uppercase tracking-wider sm:tracking-widest border border-blue-500/30 bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
+                                {event.category}
+                              </span>
+                            </div>
+                            {/* Time badge */}
+                            <div className="absolute top-3 right-3 z-20">
+                              <span className="text-[8px] sm:text-[9px] font-bold text-white/90 bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
+                                {(() => {
+                                  const now = new Date();
+                                  const published = new Date(event.publishedAt);
+                                  const diffInSeconds = Math.floor(
+                                    (now.getTime() - published.getTime()) / 1000
+                                  );
+                                  if (diffInSeconds < 60) return "just now";
+                                  if (diffInSeconds < 3600)
+                                    return `${Math.floor(
+                                      diffInSeconds / 60
+                                    )}m ago`;
+                                  if (diffInSeconds < 86400)
+                                    return `${Math.floor(
+                                      diffInSeconds / 3600
+                                    )}h ago`;
+                                  return `${Math.floor(
+                                    diffInSeconds / 86400
+                                  )}d ago`;
+                                })()}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-4 sm:p-6">
+                          {!event.imageUrl && (
+                            <div className="flex justify-between items-start mb-3 sm:mb-4 gap-2">
+                              <span className="text-[8px] sm:text-[9px] font-black text-blue-500 uppercase tracking-wider sm:tracking-widest border border-blue-500/20 px-1.5 sm:px-2 py-0.5 shrink-0">
+                                {event.category}
+                              </span>
+                              <span className="text-[8px] sm:text-[9px] font-bold text-slate-600 italic shrink-0">
+                                {(() => {
+                                  const now = new Date();
+                                  const published = new Date(event.publishedAt);
+                                  const diffInSeconds = Math.floor(
+                                    (now.getTime() - published.getTime()) / 1000
+                                  );
+                                  if (diffInSeconds < 60) return "just now";
+                                  if (diffInSeconds < 3600)
+                                    return `${Math.floor(
+                                      diffInSeconds / 60
+                                    )}m ago`;
+                                  if (diffInSeconds < 86400)
+                                    return `${Math.floor(
+                                      diffInSeconds / 3600
+                                    )}h ago`;
+                                  return `${Math.floor(
+                                    diffInSeconds / 86400
+                                  )}d ago`;
+                                })()}
+                              </span>
+                            </div>
+                          )}
+
+                          <h3
+                            className={cn(
+                              "font-bold text-white mb-3 sm:mb-4 leading-tight group-hover:text-blue-400 transition-colors line-clamp-2",
+                              event.imageUrl
+                                ? "text-base sm:text-lg md:text-xl"
+                                : "text-base sm:text-lg md:text-xl"
+                            )}
+                          >
+                            {event.title}
+                          </h3>
+
+                          <p className="text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 line-clamp-2 sm:line-clamp-3 font-medium leading-relaxed">
+                            {event.description}
+                          </p>
+
+                          <Button
+                            onClick={() => setCreateMarketModalOpen(true)}
+                            className="w-full bg-transparent border border-white/10 hover:bg-white hover:text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest h-9 sm:h-11 transition-all"
+                          >
+                            <span className="flex items-center justify-center gap-1.5 sm:gap-2">
+                              Predict This Event
+                              <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            </span>
+                          </Button>
                         </div>
-
-                        <h3 className="text-base sm:text-lg md:text-xl font-bold text-white mb-3 sm:mb-4 leading-tight group-hover:text-blue-400 transition-colors line-clamp-2">
-                          {event.title}
-                        </h3>
-
-                        <p className="text-[11px] sm:text-xs text-slate-500 mb-4 sm:mb-6 line-clamp-2 sm:line-clamp-3 font-medium leading-relaxed">
-                          {event.description}
-                        </p>
-
-                        <Button
-                          onClick={() => setCreateMarketModalOpen(true)}
-                          className="w-full bg-transparent border border-white/10 hover:bg-white hover:text-black text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest h-9 sm:h-11 transition-all"
-                        >
-                          <span className="flex items-center justify-center gap-1.5 sm:gap-2">
-                            Predict This Event
-                            <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                          </span>
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -156,17 +232,29 @@ export default function HomePage() {
                         className="border-b border-white/5 pb-3 sm:pb-4 group cursor-pointer"
                       >
                         <div className="flex gap-3 sm:gap-4">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 border border-white/10 flex flex-col items-center justify-center bg-white/2">
-                            <span className="text-[9px] sm:text-[10px] font-black text-white leading-none">
-                              {new Date(event.publishedAt).getDate()}
-                            </span>
-                            <span className="text-[7px] sm:text-[8px] font-bold text-slate-500 uppercase">
-                              {new Date(event.publishedAt).toLocaleDateString(
-                                "en-US",
-                                { month: "short" }
-                              )}
-                            </span>
-                          </div>
+                          {event.imageUrl ? (
+                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden border border-white/10">
+                              <Image
+                                src={event.imageUrl}
+                                alt={event.title}
+                                fill
+                                className="object-cover transition-transform duration-300 group-hover:scale-110"
+                                unoptimized
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 border border-white/10 flex flex-col items-center justify-center bg-white/2">
+                              <span className="text-[9px] sm:text-[10px] font-black text-white leading-none">
+                                {new Date(event.publishedAt).getDate()}
+                              </span>
+                              <span className="text-[7px] sm:text-[8px] font-bold text-slate-500 uppercase">
+                                {new Date(event.publishedAt).toLocaleDateString(
+                                  "en-US",
+                                  { month: "short" }
+                                )}
+                              </span>
+                            </div>
+                          )}
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 sm:truncate">
                               {event.title}

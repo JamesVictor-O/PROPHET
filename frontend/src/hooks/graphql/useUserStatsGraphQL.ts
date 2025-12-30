@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { graphqlQuery } from "./useGraphQL";
-import { formatEther } from "viem";
 
 export interface UserStatsGraphQL {
   totalPredictions: bigint;
@@ -39,18 +38,33 @@ export function useUserStatsGraphQL(userAddress?: string) {
         }
       `;
 
-      const data = await graphqlQuery<{ User: any }>(query);
+      interface UserGraphQLResponse {
+        id: string;
+        address: string;
+        username: string | null;
+        totalPredictions: string;
+        correctPredictions: string;
+        totalWinnings: string;
+        currentStreak: string;
+        bestStreak: string;
+        reputationScore: string;
+        totalStaked: string;
+      }
+
+      const data = await graphqlQuery<{ User: UserGraphQLResponse | null }>(
+        query
+      );
 
       if (!data.User) {
         // Return default stats if user not found
         return {
-          totalPredictions: 0n,
-          correctPredictions: 0n,
-          totalWinnings: 0n,
-          currentStreak: 0n,
-          bestStreak: 0n,
-          reputationScore: 0n,
-          totalStaked: 0n,
+          totalPredictions: BigInt(0),
+          correctPredictions: BigInt(0),
+          totalWinnings: BigInt(0),
+          currentStreak: BigInt(0),
+          bestStreak: BigInt(0),
+          reputationScore: BigInt(0),
+          totalStaked: BigInt(0),
         };
       }
 
@@ -66,8 +80,6 @@ export function useUserStatsGraphQL(userAddress?: string) {
     },
     enabled: !!addressToUse,
     staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 60000,
   });
 }
-
-

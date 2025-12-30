@@ -135,7 +135,7 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         // IMPORTANT: We need to check ETH balance for the session key EOA because:
         // 1. `redeemDelegations()` is a REGULAR transaction (not UserOperation) → needs ETH
         // 2. `sendUserOperationWithDelegation()` is a UserOperation → uses paymaster (no ETH needed)
-        // 
+        //
         // The session key EOA needs ETH to pay for the redeemDelegations transaction.
         // The paymaster only covers the UserOperation that comes after.
 
@@ -154,7 +154,7 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         if (sessionKeyBalance < requiredBalance) {
           const balanceEth = Number(sessionKeyBalance) / 1e18;
           const requiredEth = Number(requiredBalance) / 1e18;
-          
+
           if (walletClient && userAddress) {
             try {
               console.log(
@@ -297,11 +297,11 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
           // This ensures the blockchain state is fully updated before the next transaction
           console.log("⏳ Waiting for block confirmation and nonce update...");
           await new Promise((resolve) => setTimeout(resolve, 3000));
-          
+
           // Get fresh block number to ensure state is updated
           const currentBlock = await publicClient.getBlockNumber();
           console.log("✅ Current block:", currentBlock.toString());
-          
+
           // Additional wait to ensure nonce is propagated
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -346,22 +346,26 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
           );
 
           // Execute using sendUserOperationWithDelegation with retry logic for nonce issues
-          let userOpHash: `0x${string}`;
+          let userOpHash: `0x${string}` | undefined;
           let retries = 0;
           const maxRetries = 3;
-          
+
           while (retries < maxRetries) {
             try {
               // Wait a bit longer on retries to ensure nonce is updated
               if (retries > 0) {
-                console.log(`🔄 Retry ${retries}/${maxRetries} - waiting for nonce update...`);
-                await new Promise((resolve) => setTimeout(resolve, 3000 * retries));
-                
-                // Get fresh block to ensure state is updated
+                console.log(
+                  `🔄 Retry ${retries}/${maxRetries} - waiting for nonce update...`
+                );
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 3000 * retries)
+                );
+
+
                 const freshBlock = await publicClient.getBlockNumber();
                 console.log("✅ Fresh block:", freshBlock.toString());
               }
-              
+
               userOpHash = await (
                 client as unknown as {
                   sendUserOperationWithDelegation: (args: {
@@ -384,22 +388,30 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
                 delegationManager: delegationManager as `0x${string}`,
                 ...fee,
               });
-              
+
               // Success - break out of retry loop
               break;
             } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+
               // Check if it's a nonce error
               if (errorMessage.includes("nonce") && retries < maxRetries - 1) {
                 retries++;
-                console.log(`⚠️ Nonce error detected, retrying... (${retries}/${maxRetries})`);
+                console.log(
+                  `⚠️ Nonce error detected, retrying... (${retries}/${maxRetries})`
+                );
                 continue;
               }
-              
+
               // If it's not a nonce error or we've exhausted retries, throw
               throw error;
             }
+          }
+
+          // Ensure userOpHash was assigned
+          if (!userOpHash) {
+            throw new Error("Failed to get user operation hash after retries");
           }
 
           // Wait for receipt

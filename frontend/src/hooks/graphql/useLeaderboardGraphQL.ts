@@ -96,38 +96,39 @@ export function useLeaderboardGraphQL(limit: number = 100) {
       const topUsers = sortedUsers.slice(0, limit);
 
       // Transform to leaderboard format
-      const entries: LeaderboardEntryGraphQL[] = topUsers.map(
-        (user, index) => {
-          const totalPredictions = BigInt(user.totalPredictions || "0");
-          const correctPredictions = BigInt(user.correctPredictions || "0");
-          const wins = Number(correctPredictions);
-          const accuracy =
-            totalPredictions > 0n
-              ? Number((correctPredictions * 100n) / totalPredictions)
-              : 0;
-          const totalEarned = Number(
-            formatTokenAmount(BigInt(user.totalWinnings || "0"), chainId)
-          );
-          const winStreak = Number(user.currentStreak || "0");
+      const entries: LeaderboardEntryGraphQL[] = topUsers.map((user, index) => {
+        const totalPredictions = BigInt(user.totalPredictions || "0");
+        const correctPredictions = BigInt(user.correctPredictions || "0");
+        const wins = Number(correctPredictions);
+        const accuracy =
+          totalPredictions > BigInt(0)
+            ? Number(
+                (BigInt(correctPredictions) * BigInt(100)) /
+                  BigInt(totalPredictions)
+              )
+            : 0;
+        const totalEarned = Number(
+          formatTokenAmount(BigInt(user.totalWinnings || "0"), chainId)
+        );
+        const winStreak = Number(user.currentStreak || "0");
 
-          return {
-            rank: index + 1,
-            address: user.address,
-            username: formatUsername(user.username, user.address),
-            displayName: formatDisplayName(user.username, user.address),
-            initials: generateInitials(user.username, user.address),
-            wins,
-            accuracy,
-            totalEarned,
-            winStreak,
-            reputationScore: BigInt(user.reputationScore || "0"),
-          };
-        }
-      );
+        return {
+          rank: index + 1,
+          address: user.address,
+          username: formatUsername(user.username, user.address),
+          displayName: formatDisplayName(user.username, user.address),
+          initials: generateInitials(user.username, user.address),
+          wins,
+          accuracy,
+          totalEarned,
+          winStreak,
+          reputationScore: BigInt(user.reputationScore || "0"),
+        };
+      });
 
       return entries;
     },
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 30000,
+    refetchInterval: 60000, 
   });
 }

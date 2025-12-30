@@ -1,14 +1,5 @@
 import { NextResponse } from "next/server";
 
-/**
- * API Route for fetching African events from The News API
- *
- * Uses thenewsapi.com to fetch headlines from African countries
- *
- * Environment Variables Required:
- * - NEWS_API_TOKEN: Your API token from thenewsapi.com dashboard
- */
-
 interface NewsAPIArticle {
   uuid: string;
   title: string;
@@ -28,7 +19,6 @@ interface NewsAPIResponse {
   data: NewsAPIArticle[];
 }
 
-// African country codes for The News API
 const AFRICAN_COUNTRIES = [
   "ng", // Nigeria
   "za", // South Africa
@@ -105,7 +95,6 @@ function mapCategory(newsCategories: string[]): string {
   return newsCategories[0] || "General";
 }
 
-// Extract country name from locale (e.g., "ng" -> "Nigeria")
 function getCountryName(locale: string): string {
   const countryMap: Record<string, string> = {
     ng: "Nigeria",
@@ -175,16 +164,18 @@ export async function GET() {
     console.log("🟢 [News API] Fetching headlines from The News API...");
     console.log("🟢 [News API] Token:", apiToken.substring(0, 10) + "...");
 
-    // Fetch headlines from African countries
-    // Note: /headlines endpoint requires Standard plan or above
-    // Using /all endpoint which is available on free plan
-    // Free plan typically allows limit=3, so we'll request 3 and filter
-    const url = new URL("https://api.thenewsapi.com/v1/news/all");
+    // Fetch top stories from African countries
+    // Using /top endpoint which is available on ALL plans (including free)
+    // This is better than /headlines (requires Standard plan) or /all (less filtered)
+    const url = new URL("https://api.thenewsapi.com/v1/news/top");
     url.searchParams.set("api_token", apiToken);
-    // Use only top African countries for free plan (limit might be 3)
-    url.searchParams.set("locale", "ng,za,ke,gh,eg"); // Top 5 African countries
+    // Use top African countries - free plan limit is 3, so we'll get 3 articles
+    url.searchParams.set(
+      "locale",
+      AFRICAN_COUNTRIES.split(",").slice(0, 10).join(",")
+    );
     url.searchParams.set("language", "en");
-    url.searchParams.set("limit", "3"); // Free plan limit is usually 3
+    url.searchParams.set("limit", "50"); // Request up to 50, actual limit depends on plan (free = 3)
 
     console.log(
       "🟢 [News API] Request URL:",
@@ -241,40 +232,23 @@ export async function GET() {
       return NextResponse.json(getMockData());
     }
 
-    // Filter for African countries only (since /all endpoint may return global news)
-    // Be lenient - if locale is not set, include it if it's from an African source
+    // Filter for African countries only
+    // The /top endpoint with locale parameter should already filter, but we'll double-check
     if (apiData.data && apiData.data.length > 0) {
       const africanLocales = AFRICAN_COUNTRIES.split(",").map((l) =>
         l.toLowerCase()
       );
-      const africanSources = [
-        "bbc",
-        "cnn",
-        "reuters",
-        "africa",
-        "nigeria",
-        "kenya",
-        "south africa",
-        "ghana",
-        "egypt",
-      ];
 
       apiData.data = apiData.data.filter((article) => {
         const locale = article.locale?.toLowerCase();
-        const source = article.source?.toLowerCase() || "";
-        if (locale && africanLocales.includes(locale)) {
-          return true;
-        }
-        if (africanSources.some((afSource) => source.includes(afSource))) {
-          return true;
-        }
-
-        return false;
+        // Include if locale matches an African country
+        return locale && africanLocales.includes(locale);
       });
 
       console.log("🟢 [News API] Filtered to African countries:", {
         before: rawData.data?.length || 0,
         after: apiData.data.length,
+        sampleLocales: apiData.data.slice(0, 5).map((a) => a.locale),
       });
     }
 
@@ -286,8 +260,8 @@ export async function GET() {
 
     if (!apiData.data || apiData.data.length === 0) {
       console.warn("⚠️ No African news data from News API after filtering");
-      console.warn("⚠️ Note: /headlines endpoint requires Standard plan");
-      console.warn("⚠️ Using /all endpoint which may have limited filtering");
+      console.warn("⚠️ Using /top endpoint (available on all plans)");
+      console.warn("⚠️ Free plan limit is 3 articles per request");
       return NextResponse.json(getMockData());
     }
 
@@ -305,7 +279,6 @@ export async function GET() {
       tags: article.categories.slice(0, 3), // Use first 3 categories as tags
     }));
 
-    // Sort by published date (newest first)
     articles.sort(
       (a, b) =>
         new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
