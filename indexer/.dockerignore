@@ -1,0 +1,10 @@
+node_modules
+generated/node_modules
+.git
+.env
+.env.local
+*.log
+.DS_Store
+test
+*.md
+
