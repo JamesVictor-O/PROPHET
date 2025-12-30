@@ -28,11 +28,19 @@ COPY package*.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/generated/node_modules ./generated/node_modules
 
-# Ensure envio binary is installed for this platform (linux-x64)
-RUN cd node_modules/envio && npm run postinstall 2>/dev/null || npm install --no-save 2>/dev/null || true
-
 # Copy source files
 COPY . .
+
+# Force install envio binary for linux-x64 platform
+# This ensures the binary is available even if --ignore-scripts was used in deps stage
+RUN cd node_modules/envio && \
+    if [ ! -f "bin/envio-linux-x64" ] && [ ! -f "bin/envio" ]; then \
+      echo "Installing envio binary..." && \
+      npm run postinstall || \
+      (npm install --no-save --ignore-scripts=false 2>&1 | head -20) || \
+      (npm rebuild 2>&1 | head -20) || true; \
+    fi && \
+    ls -la bin/ || true
 
 # Run codegen to generate types
 RUN npm run codegen
