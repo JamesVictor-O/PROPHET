@@ -4,8 +4,8 @@ buildCommand = "npm install && cd generated && npm install --legacy-peer-deps &&
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/healthz"
-healthcheckTimeout = 100
+# No healthcheck - Envio indexer is a background worker without HTTP endpoint
+# Healthcheck is only needed for Hasura GraphQL Engine service
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
