@@ -42,6 +42,9 @@ RUN echo "Installing envio binary..." && \
 # Run codegen to generate types
 RUN npm run codegen
 
+# Fix start script in generated package.json to use node instead of ts-node
+RUN sed -i 's/"start": "ts-node src\/Index.res.js"/"start": "node src\/Index.res.js"/' generated/package.json
+
 # Production stage
 FROM base AS runner
 WORKDIR /app
