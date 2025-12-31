@@ -33,13 +33,11 @@ COPY . .
 
 # Force install envio binary for linux-x64 platform
 # Railway uses --ignore-scripts in deps stage, so we need to reinstall envio with scripts enabled
-RUN echo "Checking for envio binary..." && \
-    (ls -la node_modules/envio/bin/ 2>/dev/null && echo "Binary found!") || \
-    (echo "Binary not found, reinstalling envio with scripts enabled..." && \
-     npm install envio@2.30.1 --no-save --ignore-scripts=false 2>&1 | tail -20 && \
-     echo "Checking after reinstall..." && \
-     ls -la node_modules/envio/bin/ 2>/dev/null || \
-     (echo "ERROR: envio binary still not found after reinstall!" && exit 1))
+# Reinstall envio to ensure optional dependencies (platform binaries) are installed
+RUN echo "Installing envio binary..." && \
+    npm install envio@2.30.1 --no-save --ignore-scripts=false && \
+    echo "Verifying envio installation..." && \
+    ./node_modules/.bin/envio --version
 
 # Run codegen to generate types
 RUN npm run codegen
