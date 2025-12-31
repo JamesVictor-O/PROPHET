@@ -79,7 +79,7 @@ export function useUserStatsGraphQL(userAddress?: string) {
       };
     },
     enabled: !!addressToUse,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000, 
     refetchInterval: 60000,
   });
 }

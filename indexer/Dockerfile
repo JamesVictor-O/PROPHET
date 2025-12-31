@@ -61,6 +61,7 @@ ENV TUI_OFF=true
 
 # Expose port (if needed for health checks)
 EXPOSE 8080
+ENV ENVIO_INDEXER_PORT=8080
 
 # Start the indexer
 CMD ["npm", "start"]
