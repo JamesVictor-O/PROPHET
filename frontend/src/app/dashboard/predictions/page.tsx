@@ -161,7 +161,13 @@ export default function PredictionsPage() {
                       </div>
                     ) : (
                       <EmptyState
-                        message={`No ${activeTab} predictions found`}
+                        message={
+                          activeTab === "all"
+                            ? "No predictions found"
+                            : activeTab === "active"
+                            ? "No active predictions found"
+                            : "No settled predictions found"
+                        }
                       />
                     )}
                   </TabsContent>
