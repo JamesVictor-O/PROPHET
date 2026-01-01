@@ -9,22 +9,35 @@ import { PredictionCard } from "@/components/predictions/prediction-card";
 import { PredictionsStats } from "@/components/predictions/predictions-stats";
 import { useUserPredictionsGraphQL } from "@/hooks/graphql";
 import type { UserPredictionGraphQL } from "@/hooks/graphql";
-import type { UserPrediction } from "@/hooks/contracts";
+import { useUserPredictions, type UserPrediction } from "@/hooks/contracts";
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 
 export default function PredictionsPage() {
   const { isConnected } = useAccount();
-  const { data: userPredictions = [], isLoading } = useUserPredictionsGraphQL();
+  const {
+    data: userPredictionsGraphQL = [],
+    isLoading: isLoadingGraphQL,
+    isError: isGraphQLError,
+    error: graphQLError,
+  } = useUserPredictionsGraphQL();
+  const { data: userPredictionsContract = [], isLoading: isLoadingContract } =
+    useUserPredictions();
   const [activeTab, setActiveTab] = useState("all");
+
+  const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
+    userPredictionsGraphQL.length > 0 ? userPredictionsGraphQL : userPredictionsContract;
+
+  const isLoading =
+    isLoadingGraphQL || (userPredictionsGraphQL.length === 0 && isLoadingContract);
 
   const { createdMarkets, stakedPredictions } = useMemo(() => {
     if (!userPredictions) return { createdMarkets: [], stakedPredictions: [] };
     const created = userPredictions.filter(
-      (p: UserPredictionGraphQL) => p.isCreator && p.stake === 0
+      (p: UserPredictionGraphQL | UserPrediction) => p.isCreator && p.stake === 0
     );
     const staked = userPredictions.filter(
-      (p: UserPredictionGraphQL) => p.stake > 0
+      (p: UserPredictionGraphQL | UserPrediction) => p.stake > 0
     );
     return { createdMarkets: created, stakedPredictions: staked };
   }, [userPredictions]);
@@ -81,6 +94,25 @@ export default function PredictionsPage() {
                 Connect your wallet to access your prediction history.
               </p>
             </div>
+          ) : isGraphQLError && userPredictionsGraphQL.length === 0 ? (
+            <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01] space-y-3">
+              <p className="text-slate-300 font-medium">
+                We couldn't load predictions from Envio right now.
+              </p>
+              <p className="text-slate-500 text-sm max-w-2xl mx-auto">
+                {graphQLError instanceof Error ? graphQLError.message : String(graphQLError)}
+              </p>
+              {userPredictionsContract.length > 0 ? (
+                <p className="text-slate-500 text-sm">
+                  Showing onchain results instead.
+                </p>
+              ) : (
+                <p className="text-slate-500 text-sm">
+                  If this is production, check that <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code>{" "}
+                  is set to your Hasura <code>/v1/graphql</code> endpoint.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="space-y-16">
               {/* 2. Stats Section - Using the Minimalist Style */}
@@ -88,26 +120,30 @@ export default function PredictionsPage() {
                 stats={{
                   total: stakedPredictions.length,
                   active: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL) => p.status === "active"
+                    (p: UserPredictionGraphQL | UserPrediction) =>
+                      p.status === "active"
                   ).length,
                   won: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL) => p.status === "won"
+                    (p: UserPredictionGraphQL | UserPrediction) =>
+                      p.status === "won"
                   ).length,
                   lost: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL) => p.status === "lost"
+                    (p: UserPredictionGraphQL | UserPrediction) =>
+                      p.status === "lost"
                   ).length,
                   totalEarned: stakedPredictions
                     .filter(
-                      (p: UserPredictionGraphQL) =>
+                      (p: UserPredictionGraphQL | UserPrediction) =>
                         p.status === "won" && p.actualWin
                     )
                     .reduce(
-                      (sum: number, p: UserPredictionGraphQL) =>
+                      (sum: number, p: UserPredictionGraphQL | UserPrediction) =>
                         sum + (p.actualWin || 0),
                       0
                     ),
                   totalStaked: stakedPredictions.reduce(
-                    (sum: number, p: UserPredictionGraphQL) => sum + p.stake,
+                    (sum: number, p: UserPredictionGraphQL | UserPrediction) =>
+                      sum + p.stake,
                     0
                   ),
                   winRate: "0", // Handled inside component
@@ -155,7 +191,7 @@ export default function PredictionsPage() {
                         {filteredStaked.map((p: UserPredictionGraphQL) => (
                           <PredictionCard
                             key={p.id}
-                            prediction={p as UserPrediction}
+                            prediction={p as unknown as UserPrediction}
                           />
                         ))}
                       </div>
