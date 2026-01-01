@@ -1,4 +1,8 @@
-import { PredictionMarket, ReputationSystem, MarketFactory } from "generated";
+import {
+  PredictionMarket,
+  ReputationSystem,
+  MarketFactory,
+} from "../generated";
 
 // Helper function to initialize global stats
 async function ensureGlobalStats(context: any) {
