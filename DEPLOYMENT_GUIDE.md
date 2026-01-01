@@ -1,4 +1,4 @@
-# 🚀 PROPHET Deployment Guide for Vercel
+# 🚀 PROPHET Deployment Guide (Vercel Frontend + Railway Indexer/Hasura)
 
 This guide explains how to deploy the Envio indexer and Hasura GraphQL Engine to Railway so your Vercel-deployed frontend can access it.
 
@@ -96,8 +96,7 @@ The PROPHET deployment consists of **three separate services**:
    PORT=8080
    ```
 
-6. **Add Healthcheck** (in `railway.toml` or service settings):
-postgresql://postgres:kzMKCKUgXJJOPDXeuTtQKfZlOJaGHHGo@postgres.railway.internal:5432/railway
+6. **Add Healthcheck** (in `hasura/railway.toml` or service settings):
 
    - Healthcheck Path: `/healthz`
    - Healthcheck Timeout: 100 seconds
@@ -113,7 +112,7 @@ postgresql://postgres:kzMKCKUgXJJOPDXeuTtQKfZlOJaGHHGo@postgres.railway.internal
 3. **Configure the service**:
 
    - **Root Directory**: `indexer`
-   - Railway will automatically detect `railway.toml` and `Dockerfile`
+   - Ensure Railway is using the **Dockerfile build** (not Nixpacks) so the Envio binary is installed correctly.
 
 4. **Configure Environment Variables**:
 
@@ -121,7 +120,10 @@ postgresql://postgres:kzMKCKUgXJJOPDXeuTtQKfZlOJaGHHGo@postgres.railway.internal
    ENVIO_PG_DATABASE_URL=<your-postgres-database-url-from-step-2>
    TUI_OFF=true
    NODE_ENV=production
+   SKIP_CODEGEN=1
    ```
+
+   **Why `SKIP_CODEGEN=1`?** Codegen is done during the Docker image build. Skipping it at runtime prevents Railway restarts/timeouts from repeatedly re-running `envio codegen`.
 
 5. **Important**: The indexer is a **background worker** with no HTTP endpoint
 
@@ -163,11 +165,6 @@ postgresql://postgres:kzMKCKUgXJJOPDXeuTtQKfZlOJaGHHGo@postgres.railway.internal
    - You should see: `Indexing started...` and event processing logs
 
 ---
-
-
-
-
-
 
 ## Option 2: Render 🎨
 
@@ -330,8 +327,7 @@ This file configures the Envio Indexer service:
 
 ```toml
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install && cd generated && npm install --legacy-peer-deps && cd .. && npm run codegen"
+builder = "DOCKERFILE"
 
 [deploy]
 startCommand = "npm start"
@@ -536,3 +532,44 @@ HASURA_GRAPHQL_CORS_DOMAIN=*
 ---
 
 **Need help?** Check the [Railway docs](https://docs.railway.app), [Render docs](https://render.com/docs), or [Fly.io docs](https://fly.io/docs).
+
+---
+
+## Copy/paste env var examples (safe)
+
+### Indexer → Hasura
+
+```env
+# IMPORTANT: include https:// and use /v1/metadata (not /v1/graphql)
+HASURA_GRAPHQL_ENDPOINT=https://<your-hasura-service>.up.railway.app/v1/metadata
+HASURA_GRAPHQL_ADMIN_SECRET=<same secret you set on Hasura>
+HASURA_GRAPHQL_ROLE=admin
+```
+
+### Indexer → Postgres (Option A: internal Railway networking)
+
+Recommended if your Indexer service is connected to the Postgres service via Railway “Variable Reference”.
+
+```env
+ENVIO_PG_HOST=postgres.railway.internal
+ENVIO_PG_PORT=5432
+ENVIO_PG_USER=<PGUSER>
+ENVIO_PG_PASSWORD=<PGPASSWORD>
+ENVIO_PG_DATABASE=<PGDATABASE>
+ENVIO_PG_SSL_MODE=require
+```
+
+### Indexer → Postgres (Option B: public proxy URL)
+
+If you use `DATABASE_PUBLIC_URL`, split it into parts. Example:
+
+`postgresql://USER:PASSWORD@HOST:PORT/DBNAME`
+
+```env
+ENVIO_PG_HOST=<HOST>
+ENVIO_PG_PORT=<PORT>
+ENVIO_PG_USER=<USER>
+ENVIO_PG_PASSWORD=<PASSWORD>
+ENVIO_PG_DATABASE=<DBNAME>
+ENVIO_PG_SSL_MODE=require
+```
