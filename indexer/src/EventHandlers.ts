@@ -2,7 +2,8 @@ import {
   PredictionMarket,
   ReputationSystem,
   MarketFactory,
-} from "../generated";
+  Oracle,
+} from "../generated/src/Handlers.res.js";
 
 // Helper function to initialize global stats
 async function ensureGlobalStats(context: any) {
@@ -301,5 +302,15 @@ MarketFactory.OwnershipTransferred.handler(async ({ event, context }: any) => {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     previousOwner: event.params.previousOwner,
     newOwner: event.params.newOwner,
+  });
+});
+
+// 8. Oracle Market Resolved Handler
+Oracle.MarketResolved.handler(async ({ event, context }: any) => {
+  context.Oracle_MarketResolved.set({
+    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
+    marketId: event.params.marketId,
+    outcome: event.params.outcome,
+    resolver: event.params.resolver,
   });
 });
