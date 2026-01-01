@@ -12,8 +12,17 @@ import { ProfileActivity } from "@/components/profile/profile-activity";
 import { ProfileSettings } from "@/components/profile/profile-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserStats, useUsername, useLeaderboard } from "@/hooks/contracts";
-import { useUserPredictions, useAllMarkets } from "@/hooks/contracts";
-import { useUsernameUpdatesGraphQL } from "@/hooks/graphql";
+import {
+  useUserPredictions,
+  useAllMarkets,
+  type UserPrediction,
+} from "@/hooks/contracts";
+import {
+  useMarketsGraphQL,
+  useUserPredictionsGraphQL,
+  useUsernameUpdatesGraphQL,
+  type UserPredictionGraphQL,
+} from "@/hooks/graphql";
 import { formatAddress } from "@/lib/wallet-config";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,9 +77,29 @@ export default function ProfilePage() {
   const { data: userStats, isLoading: isLoadingStats } = useUserStats(address);
   const { data: username, isLoading: isLoadingUsername } = useUsername(address);
   const { data: leaderboardData } = useLeaderboard(100);
-  const { data: userPredictions, isLoading: isLoadingPredictions } =
+
+  // Prefer Envio GraphQL for predictions/markets, but keep a contract fallback.
+  const {
+    data: userPredictionsGraphQL = [],
+    isLoading: isLoadingPredictionsGraphQL,
+  } = useUserPredictionsGraphQL();
+  const { data: userPredictionsContract = [], isLoading: isLoadingPredictionsContract } =
     useUserPredictions();
-  const { data: allMarkets, isLoading: isLoadingMarkets } = useAllMarkets();
+
+  const {
+    data: marketsFromEnvio = [],
+    isLoading: isLoadingMarketsGraphQL,
+  } = useMarketsGraphQL(200);
+  const { data: marketsFromContract = [], isLoading: isLoadingMarketsContract } =
+    useAllMarkets();
+
+  const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
+    userPredictionsGraphQL.length > 0
+      ? userPredictionsGraphQL
+      : userPredictionsContract;
+  const allMarkets =
+    marketsFromEnvio.length > 0 ? marketsFromEnvio : marketsFromContract;
+
   const { data: usernameUpdates, isLoading: isLoadingUsernameUpdates } =
     useUsernameUpdatesGraphQL(address || undefined);
 
@@ -255,8 +284,10 @@ export default function ProfilePage() {
   const isLoading =
     isLoadingStats ||
     isLoadingUsername ||
-    isLoadingPredictions ||
-    isLoadingMarkets ||
+    isLoadingPredictionsGraphQL ||
+    (userPredictionsGraphQL.length === 0 && isLoadingPredictionsContract) ||
+    isLoadingMarketsGraphQL ||
+    (marketsFromEnvio.length === 0 && isLoadingMarketsContract) ||
     isLoadingUsernameUpdates;
 
   if (!isConnected) {

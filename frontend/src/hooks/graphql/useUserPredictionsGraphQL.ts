@@ -80,35 +80,18 @@ export function useUserPredictionsGraphQL() {
     queryFn: async (): Promise<UserPredictionGraphQL[]> => {
       if (!address) return [];
 
-      // Fetch user's predictions
-      const predictionsQuery = `
-        query {
-          PredictionMarket_PredictionMade(limit: 1000) {
+      // Fetch user's predictions and market details in one go (if possible, but Envio schema might be flat)
+      // For Envio, we usually have separate tables. Let's use a join-like query if Hasura supports it,
+      // or just fetch what we need.
+      const query = `
+        query GetUserPredictions($user: String!) {
+          Prediction(where: {user: {_ilike: $user}}, order_by: {timestamp: desc}) {
             id
             marketId
-            user
             amount
             side
-            outcomeIndex
+            timestamp
           }
-        }
-      `;
-
-      const predictionsData = await graphqlQuery<{
-        PredictionMarket_PredictionMade: PredictionEventGraphQL[];
-      }>(predictionsQuery);
-
-      // Filter to user's predictions
-      const userPredictions =
-        predictionsData.PredictionMarket_PredictionMade.filter(
-          (p) => p.user.toLowerCase() === address.toLowerCase()
-        );
-
-      if (userPredictions.length === 0) return [];
-
-      // Fetch market details for all markets
-      const marketsQuery = `
-        query {
           Market(limit: 1000) {
             id
             marketId
@@ -129,19 +112,22 @@ export function useUserPredictionsGraphQL() {
         }
       `;
 
-      const marketsData = await graphqlQuery<{ Market: MarketGraphQL[] }>(
-        marketsQuery
-      );
+      const data = await graphqlQuery<{
+        Prediction: any[];
+        Market: MarketGraphQL[];
+      }>(query, { user: address.toLowerCase() });
+
+      if (!data.Prediction) return [];
 
       // Create a map of marketId -> market
-      const marketMap = new Map(marketsData.Market.map((m) => [m.marketId, m]));
+      const marketMap = new Map(data.Market.map((m) => [m.marketId, m]));
 
       // Transform predictions
       const currentTimestamp = Math.floor(Date.now() / 1000);
       const results: UserPredictionGraphQL[] = [];
 
-      userPredictions.forEach((prediction) => {
-        const market = marketMap.get(prediction.marketId);
+      data.Prediction.forEach((prediction) => {
+        const market = marketMap.get(prediction.marketId.toString());
         if (!market) return;
 
         const isCreator =
@@ -169,19 +155,20 @@ export function useUserPredictionsGraphQL() {
         if (secondsLeft > 0) {
           const days = Math.floor(secondsLeft / 86400);
           const hours = Math.floor((secondsLeft % 86400) / 3600);
-          if (days > 0) {
-            timeLeft = `${days}d left`;
-          } else if (hours > 0) {
-            timeLeft = `${hours}h left`;
-          } else {
-            timeLeft = `${Math.floor(secondsLeft / 60)}m left`;
-          }
+          timeLeft =
+            days > 0
+              ? `${days}d left`
+              : hours > 0
+              ? `${hours}h left`
+              : `${Math.floor(secondsLeft / 60)}m left`;
         }
 
         // Format pool
         const poolFormatted =
           totalPoolNum > 0
-            ? `$${Number(formatTokenAmount(BigInt(market.totalPool), chainId)).toFixed(2)}`
+            ? `$${Number(
+                formatTokenAmount(BigInt(market.totalPool), chainId)
+              ).toFixed(2)}`
             : "$0.00";
 
         // Calculate potential winnings
@@ -190,7 +177,9 @@ export function useUserPredictionsGraphQL() {
         if (!market.resolved && winningPool > 0 && stakeAmount > BigInt(0)) {
           const poolAfterFees = totalPoolNum * 0.93;
           potentialWin = (Number(stakeAmount) / winningPool) * poolAfterFees;
-          potentialWin = Number(formatTokenAmount(BigInt(Math.floor(potentialWin)), chainId));
+          potentialWin = Number(
+            formatTokenAmount(BigInt(Math.floor(potentialWin)), chainId)
+          );
         }
 
         // Determine status
@@ -210,7 +199,9 @@ export function useUserPredictionsGraphQL() {
                 const poolAfterFees = totalPoolNum * 0.93;
                 actualWin =
                   (Number(stakeAmount) / winningPoolAmount) * poolAfterFees;
-                actualWin = Number(formatTokenAmount(BigInt(Math.floor(actualWin)), chainId));
+                actualWin = Number(
+                  formatTokenAmount(BigInt(Math.floor(actualWin)), chainId)
+                );
               }
               status = "won";
             } else {
@@ -228,16 +219,12 @@ export function useUserPredictionsGraphQL() {
           categoryDisplayNames[categoryKey] || market.category.toUpperCase();
 
         results.push({
-          id: `pred-${prediction.marketId}-${prediction.id}`,
-          marketId: prediction.marketId,
+          id: `pred-${prediction.marketId}-${prediction.timestamp}`,
+          marketId: prediction.marketId.toString(),
           marketQuestion: market.question,
           category: categoryDisplay,
           categoryColor,
           side,
-          outcomeIndex:
-            prediction.outcomeIndex !== undefined
-              ? Number(prediction.outcomeIndex)
-              : undefined,
           stake,
           potentialWin,
           actualWin,
@@ -254,7 +241,7 @@ export function useUserPredictionsGraphQL() {
       return results;
     },
     enabled: !!address,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 2000,
+    refetchInterval: 5000,
   });
 }

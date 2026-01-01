@@ -1,4 +1,5 @@
 export { graphqlQuery, GRAPHQL_ENDPOINT } from "./useGraphQL";
+export { useMarketsGraphQL } from "./useMarketsGraphQL";
 export {
   useLeaderboardGraphQL,
   type LeaderboardUserGraphQL,

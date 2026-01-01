@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
 import { Loader2 } from "lucide-react";
 import { BinaryChart } from "./binary-chart";
 
@@ -28,8 +27,51 @@ const categoryDisplayNames: Record<string, string> = {
   other: "OTHER",
 };
 
+import { useEnvioMarkets } from "@/hooks/useEnvioData";
+import { formatTokenAmount } from "@/lib/utils";
+import { useChainId } from "wagmi";
+
 export function MarketsSection() {
-  const { data: marketsData, isLoading } = useAllMarkets();
+  const chainId = useChainId();
+  const { data: envioData, isLoading } = useEnvioMarkets();
+
+  const marketsData = envioData?.Market?.map((m: any) => {
+    const totalPool = BigInt(m.totalPool || 0);
+    const yesPool = BigInt(m.yesPool || 0);
+    const noPool = BigInt(m.noPool || 0);
+
+    let yesPercent = 50;
+    let noPercent = 50;
+    if (totalPool > BigInt(0)) {
+      yesPercent = Number((yesPool * BigInt(10000)) / totalPool) / 100;
+      noPercent = Number((noPool * BigInt(10000)) / totalPool) / 100;
+    }
+
+    const endTime = Number(m.endTime);
+    const now = Math.floor(Date.now() / 1000);
+    const secondsLeft = endTime - now;
+    let timeLeft = "Ended";
+    if (secondsLeft > 0) {
+      const days = Math.floor(secondsLeft / 86400);
+      const hours = Math.floor((secondsLeft % 86400) / 3600);
+      timeLeft =
+        days > 0
+          ? `${days}d left`
+          : hours > 0
+          ? `${hours}h left`
+          : `${Math.floor(secondsLeft / 60)}m left`;
+    }
+
+    return {
+      ...m,
+      yesPercent,
+      noPercent,
+      timeLeft,
+      poolFormatted: `$${Number(formatTokenAmount(totalPool, chainId)).toFixed(
+        2
+      )}`,
+    };
+  });
 
   // Show up to 3 markets on homepage
   const displayMarkets = marketsData?.slice(0, 3) || [];

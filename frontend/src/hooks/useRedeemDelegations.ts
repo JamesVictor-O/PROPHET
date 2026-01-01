@@ -214,6 +214,14 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         const recipient = params.recipient || sessionSmartAccountAddress;
 
         // Get RPC URL
+        // NOTE: This MUST be a real http(s) URL. If someone accidentally puts a token/string
+        // (e.g. a News API token) into NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL, viem will try to POST
+        // JSON-RPC to that string and you'll see HTTP 405 errors.
+        const isHttpUrl = (value: unknown): value is string => {
+          if (typeof value !== "string") return false;
+          return value.startsWith("http://") || value.startsWith("https://");
+        };
+
         let rpcUrl = publicClient.chain?.rpcUrls.default.http[0];
         if (chainId === 84532 || chainId === 8453) {
           const baseSepoliaRpcUrls = [
@@ -221,7 +229,7 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
             "https://base-sepolia-rpc.publicnode.com",
             "https://base-sepolia.g.alchemy.com/v2/demo",
             rpcUrl,
-          ].filter(Boolean) as string[];
+          ].filter(isHttpUrl);
           rpcUrl = baseSepoliaRpcUrls[0];
         }
 

@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, Info } from "lucide-react";
 import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
+import { useMarketsGraphQL } from "@/hooks/graphql/useMarketsGraphQL";
 import { defaultChain } from "@/lib/wallet-config";
 
 // Category color mapping
@@ -33,12 +34,33 @@ export default function DashboardPage() {
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [selectedSide, setSelectedSide] = useState<"yes" | "no" | undefined>();
 
+  // Prefer Envio (Hasura GraphQL) for fast, aggregated market data.
+  // Fallback to contract polling if GraphQL is unavailable.
   const {
-    data: marketsData,
-    isLoading: isLoadingMarkets,
-    isError,
+    data: marketsFromEnvio = [],
+    isLoading: isLoadingEnvio,
+    isError: isEnvioError,
+  } = useMarketsGraphQL(50);
+  const {
+    data: marketsFromContract = [],
+    isLoading: isLoadingContract,
+    isError: isContractError,
     refetch: refetchMarkets,
   } = useAllMarkets();
+
+  const marketsData =
+    marketsFromEnvio.length > 0 ? marketsFromEnvio : marketsFromContract;
+  const isLoadingMarkets =
+    isLoadingEnvio ||
+    (marketsFromEnvio.length === 0 && isLoadingContract);
+  // Only show a fatal error if BOTH sources fail to provide data.
+  // Envio can be down temporarily; in that case we still want to render using onchain fallback.
+  const hasMarketsData = marketsData.length > 0;
+  const isError =
+    !isLoadingMarkets &&
+    !hasMarketsData &&
+    ((isEnvioError && marketsFromEnvio.length === 0) ||
+      (isContractError && marketsFromContract.length === 0));
 
   // Unified formatting for a professional look
   const markets: Market[] = useMemo(() => {

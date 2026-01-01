@@ -36,7 +36,6 @@ export function Navigation() {
     >
       <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
         <div className="flex justify-between items-center h-10">
-          {/* 1. Refined Logo Area */}
           <Link
             href="/"
             className="group flex items-center transition-transform active:scale-95"
@@ -50,11 +49,11 @@ export function Navigation() {
               priority
             />
             <Image
-              src="/Logo2.png"
+              src="/Logo3.png"
               alt="PROPHET"
-              width={130}
-              height={36}
-              className="h-9 w-auto hidden md:block"
+              width={140}
+              height={40}
+              className="h-8 w-auto sm:h-9 bg-blue-500 object-cover rounded-full"
               priority
             />
           </Link>

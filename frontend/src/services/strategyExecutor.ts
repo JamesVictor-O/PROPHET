@@ -12,6 +12,7 @@ import type {
 } from "@/lib/strategy-types";
 import type { MarketInfo } from "@/hooks/contracts/useAllMarkets";
 import { parseUnits } from "viem";
+import { MarketStatus } from "@/lib/types";
 
 interface MarketMatch {
   market: MarketInfo;
@@ -63,8 +64,6 @@ export class StrategyExecutor {
     );
     this.isRunning = true;
 
-    // Wait 2 seconds before first execution to ensure execution history is loaded from localStorage
-    // This prevents re-executing on markets that were already predicted on when navigating to the page
     setTimeout(() => {
       console.log(
         "[StrategyExecutor] Executing strategies (after initial delay to load execution history)..."
@@ -299,9 +298,17 @@ export class StrategyExecutor {
       });
     }
 
+    const nowSec = BigInt(Math.floor(Date.now() / 1000));
+
     for (const market of marketsToCheck) {
-      // Skip resolved markets
-      if (market.resolved || market.status === 1) continue; // MarketStatus.Resolved = 1
+      // Skip closed markets (resolved/cancelled/expired)
+      // This prevents paymaster simulation failures like: "PredictionMarket: market closed"
+      const isExpired = market.endTime > BigInt(0) && market.endTime <= nowSec;
+      const isNotActive =
+        market.status !== undefined && market.status !== MarketStatus.Active;
+      if (market.resolved || isExpired || isNotActive) {
+        continue;
+      }
 
       for (const condition of strategy.conditions) {
         if (this.matchesCondition(market, condition, marketsToCheck)) {
@@ -393,8 +400,9 @@ export class StrategyExecutor {
   private calculateConfidence(
     market: MarketInfo,
     condition: StrategyCondition,
-    _strategy: PredictionStrategy
+    strategy: PredictionStrategy
   ): number {
+    void strategy; // reserved for future AI / strategy-specific confidence adjustments
     let confidence = 60; // Base confidence (increased from 50)
 
     // Higher confidence for markets with more activity
@@ -403,25 +411,19 @@ export class StrategyExecutor {
     if (poolSize > 100) confidence += 10;
     if (poolSize > 500) confidence += 10;
 
-    const yesPercent = market.yesPercent;
-
-    // For contrarian strategies, higher confidence when odds are extreme
+    const yesPercent = market.yesPercent; // For contrarian strategies, higher confidence when odds are extreme
     if (condition.contrarian) {
       const threshold = condition.contrarianThreshold || 80;
       if (yesPercent > threshold || yesPercent < 100 - threshold) {
-        confidence += 20; // High confidence for contrarian bets on extreme odds
+        confidence += 20; 
       } else {
-        confidence -= 30; // Low confidence if not extreme enough for contrarian
+        confidence -= 30;
       }
     } else {
-      // Higher confidence for markets closer to 50/50 (more uncertainty = more opportunity)
       if (yesPercent >= 45 && yesPercent <= 55) confidence += 15;
-
-      // For new markets with no pool yet, give higher confidence
       if (poolSize === 0 || poolSize < 0.1) {
-        confidence = 70; // New markets get higher confidence
+        confidence = 70; 
       } else {
-        // Lower confidence for extreme odds (unless contrarian)
         if (yesPercent < 20 || yesPercent > 80) confidence -= 10;
       }
     }
@@ -492,6 +494,8 @@ export class StrategyExecutor {
     _market: MarketInfo,
     _strategy: PredictionStrategy
   ): Promise<"yes" | "no" | null> {
+    void _market;
+    void _strategy;
     // TODO: Integrate with AI service (Gemini API)
     // For now, return null to use default heuristic
     return null;
@@ -512,6 +516,24 @@ export class StrategyExecutor {
       console.log(
         `[StrategyExecutor] Already successfully predicted on market ${marketId} for strategy ${strategyId} (found ${executions.length} total executions)`
       );
+      return true;
+    }
+
+    // Also treat certain failures as terminal (non-retryable).
+    // Example: contract revert "PredictionMarket: market closed" should never be retried.
+    const hasTerminalFailure = executions.some((e) => {
+      if (e.marketId !== marketId) return false;
+      if (e.status !== "failed") return false;
+      const msg = (e.error || "").toLowerCase();
+      return (
+        msg.includes("market closed") ||
+        msg.includes("market resolved") ||
+        msg.includes("market cancelled") ||
+        msg.includes("market canceled") ||
+        msg.includes("ended")
+      );
+    });
+    if (hasTerminalFailure) {
       return true;
     }
 
@@ -617,6 +639,12 @@ export class StrategyExecutor {
 
       // Add execution to state first
       this.onExecution(execution);
+
+      // If it failed, clear pending so we can retry on transient failures.
+      // Terminal failures are handled by hasPredictedOnMarket() (we skip those forever).
+      if (execution.status === "failed") {
+        this.pendingExecutions.delete(executionKey);
+      }
 
       // Keep in pendingExecutions until next cycle to prevent duplicate predictions
       // The execution will be in getExecutions() by then, and hasPredictedOnMarket will return true

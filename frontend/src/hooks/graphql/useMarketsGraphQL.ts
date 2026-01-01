@@ -34,7 +34,7 @@ export function useMarketsGraphQL(limit: number = 50) {
     queryFn: async (): Promise<MarketInfo[]> => {
       const query = `
         query {
-          Market(limit: ${limit}, orderBy: createdAt, orderDirection: desc) {
+          Market(limit: ${limit}, order_by: {createdAt: desc}) {
             id
             marketId
             creator
@@ -62,7 +62,6 @@ export function useMarketsGraphQL(limit: number = 50) {
         return [];
       }
 
-      // Transform GraphQL data to MarketInfo format
       return data.Market.map((market): MarketInfo => {
         const endTime = BigInt(market.endTime);
         const yesPool = BigInt(market.yesPool || "0");
@@ -123,7 +122,7 @@ export function useMarketsGraphQL(limit: number = 50) {
       });
     },
     enabled: true,
-    staleTime: 10000,
-    refetchInterval: 40000,
+    staleTime: 2000,
+    refetchInterval: 5000,
   });
 }

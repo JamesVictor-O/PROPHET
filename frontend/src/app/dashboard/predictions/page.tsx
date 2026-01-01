@@ -25,16 +25,21 @@ export default function PredictionsPage() {
     useUserPredictions();
   const [activeTab, setActiveTab] = useState("all");
 
+  // Prefer Envio GraphQL for speed/freshness. Fallback to onchain reads if GraphQL is empty/unavailable.
   const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
-    userPredictionsGraphQL.length > 0 ? userPredictionsGraphQL : userPredictionsContract;
+    userPredictionsGraphQL.length > 0
+      ? userPredictionsGraphQL
+      : userPredictionsContract;
 
   const isLoading =
-    isLoadingGraphQL || (userPredictionsGraphQL.length === 0 && isLoadingContract);
+    isLoadingGraphQL ||
+    (userPredictionsGraphQL.length === 0 && isLoadingContract);
 
   const { createdMarkets, stakedPredictions } = useMemo(() => {
     if (!userPredictions) return { createdMarkets: [], stakedPredictions: [] };
     const created = userPredictions.filter(
-      (p: UserPredictionGraphQL | UserPrediction) => p.isCreator && p.stake === 0
+      (p: UserPredictionGraphQL | UserPrediction) =>
+        p.isCreator && p.stake === 0
     );
     const staked = userPredictions.filter(
       (p: UserPredictionGraphQL | UserPrediction) => p.stake > 0
@@ -46,10 +51,10 @@ export default function PredictionsPage() {
     if (activeTab === "all") return stakedPredictions;
     if (activeTab === "active")
       return stakedPredictions.filter(
-        (p: UserPredictionGraphQL) => p.status === "active"
+        (p: UserPredictionGraphQL | UserPrediction) => p.status === "active"
       );
     return stakedPredictions.filter(
-      (p: UserPredictionGraphQL) => p.status !== "active"
+      (p: UserPredictionGraphQL | UserPrediction) => p.status !== "active"
     );
   }, [stakedPredictions, activeTab]);
 
@@ -95,12 +100,14 @@ export default function PredictionsPage() {
               </p>
             </div>
           ) : isGraphQLError && userPredictionsGraphQL.length === 0 ? (
-            <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/[0.01] space-y-3">
+            <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/1 space-y-3">
               <p className="text-slate-300 font-medium">
-                We couldn't load predictions from Envio right now.
+                We couldn&apos;t load predictions from Envio right now.
               </p>
               <p className="text-slate-500 text-sm max-w-2xl mx-auto">
-                {graphQLError instanceof Error ? graphQLError.message : String(graphQLError)}
+                {graphQLError instanceof Error
+                  ? graphQLError.message
+                  : String(graphQLError)}
               </p>
               {userPredictionsContract.length > 0 ? (
                 <p className="text-slate-500 text-sm">
@@ -108,8 +115,9 @@ export default function PredictionsPage() {
                 </p>
               ) : (
                 <p className="text-slate-500 text-sm">
-                  If this is production, check that <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code>{" "}
-                  is set to your Hasura <code>/v1/graphql</code> endpoint.
+                  If this is production, check that{" "}
+                  <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code> is set to your
+                  Hasura <code>/v1/graphql</code> endpoint.
                 </p>
               )}
             </div>
@@ -137,8 +145,10 @@ export default function PredictionsPage() {
                         p.status === "won" && p.actualWin
                     )
                     .reduce(
-                      (sum: number, p: UserPredictionGraphQL | UserPrediction) =>
-                        sum + (p.actualWin || 0),
+                      (
+                        sum: number,
+                        p: UserPredictionGraphQL | UserPrediction
+                      ) => sum + (p.actualWin || 0),
                       0
                     ),
                   totalStaked: stakedPredictions.reduce(
@@ -188,12 +198,14 @@ export default function PredictionsPage() {
                   <TabsContent value={activeTab} className="mt-0 outline-none">
                     {filteredStaked.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
-                        {filteredStaked.map((p: UserPredictionGraphQL) => (
-                          <PredictionCard
-                            key={p.id}
-                            prediction={p as unknown as UserPrediction}
-                          />
-                        ))}
+                        {filteredStaked.map(
+                          (p: UserPredictionGraphQL | UserPrediction) => (
+                            <PredictionCard
+                              key={p.id}
+                              prediction={p as unknown as UserPrediction}
+                            />
+                          )
+                        )}
                       </div>
                     ) : (
                       <EmptyState
@@ -223,12 +235,14 @@ export default function PredictionsPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
-                    {createdMarkets.map((p: UserPredictionGraphQL) => (
-                      <PredictionCard
-                        key={p.id}
-                        prediction={p as UserPrediction}
-                      />
-                    ))}
+                    {createdMarkets.map(
+                      (p: UserPredictionGraphQL | UserPrediction) => (
+                        <PredictionCard
+                          key={p.id}
+                          prediction={p as unknown as UserPrediction}
+                        />
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -268,7 +282,7 @@ function PredictionTabTrigger({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-center py-20 bg-white/[0.01] border border-white/5 rounded-3xl">
+    <div className="text-center py-20 bg-white/1 border border-white/5 rounded-3xl">
       <p className="text-slate-500 text-sm font-medium uppercase tracking-widest">
         {message}
       </p>

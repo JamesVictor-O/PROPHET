@@ -14,8 +14,8 @@ export function useUsernameUpdatesGraphQL(userAddress: string | undefined) {
       if (!userAddress) return [];
 
       const query = `
-        query {
-          ReputationSystem_UsernameSet(limit: 1000) {
+        query GetUsernameUpdates($user: String!) {
+          ReputationSystem_UsernameSet(where: {user: {_ilike: $user}}, limit: 100, order_by: {id: desc}) {
             id
             user
             username
@@ -25,25 +25,12 @@ export function useUsernameUpdatesGraphQL(userAddress: string | undefined) {
 
       const data = await graphqlQuery<{
         ReputationSystem_UsernameSet: UsernameUpdateGraphQL[];
-      }>(query);
+      }>(query, { user: userAddress.toLowerCase() });
 
-      // Filter by user address (case-insensitive)
-      const userUpdates = data.ReputationSystem_UsernameSet.filter(
-        (update) => update.user.toLowerCase() === userAddress.toLowerCase()
-      );
-
-      // Sort by ID (which includes timestamp) descending to get most recent first
-      return userUpdates.sort((a, b) => {
-        // ID format is typically "blockNumber-transactionIndex-logIndex"
-        // Extract block number for sorting
-        const blockA = parseInt(a.id.split("-")[0] || "0");
-        const blockB = parseInt(b.id.split("-")[0] || "0");
-        return blockB - blockA; // Descending order
-      });
+      return data.ReputationSystem_UsernameSet || [];
     },
     enabled: !!userAddress,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 2000,
+    refetchInterval: 5000,
   });
 }
-

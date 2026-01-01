@@ -65,7 +65,6 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/config.yaml ./
 COPY --from=builder /app/schema.graphql ./
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/build ./build
 COPY --from=builder /app/tsconfig.json ./
 
 # Set environment variables
