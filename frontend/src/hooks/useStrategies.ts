@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount } from "wagmi";
 import type {
   PredictionStrategy,
@@ -20,7 +20,14 @@ export function useStrategies() {
   const { address } = useAccount();
   const [strategies, setStrategies] = useState<PredictionStrategy[]>([]);
   const [executions, setExecutions] = useState<StrategyExecution[]>([]);
+  // Keep a ref in sync so long-lived services (like StrategyExecutor) never see stale executions.
+  // This avoids the "navigate away/back -> executor still thinks executions are empty" bug.
+  const executionsRef = useRef<StrategyExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    executionsRef.current = executions;
+  }, [executions]);
 
   // Load strategies from localStorage
   const loadStrategies = useCallback(() => {
@@ -51,6 +58,7 @@ export function useStrategies() {
       if (storedExecutions) {
         const parsedExecutions = JSON.parse(storedExecutions);
         setExecutions(parsedExecutions);
+        executionsRef.current = parsedExecutions;
         console.log("[useStrategies] Loaded executions from localStorage:", {
           count: parsedExecutions.length,
         });
@@ -134,6 +142,7 @@ export function useStrategies() {
         const key = getExecutionsKey(address);
         localStorage.setItem(key, JSON.stringify(newExecutions));
         setExecutions(newExecutions);
+        executionsRef.current = newExecutions;
         console.log("[useStrategies] Saving executions to state:", {
           count: newExecutions.length,
         });
@@ -234,9 +243,10 @@ export function useStrategies() {
 
   const getStrategyExecutions = useCallback(
     (strategyId: string) => {
-      return executions.filter((e) => e.strategyId === strategyId);
+      // Read from ref to avoid stale closures in long-lived executors.
+      return executionsRef.current.filter((e) => e.strategyId === strategyId);
     },
-    [executions]
+    []
   );
 
   return {
