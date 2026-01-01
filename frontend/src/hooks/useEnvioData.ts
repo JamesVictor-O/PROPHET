@@ -7,10 +7,25 @@ import {
 } from "@/services/envio";
 import { useAccount } from "wagmi";
 
+export interface EnvioMarket {
+  id: string;
+  question: string;
+  category: string;
+  creator: string;
+  totalPool: string;
+  yesPool: string;
+  noPool: string;
+  status: string;
+  resolved: boolean;
+  endTime: string;
+  createdAt: string;
+}
+
 export function useEnvioMarkets() {
   return useQuery({
     queryKey: ["envio-markets"],
-    queryFn: () => fetchGraphQL(GET_MARKETS),
+    queryFn: () =>
+      fetchGraphQL(GET_MARKETS) as Promise<{ Market: EnvioMarket[] }>,
     refetchInterval: 5000, // Poll every 5 seconds for "real-time" feel without WebSockets
   });
 }

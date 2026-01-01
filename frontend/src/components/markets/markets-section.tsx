@@ -27,7 +27,7 @@ const categoryDisplayNames: Record<string, string> = {
   other: "OTHER",
 };
 
-import { useEnvioMarkets } from "@/hooks/useEnvioData";
+import { useEnvioMarkets, EnvioMarket } from "@/hooks/useEnvioData";
 import { formatTokenAmount } from "@/lib/utils";
 import { useChainId } from "wagmi";
 
@@ -35,7 +35,7 @@ export function MarketsSection() {
   const chainId = useChainId();
   const { data: envioData, isLoading } = useEnvioMarkets();
 
-  const marketsData = envioData?.Market?.map((m: any) => {
+  const marketsData = envioData?.Market?.map((m: EnvioMarket) => {
     const totalPool = BigInt(m.totalPool || 0);
     const yesPool = BigInt(m.yesPool || 0);
     const noPool = BigInt(m.noPool || 0);
