@@ -8,7 +8,7 @@
     "mocha": "ts-mocha test/**/*.ts",
     "codegen": "CI=true envio codegen",
     "dev": "envio dev",
-    "prestart": "npm run codegen",
+    "prestart": "if [ -n \"$SKIP_CODEGEN\" ]; then echo \"Skipping codegen (SKIP_CODEGEN is set)\"; else npm run codegen; fi",
     "start": "envio start",
     "test": "npm run mocha"
   },
