@@ -45,10 +45,10 @@ RUN echo "Installing envio binary..." && \
 RUN pnpm run codegen
 
 # Compile TypeScript handlers
-RUN pnpm run build && ls -la build/
+RUN pnpm run build
 
-# Copy generated files into build directory so relative imports work
-RUN cp -r generated build/
+# Copy compiled JS files back to src so relative imports to ../generated work
+RUN cp build/src/*.js src/
 
 # Fix start script in generated package.json to use node instead of ts-node
 # This is a safety measure in case codegen reverts it
