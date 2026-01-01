@@ -45,7 +45,7 @@ RUN echo "Installing envio binary..." && \
 RUN pnpm run codegen
 
 # Compile TypeScript handlers
-RUN pnpm run build
+RUN pnpm run build && ls -la build/
 
 # Fix start script in generated package.json to use node instead of ts-node
 # This is a safety measure in case codegen reverts it

@@ -7,13 +7,13 @@ networks:
       - name: MarketFactory
         address:
           - 0x1cF71f7e4a5e79B2bEd17655eb22E31422d9A3f1
-        handler: build/EventHandlers.js
+        handler: build/src/EventHandlers.js
         events:
           - event: OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
       - name: PredictionMarket
         address:
           - 0x1d06d3fDb2e9DC1bD870A26198559237640Ce310
-        handler: build/EventHandlers.js
+        handler: build/src/EventHandlers.js
         events:
           - event: MarketCreated(uint256 indexed marketId, address indexed creator, string question, string category, uint256 endTime)
           - event: PredictionMade(uint256 indexed marketId, address indexed user, uint8 side, uint256 outcomeIndex, uint256 amount)
@@ -22,13 +22,13 @@ networks:
       - name: Oracle
         address:
           - 0x7b99147Fbcc797713357D29EAeF5e7bB5d8BA018
-        handler: build/EventHandlers.js
+        handler: build/src/EventHandlers.js
         events:
           - event: MarketResolved(uint256 indexed marketId, uint8 outcome, address indexed resolver)
       - name: ReputationSystem
         address:
           - 0xD763b4dC216B84C378aeAFD007166609F6F1f62C
-        handler: build/EventHandlers.js
+        handler: build/src/EventHandlers.js
         events:
           - event: ReputationUpdated(address indexed user, uint256 newScore, uint256 streak)
           - event: UsernameSet(address indexed user, string username)
