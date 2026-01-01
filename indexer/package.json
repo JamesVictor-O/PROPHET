@@ -6,11 +6,10 @@
     "build": "tsc --build",
     "watch": "tsc --watch",
     "mocha": "ts-mocha test/**/*.ts",
-    "codegen": "envio codegen",
+    "codegen": "CI=true envio codegen",
     "dev": "envio dev",
     "prestart": "npm run codegen",
     "start": "envio start",
-    "postinstall": "if [ -d generated ]; then cd generated && npm install --legacy-peer-deps; fi",
     "test": "npm run mocha"
   },
   "devDependencies": {

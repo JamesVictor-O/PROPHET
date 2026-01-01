@@ -1,0 +1,10 @@
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+
+[env]
+HASURA_GRAPHQL_ENABLE_CONSOLE = "false"
+HASURA_GRAPHQL_UNAUTHORIZED_ROLE = "public"
+HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES = "true"
+PORT = "8080"

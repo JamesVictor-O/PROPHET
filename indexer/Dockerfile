@@ -1,28 +1,31 @@
 # Multi-stage build for Envio Indexer
 FROM node:18-alpine AS base
 
+# Install pnpm
+RUN npm install -g pnpm
+
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
 
 # Copy package files (exclude generated to avoid optional dependency issues)
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
-# Install root dependencies (omit optional to skip generated dependency)
-# postinstall script is conditional and won't fail if generated doesn't exist
-RUN npm ci --omit=optional
+# Install root dependencies
+RUN pnpm install --frozen-lockfile
 
 # Now copy and install generated dependencies
-COPY generated/package*.json ./generated/
+COPY generated/package.json generated/
+# We don't have pnpm-lock.yaml in generated yet, so just install
 WORKDIR /app/generated
-RUN npm install --production=false --legacy-peer-deps
+RUN pnpm install
 
 # Build stage
 FROM base AS builder
 WORKDIR /app
 
 # Copy package files first
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -31,18 +34,18 @@ COPY --from=deps /app/generated/node_modules ./generated/node_modules
 # Copy source files
 COPY . .
 
-# Force install envio binary for linux-x64 platform
-# Railway uses --ignore-scripts in deps stage, so we need to reinstall envio with scripts enabled
-# Reinstall envio to ensure optional dependencies (platform binaries) are installed
+# Force install envio binary for linux-x64 platform if needed
+# With pnpm, this might be handled better, but let's ensure it
 RUN echo "Installing envio binary..." && \
-    npm install envio@2.30.1 --no-save --ignore-scripts=false && \
+    pnpm add envio@2.30.1 --save-exact && \
     echo "Verifying envio installation..." && \
     ./node_modules/.bin/envio --version
 
 # Run codegen to generate types
-RUN npm run codegen
+RUN pnpm run codegen
 
 # Fix start script in generated package.json to use node instead of ts-node
+# This is a safety measure in case codegen reverts it
 RUN sed -i 's/"start": "ts-node src\/Index.res.js"/"start": "node src\/Index.res.js"/' generated/package.json
 
 # Production stage
@@ -52,7 +55,7 @@ WORKDIR /app
 # Copy built files
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/generated ./generated
-COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/package.json ./
 COPY --from=builder /app/config.yaml ./
 COPY --from=builder /app/schema.graphql ./
 COPY --from=builder /app/src ./src
@@ -67,5 +70,4 @@ EXPOSE 8080
 ENV ENVIO_INDEXER_PORT=8080
 
 # Start the indexer
-CMD ["npm", "start"]
-
+CMD ["pnpm", "start"]
