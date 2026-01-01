@@ -44,6 +44,9 @@ RUN echo "Installing envio binary..." && \
 # Run codegen to generate types
 RUN pnpm run codegen
 
+# Compile TypeScript handlers
+RUN pnpm run build
+
 # Fix start script in generated package.json to use node instead of ts-node
 # This is a safety measure in case codegen reverts it
 RUN sed -i 's/"start": "ts-node src\/Index.res.js"/"start": "node src\/Index.res.js"/' generated/package.json
@@ -59,6 +62,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/config.yaml ./
 COPY --from=builder /app/schema.graphql ./
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/build ./build
 COPY --from=builder /app/tsconfig.json ./
 
 # Set environment variables
