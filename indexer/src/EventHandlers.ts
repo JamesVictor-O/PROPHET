@@ -30,9 +30,6 @@ PredictionMarket.MarketCreated.handler(async ({ event, context }: any) => {
     endTime: event.params.endTime,
   });
 
-  // Create Market aggregated entity
-  // Note: marketType is not in the event, we'll need to fetch it from contract state if needed
-  // For now, default to Binary (0) - can be updated later via contract read
   context.Market.set({
     id: event.params.marketId.toString(),
     marketId: event.params.marketId,

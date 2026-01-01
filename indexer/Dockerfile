@@ -47,6 +47,9 @@ RUN pnpm run codegen
 # Compile TypeScript handlers
 RUN pnpm run build && ls -la build/
 
+# Copy generated files into build directory so relative imports work
+RUN cp -r generated build/
+
 # Fix start script in generated package.json to use node instead of ts-node
 # This is a safety measure in case codegen reverts it
 RUN sed -i 's/"start": "ts-node src\/Index.res.js"/"start": "node src\/Index.res.js"/' generated/package.json
