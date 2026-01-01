@@ -70,7 +70,7 @@ export function Hero() {
                 className="h-16 px-10 bg-white text-black hover:bg-emerald-400 rounded-2xl transition-all duration-300 group shadow-2xl shadow-white/5"
               >
                 <Link
-                  href="/dashboard"
+                  href="/dashboard/home"
                   className="flex items-center gap-3 text-xs font-black uppercase tracking-widest"
                 >
                   Get Started

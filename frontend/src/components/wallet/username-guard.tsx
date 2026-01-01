@@ -59,7 +59,7 @@ export function UsernameGuard({ children }: UsernameGuardProps) {
         setIsSettingUsername(false);
         // Allow navigation to dashboard after username is set
         if (pathname === "/") {
-          router.push("/dashboard");
+          router.push("/dashboard/home");
         }
       });
     }, 1000);

@@ -13,7 +13,7 @@ import { Menu } from "lucide-react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, BarChart3, Trophy, User, Plus } from "lucide-react";
+import { Home, BarChart3, Trophy, User, Plus, Globe, Bot } from "lucide-react";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 import { PermissionButton } from "@/components/wallet/permission-button";
 
@@ -26,12 +26,19 @@ export function MobileMenu({ onCreateMarket }: MobileMenuProps) {
   const pathname = usePathname();
 
   const navItems = [
+    { id: "home", label: "Home", icon: Globe, href: "/dashboard/home" },
     { id: "markets", label: "Markets", icon: Home, href: "/dashboard" },
     {
       id: "predictions",
-      label: "My Predictions",
+      label: "Predictions",
       icon: BarChart3,
       href: "/dashboard/predictions",
+    },
+    {
+      id: "strategies",
+      label: "Strategies",
+      icon: Bot,
+      href: "/dashboard/strategies",
     },
     {
       id: "leaderboard",
@@ -99,7 +106,11 @@ export function MobileMenu({ onCreateMarket }: MobileMenuProps) {
                 <Plus className="w-5 h-5 mr-2" />
                 Create Market
               </Button>
-              <PermissionButton variant="outline" size="default" className="w-full" />
+              <PermissionButton
+                variant="outline"
+                size="default"
+                className="w-full"
+              />
             </div>
           </nav>
 
