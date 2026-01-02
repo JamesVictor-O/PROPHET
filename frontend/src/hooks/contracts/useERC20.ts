@@ -1,14 +1,8 @@
-/**
- * Hook for ERC20 token interactions
- * Handles approvals and allowance checks
- */
-
 import { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useContractRead, useContractWrite } from "./useContract";
 import { getContractAddress } from "@/lib/contracts";
 
-// Standard ERC20 ABI (minimal - just what we need)
 const ERC20_ABI = [
   {
     inputs: [
@@ -32,16 +26,18 @@ const ERC20_ABI = [
   },
 ] as const;
 
-/**
- * Check the current allowance for cUSD
- * @param spender The address that will be spending tokens (MarketFactory)
- * @param amount The amount to check allowance for
- */
-export function useCUSDAllowance(spender: Address | undefined, amount: bigint | undefined) {
+export function useCUSDAllowance(
+  spender: Address | undefined,
+  amount: bigint | undefined
+) {
   const { address: owner } = useAccount();
   const cusdAddress = getContractAddress("cUSD") as Address;
 
-  const { data: allowance, isLoading, refetch } = useContractRead<bigint>({
+  const {
+    data: allowance,
+    isLoading,
+    refetch,
+  } = useContractRead<bigint>({
     address: cusdAddress,
     abi: ERC20_ABI,
     functionName: "allowance",
@@ -49,13 +45,9 @@ export function useCUSDAllowance(spender: Address | undefined, amount: bigint | 
     enabled: !!owner && !!spender && !!cusdAddress,
   });
 
-  // Determine if approval is needed
-  // If allowance or amount is undefined, return undefined (unknown)
-  // If allowance is less than amount, approval is needed (true)
-  // If allowance is >= amount, approval is not needed (false)
-  const needsApproval = 
-    allowance !== undefined && amount !== undefined 
-      ? allowance < amount 
+  const needsApproval =
+    allowance !== undefined && amount !== undefined
+      ? allowance < amount
       : undefined;
 
   return {
@@ -66,9 +58,6 @@ export function useCUSDAllowance(spender: Address | undefined, amount: bigint | 
   };
 }
 
-/**
- * Hook to approve cUSD spending
- */
 export function useApproveCUSD() {
   const cusdAddress = getContractAddress("cUSD") as Address;
 
@@ -78,4 +67,3 @@ export function useApproveCUSD() {
     functionName: "approve",
   });
 }
-

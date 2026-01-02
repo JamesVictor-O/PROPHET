@@ -1,5 +1,3 @@
-
-
 import { Address } from "viem";
 import { useContractRead, useContractWrite } from "./useContract";
 import { ReputationSystemABI } from "@/lib/abis";
@@ -14,7 +12,6 @@ export function useReputationSystem() {
   };
 }
 
-
 export function useUsername(address: Address | undefined) {
   const { address: contractAddress, abi } = useReputationSystem();
   return useContractRead<string>({
@@ -25,7 +22,6 @@ export function useUsername(address: Address | undefined) {
     enabled: !!address,
   });
 }
-
 
 export function useIsUsernameAvailable(username: string | undefined) {
   const { address, abi } = useReputationSystem();
@@ -38,7 +34,6 @@ export function useIsUsernameAvailable(username: string | undefined) {
   });
 }
 
-
 export function useSetUsername() {
   const { address, abi } = useReputationSystem();
   return useContractWrite({
@@ -48,9 +43,6 @@ export function useSetUsername() {
   });
 }
 
-/**
- * Get user stats
- */
 export function useUserStats(address: Address | undefined) {
   const { address: contractAddress, abi } = useReputationSystem();
   return useContractRead<{
@@ -69,10 +61,6 @@ export function useUserStats(address: Address | undefined) {
   });
 }
 
-/**
- * Get top users by reputation score
- * @param limit Number of top users to fetch (default: 10)
- */
 export function useTopUsers(limit: number = 10) {
   const { address, abi } = useReputationSystem();
   return useContractRead<Address[]>({

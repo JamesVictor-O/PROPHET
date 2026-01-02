@@ -122,7 +122,7 @@ export function useMarketsGraphQL(limit: number = 50) {
       });
     },
     enabled: true,
-    staleTime: 2000,
-    refetchInterval: 5000,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 }

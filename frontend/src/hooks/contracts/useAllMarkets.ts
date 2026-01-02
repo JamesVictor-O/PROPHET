@@ -1,8 +1,3 @@
-/**
- * Hook to fetch all markets with their details
- * Simplified version that works with React hooks rules
- */
-
 import { useMemo } from "react";
 import { Address } from "viem";
 import { useChainId } from "wagmi";
@@ -18,30 +13,27 @@ import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
 export interface MarketInfo {
   id: string;
   address: Address | undefined;
-  marketType: MarketType; // Binary (0) or CrowdWisdom (1)
+  marketType: MarketType;
   question: string;
   category: string;
   creator: Address;
-  yesPool: bigint; // For Binary markets
-  noPool: bigint; // For Binary markets
+  yesPool: bigint;
+  noPool: bigint;
   totalPool: bigint;
   endTime: bigint;
   status: MarketStatus;
   resolved: boolean;
-  winningOutcome?: Outcome; // For Binary markets: 0 = Yes, 1 = No (only present if resolved)
-  winningOutcomeIndex?: bigint; // For CrowdWisdom markets: outcome index (only present if resolved)
-  outcomeCount?: bigint; // For CrowdWisdom markets: number of outcomes
-  yesPercent: number; // For Binary markets
-  noPercent: number; // For Binary markets
+  winningOutcome?: Outcome;
+  winningOutcomeIndex?: bigint;
+  outcomeCount?: bigint;
+  yesPercent: number;
+  noPercent: number;
   timeLeft: string;
   poolFormatted: string;
-  predictionCount: number; // Number of unique participants
+  predictionCount: number;
   isLoading: boolean;
 }
 
-/**
- * Helper function to format market data
- */
 function formatMarketData(
   marketId: bigint,
   address: Address | undefined,
@@ -77,7 +69,6 @@ function formatMarketData(
   const noPool = marketDetails.noPool || BigInt(0);
   const marketType = marketDetails.marketType ?? MarketType.Binary;
 
-  // Calculate percentages (only for Binary markets)
   let yesPercent = 50;
   let noPercent = 50;
   if (marketType === MarketType.Binary && totalPool > BigInt(0)) {
@@ -85,7 +76,6 @@ function formatMarketData(
     noPercent = Number((noPool * BigInt(10000)) / totalPool) / 100;
   }
 
-  // Calculate time left
   const endTime = Number(marketDetails.endTime);
   const now = Math.floor(Date.now() / 1000);
   const secondsLeft = endTime - now;
@@ -103,7 +93,6 @@ function formatMarketData(
     }
   }
 
-  // Format pool amount
   const poolFormatted =
     totalPool > BigInt(0)
       ? `$${Number(formatTokenAmount(totalPool, chainId)).toFixed(2)}`
@@ -129,15 +118,11 @@ function formatMarketData(
     noPercent,
     timeLeft,
     poolFormatted,
-    predictionCount: 0, // Will be set in useAllMarkets hook
+    predictionCount: 0,
     isLoading: false,
   };
 }
 
-/**
- * Hook to fetch all markets with their details
- * Fetches up to 10 markets for now (can be extended)
- */
 export function useAllMarkets() {
   const chainId = useChainId();
   const {
@@ -148,26 +133,18 @@ export function useAllMarkets() {
     refetch: refetchMarketIds,
   } = useAllMarketIds();
 
-  // Log error details for debugging
   if (isErrorIds && marketIdsError) {
     console.error("Error in useAllMarketIds:", marketIdsError);
   }
 
-  // Limit to first 50 markets (newest first) - increased to show more markets
-  // Note: marketIds might be generated from count, so they're sequential (1, 2, 3...)
   const limitedIds = useMemo(() => {
     if (!marketIds || marketIds.length === 0) return [];
-    // Convert to array and reverse to show newest first, then limit to 50
     const idsArray = Array.from(marketIds);
-    // Reverse to show newest first (highest ID = newest)
     return idsArray.reverse().slice(0, 50);
   }, [marketIds]);
 
-  // In refactored architecture, all markets are in one contract
-  // We get the contract address once and use marketIds directly
   const { address: predictionMarketAddress } = usePredictionMarket();
 
-  // Fetch details for each market using marketId directly
   const details1 = useMarketDetails(
     limitedIds[0] ? Number(limitedIds[0]) : undefined
   );
@@ -199,7 +176,6 @@ export function useAllMarkets() {
     limitedIds[9] ? Number(limitedIds[9]) : undefined
   );
 
-  // Fetch prediction counts for each market
   const predictionCount1 = usePredictionCount(
     limitedIds[0] ? Number(limitedIds[0]) : undefined
   );
@@ -232,7 +208,6 @@ export function useAllMarkets() {
   );
 
   const markets = useMemo(() => {
-    // All markets use the same contract address in refactored architecture
     const marketAddress = predictionMarketAddress as Address | undefined;
 
     const results = [
@@ -368,20 +343,16 @@ export function useAllMarkets() {
   ]);
 
   const isLoading = isLoadingIds || markets.some((m) => m.isLoading);
-
-  // If no markets exist yet (empty array), don't treat it as an error
-  // Only treat as error if there's an actual error AND we have data (meaning it failed after loading)
   const hasError = isErrorIds && marketIdsError !== null;
 
-  // Refetch function that refetches market IDs (which will trigger refetch of all market details)
   const refetch = async () => {
     await refetchMarketIds();
-    // Note: Individual market details will refetch automatically when marketIds change
   };
 
   return {
     data: markets,
     isLoading,
+    isInitialLoading: isLoadingIds || markets.some((m) => m.isLoading),
     isError: hasError,
     refetch,
   };

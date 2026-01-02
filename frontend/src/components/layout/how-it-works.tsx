@@ -56,8 +56,6 @@ export function HowItWorks() {
             assets in three moves.
           </p>
         </div>
-
-        {/* Action Steps with Visual Connector */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-32 relative">
           {steps.map((step, i) => (
             <div key={i} className="relative group">
@@ -134,8 +132,6 @@ export function HowItWorks() {
                     Enter the Arena <Zap className="w-4 h-4 fill-black" />
                   </button>
                 </div>
-
-                {/* The "Dynamic Receipt" - The Lively Part */}
                 <div className="lg:col-span-2 bg-gradient-to-b from-slate-900 to-black p-8 md:p-12 border-l border-white/5 flex flex-col justify-center relative">
                   <div className="space-y-8 relative z-10">
                     <div className="space-y-1">
@@ -177,8 +173,6 @@ export function HowItWorks() {
                       </p>
                     </div>
                   </div>
-
-                  {/* Aesthetic grid pattern for the receipt */}
                   <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
                 </div>
               </div>

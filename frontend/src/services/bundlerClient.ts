@@ -18,7 +18,7 @@ if (!sponsorshipPolicyId) {
 const pimlicoUrl = `https://api.pimlico.io/v2/84532/rpc?apikey=${pimlicoKey}`;
 const ENTRYPOINT_V07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
-// Helper to format UserOperation for Pimlico API
+
 const formatUserOperationForPaymaster = (
   userOp: Record<string, unknown>
 ): Record<string, string | undefined> => {
@@ -93,10 +93,7 @@ export const bundlerClient = () =>
     },
     paymaster: {
       getPaymasterData: async (userOperation) => {
-        console.log("🔍 getPaymasterData - Raw userOperation:", userOperation);
-
         const formattedUserOp = formatUserOperationForPaymaster(userOperation);
-        console.log("📦 getPaymasterData - Formatted userOp:", formattedUserOp);
 
         const response = await fetch(pimlicoUrl, {
           method: "POST",
@@ -122,7 +119,6 @@ export const bundlerClient = () =>
           throw new Error(`Paymaster error: ${res.error.message}`);
         }
 
-        console.log("✅ Paymaster data received:", res.result);
         return { ...res.result, isFinal: true };
       },
     },

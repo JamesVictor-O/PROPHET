@@ -30,7 +30,7 @@ export function useUsernameUpdatesGraphQL(userAddress: string | undefined) {
       return data.ReputationSystem_UsernameSet || [];
     },
     enabled: !!userAddress,
-    staleTime: 2000,
-    refetchInterval: 5000,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 }

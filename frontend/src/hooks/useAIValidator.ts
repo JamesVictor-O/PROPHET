@@ -23,21 +23,17 @@ export function useAIValidator(
 
   useEffect(() => {
     if (!enabled || !question || question.trim().length < 5) {
-      console.log("🔵 [useAIValidator] Skipping validation - question too short or disabled");
       setValidation(null);
       setIsValidating(false);
       return;
     }
 
-    console.log(`🔵 [useAIValidator] Starting validation (debounce: ${debounceMs}ms) for:`, question);
     setIsValidating(true);
     setError(null);
 
     const timer = setTimeout(async () => {
       try {
-        console.log("🔵 [useAIValidator] Debounce complete, calling validateMarketQuestion...");
         const result = await validateMarketQuestion(question);
-        console.log("✅ [useAIValidator] Validation complete:", result);
         setValidation(result);
         setIsValidating(false);
       } catch (err) {
@@ -48,27 +44,23 @@ export function useAIValidator(
     }, debounceMs);
 
     return () => {
-      console.log("🔵 [useAIValidator] Cleaning up timer");
       clearTimeout(timer);
       setIsValidating(false);
     };
   }, [question, enabled, debounceMs]);
 
-  const categorize = useCallback(
-    async (questionText: string) => {
-      if (!questionText || questionText.trim().length < 5) {
-        return "other";
-      }
+  const categorize = useCallback(async (questionText: string) => {
+    if (!questionText || questionText.trim().length < 5) {
+      return "other";
+    }
 
-      try {
-        return await quickCategorize(questionText);
-      } catch (err) {
-        console.error("AI categorization error:", err);
-        return "other";
-      }
-    },
-    []
-  );
+    try {
+      return await quickCategorize(questionText);
+    } catch (err) {
+      console.error("AI categorization error:", err);
+      return "other";
+    }
+  }, []);
 
   const getSuggestions = useCallback(async (questionText: string) => {
     if (!questionText || questionText.trim().length < 5) {
@@ -91,4 +83,3 @@ export function useAIValidator(
     getSuggestions,
   };
 }
-

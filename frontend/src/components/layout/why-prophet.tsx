@@ -43,11 +43,11 @@ export function WhyProphet() {
 
   return (
     <section className="py-32 px-6 bg-[#020617] relative overflow-hidden">
-      {/* Background "Noise" Texture */}
+  
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
 
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Aggressive Header */}
+
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-24">
           <div className="max-w-2xl space-y-4">
             <h3 className="text-5xl md:text-7xl font-black text-white italic tracking-tighter leading-[0.85] uppercase">
@@ -98,8 +98,6 @@ export function WhyProphet() {
                   </p>
                 </div>
               </div>
-
-              {/* Decorative Number */}
               <span className="absolute bottom-10 right-10 text-8xl font-black text-white/[0.02] select-none group-hover:text-white/[0.05] transition-colors">
                 0{index + 1}
               </span>

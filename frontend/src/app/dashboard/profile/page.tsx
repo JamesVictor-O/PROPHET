@@ -74,24 +74,30 @@ export default function ProfilePage() {
   const chainId = useChainId();
 
   // Fetch contract data
-  const { data: userStats, isLoading: isLoadingStats } = useUserStats(address);
-  const { data: username, isLoading: isLoadingUsername } = useUsername(address);
+  const { data: userStats, isInitialLoading: isLoadingStats } =
+    useUserStats(address);
+  const { data: username, isInitialLoading: isLoadingUsername } =
+    useUsername(address);
   const { data: leaderboardData } = useLeaderboard(100);
 
   // Prefer Envio GraphQL for predictions/markets, but keep a contract fallback.
   const {
     data: userPredictionsGraphQL = [],
-    isLoading: isLoadingPredictionsGraphQL,
+    isInitialLoading: isLoadingPredictionsGraphQL,
   } = useUserPredictionsGraphQL();
-  const { data: userPredictionsContract = [], isLoading: isLoadingPredictionsContract } =
-    useUserPredictions();
+  const {
+    data: userPredictionsContract = [],
+    isInitialLoading: isLoadingPredictionsContract,
+  } = useUserPredictions();
 
   const {
     data: marketsFromEnvio = [],
-    isLoading: isLoadingMarketsGraphQL,
+    isInitialLoading: isLoadingMarketsGraphQL,
   } = useMarketsGraphQL(200);
-  const { data: marketsFromContract = [], isLoading: isLoadingMarketsContract } =
-    useAllMarkets();
+  const {
+    data: marketsFromContract = [],
+    isInitialLoading: isLoadingMarketsContract,
+  } = useAllMarkets();
 
   const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
     userPredictionsGraphQL.length > 0
@@ -100,7 +106,7 @@ export default function ProfilePage() {
   const allMarkets =
     marketsFromEnvio.length > 0 ? marketsFromEnvio : marketsFromContract;
 
-  const { data: usernameUpdates, isLoading: isLoadingUsernameUpdates } =
+  const { data: usernameUpdates, isInitialLoading: isLoadingUsernameUpdates } =
     useUsernameUpdatesGraphQL(address || undefined);
 
   // Count markets created by user

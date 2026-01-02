@@ -157,10 +157,6 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
 
           if (walletClient && userAddress) {
             try {
-              console.log(
-                "💰 Auto-funding session key EOA for redeemDelegations transaction..."
-              );
-
               const fundingAmount = parseEther("0.0001"); // 0.0001 ETH
 
               const fundingTxHash = await walletClient.sendTransaction({
@@ -168,16 +164,9 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
                 value: fundingAmount,
               });
 
-              console.log("✅ Funding transaction sent:", fundingTxHash);
-              console.log("⏳ Waiting for funding transaction to confirm...");
-
               await publicClient.waitForTransactionReceipt({
                 hash: fundingTxHash,
               });
-
-              console.log(
-                "✅ Session key EOA funded successfully! Continuing with redeemDelegations..."
-              );
             } catch (fundingError) {
               const fundingMessage =
                 fundingError instanceof Error
@@ -266,13 +255,6 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
         ]);
         const [permissionContext] = decodedContexts;
 
-        console.log("🔄 Redeeming delegation with USDC transfer...", {
-          usdcAmount: params.usdcAmount,
-          usdcAmountWei: usdcAmountWei.toString(),
-          recipient,
-          note: "Transfers from user's account via DelegationManager",
-        });
-
         // Redeem delegation - executes FROM user's account
         const txHash = await redeemDelegations(
           sessionWalletClient,
@@ -287,28 +269,20 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
           ]
         );
 
-        console.log("✅ Redeem transaction sent:", txHash);
-
         // Wait for receipt
         const receipt = await publicClient.waitForTransactionReceipt({
           hash: txHash,
         });
 
-        console.log("✅ USDC transfer confirmed:", receipt.transactionHash);
-
         // Step 7: If contract calls were provided, execute them using session account
         // The session account now has USDC, so we can execute contract calls
         if (params.contractCalls && params.contractCalls.length > 0) {
-          console.log("🔄 Executing contract calls after USDC transfer...");
-
           // Wait for the block to be mined and nonce to update
           // This ensures the blockchain state is fully updated before the next transaction
-          console.log("⏳ Waiting for block confirmation and nonce update...");
           await new Promise((resolve) => setTimeout(resolve, 3000));
 
           // Get fresh block number to ensure state is updated
           const currentBlock = await publicClient.getBlockNumber();
-          console.log("✅ Current block:", currentBlock.toString());
 
           // Additional wait to ensure nonce is propagated
           await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -341,17 +315,8 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
               value: call.value ?? BigInt(0),
               data: callData as `0x${string}`,
             };
-            console.log("📋 Contract call:", {
-              to: result.to,
-              functionName: call.functionName,
-              dataPreview: result.data.slice(0, 20) + "...",
-            });
             return result;
           });
-
-          console.log(
-            `📦 Executing ${sessionCalls.length} contract calls from session account...`
-          );
 
           // Execute using sendUserOperationWithDelegation with retry logic for nonce issues
           let userOpHash: `0x${string}` | undefined;
@@ -362,16 +327,11 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
             try {
               // Wait a bit longer on retries to ensure nonce is updated
               if (retries > 0) {
-                console.log(
-                  `🔄 Retry ${retries}/${maxRetries} - waiting for nonce update...`
-                );
                 await new Promise((resolve) =>
                   setTimeout(resolve, 3000 * retries)
                 );
 
-
                 const freshBlock = await publicClient.getBlockNumber();
-                console.log("✅ Fresh block:", freshBlock.toString());
               }
 
               userOpHash = await (
@@ -406,9 +366,6 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
               // Check if it's a nonce error
               if (errorMessage.includes("nonce") && retries < maxRetries - 1) {
                 retries++;
-                console.log(
-                  `⚠️ Nonce error detected, retrying... (${retries}/${maxRetries})`
-                );
                 continue;
               }
 
@@ -427,11 +384,6 @@ export function useRedeemDelegations(): UseRedeemDelegationsReturn {
             hash: userOpHash,
             timeout: 120_000,
           });
-
-          console.log(
-            "✅ Contract calls executed:",
-            sessionReceipt.receipt.transactionHash
-          );
 
           return {
             success: true,

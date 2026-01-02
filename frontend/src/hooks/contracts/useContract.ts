@@ -1,5 +1,3 @@
-
-
 import {
   useReadContract,
   useWriteContract,
@@ -13,7 +11,6 @@ interface UseContractOptions {
   abi: readonly unknown[];
   enabled?: boolean;
 }
-
 
 export function useContractRead<T = unknown>(
   options: UseContractOptions & {
@@ -36,15 +33,13 @@ export function useContractRead<T = unknown>(
   return {
     data: result.data as T | undefined,
     isLoading: result.isLoading,
+    isInitialLoading: result.isLoading && !result.data,
     isError: result.isError,
     error: result.error,
     refetch: result.refetch,
   };
 }
 
-/**
- * Hook for writing to a contract
- */
 export function useContractWrite(
   options: UseContractOptions & {
     functionName: string;
@@ -55,8 +50,6 @@ export function useContractWrite(
 
   const { writeContract, data: hash, isPending, error } = useWriteContract();
 
- 
-  
   const {
     isLoading: isConfirming,
     isSuccess: isConfirmed,
@@ -64,7 +57,7 @@ export function useContractWrite(
   } = useWaitForTransactionReceipt({
     hash,
     query: {
-      enabled: !!hash, // Only enable when we have a hash
+      enabled: !!hash,
       retry: (failureCount, error) => {
         const errorMessage = error?.message || "";
         const errorCode =
@@ -83,7 +76,6 @@ export function useContractWrite(
         if (isRpcError) {
           return failureCount < 20;
         }
-        // Retry up to 3 times for real errors
         return failureCount < 3;
       },
       retryDelay: (attemptIndex) => {

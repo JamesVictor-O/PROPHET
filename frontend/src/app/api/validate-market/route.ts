@@ -8,18 +8,6 @@ function getApiKey(): string {
     process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
   if (!rawApiKey || rawApiKey.trim() === "") {
-    console.error("❌ [Server] API Key missing:");
-    console.error(
-      "   - Check if GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is set in .env.local"
-    );
-    console.error("   - Location: frontend/.env.local");
-    console.error("   - Current env vars:", {
-      hasGEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
-      hasNEXT_PUBLIC_GEMINI_API_KEY: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY,
-      GEMINI_API_KEY_length: process.env.GEMINI_API_KEY?.length || 0,
-      NEXT_PUBLIC_GEMINI_API_KEY_length:
-        process.env.NEXT_PUBLIC_GEMINI_API_KEY?.length || 0,
-    });
     throw new Error(
       "GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY is not set or is empty. Please add a valid API key to your .env.local file in the frontend directory."
     );
@@ -30,13 +18,6 @@ function getApiKey(): string {
 
   // Basic validation - API keys usually start with AIza
   if (!apiKey.startsWith("AIza")) {
-    console.error("❌ [Server] API key format is incorrect:");
-    console.error(`   - API key starts with: "${apiKey.substring(0, 4)}"`);
-    console.error(`   - Expected to start with: "AIza"`);
-    console.error(`   - API key length: ${apiKey.length}`);
-    console.error(
-      "   - Get a new API key from: https://makersuite.google.com/app/apikey"
-    );
     throw new Error(
       `Invalid API key format. API key should start with "AIza". Current key starts with "${apiKey.substring(
         0,
@@ -52,9 +33,6 @@ function getApiKey(): string {
     );
   }
 
-  console.log(
-    `✅ [Server] API key format looks valid (length: ${apiKey.length}, starts with: AIza)`
-  );
   return apiKey;
 }
 
@@ -67,8 +45,6 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
     return cachedModelName;
   }
 
-  console.log("🔍 Listing available models from Google AI...");
-
   // First, try to list available models using the API
   try {
     const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`;
@@ -77,11 +53,6 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
     if (listResponse.ok) {
       const listData = await listResponse.json();
       const availableModels = listData.models || [];
-
-      console.log(`📋 Found ${availableModels.length} available models:`);
-      availableModels.forEach((model: { name: string }) => {
-        console.log(`   - ${model.name}`);
-      });
 
       // Preferred models in order (without the "models/" prefix)
       const preferred = [
@@ -111,7 +82,6 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
           // Extract just the model identifier (last part after /)
           const modelId = found.name.split("/").pop() || preferredName;
           cachedModelName = modelId;
-          console.log(`✅ Selected model: ${modelId} (from ${found.name})`);
           return modelId;
         }
       }
@@ -126,7 +96,6 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
       if (generateContentModel) {
         const modelId = generateContentModel.name.split("/").pop() || "";
         cachedModelName = modelId;
-        console.log(`✅ Selected first available model: ${modelId}`);
         return modelId;
       }
     } else {
@@ -143,7 +112,6 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
   }
 
   // Fallback: Try common model names directly
-  console.log("🔄 Falling back to testing common model names...");
   const modelsToTry = [
     "gemini-1.5-flash-latest",
     "gemini-1.5-pro-latest",
@@ -172,18 +140,12 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
 
       if (testResponse.ok) {
         cachedModelName = modelName;
-        console.log(`✅ Server using model: ${modelName} (v1 API)`);
         return modelName;
       }
 
       const errorData = await testResponse.text();
-      console.log(
-        `   → Model ${modelName} returned ${testResponse.status}:`,
-        errorData.substring(0, 200)
-      );
     } catch (err: unknown) {
       const error = err as { message?: string };
-      console.log(`   → Model ${modelName} error:`, error?.message);
       continue;
     }
   }
@@ -195,14 +157,11 @@ async function getWorkingModelName(apiKey: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("🟢 [Server] API route called: /api/validate-market");
   let question: string | undefined;
 
   try {
-    console.log("🟢 [Server] Parsing request body...");
     const body = await request.json();
     question = body.question;
-    console.log("🟢 [Server] Question received:", question);
 
     if (!question || question.length < 10) {
       return NextResponse.json(
@@ -215,12 +174,6 @@ export async function POST(request: NextRequest) {
     let apiKey: string;
     try {
       apiKey = getApiKey();
-      console.log(`🔑 API Key found (${apiKey.substring(0, 10)}...)`);
-      console.log(
-        `📝 Validating question: "${question.substring(0, 50)}${
-          question.length > 50 ? "..." : ""
-        }"`
-      );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       console.error("❌ [Server] Failed to get API key:", errorMsg);
@@ -229,7 +182,6 @@ export async function POST(request: NextRequest) {
 
     // Get working model name using v1 API directly
     const modelName = await getWorkingModelName(apiKey);
-    console.log(`🤖 Using model: ${modelName}`);
 
     // Use REST API v1 directly (not v1beta)
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
@@ -475,44 +427,6 @@ Now analyze: "${question}"
 
 Return ONLY valid JSON, no markdown.`;
 
-    console.log(`🔵 [Server] Calling Gemini API v1: ${modelName}...`);
-    console.log(
-      `🔵 [Server] API URL: ${apiUrl.replace(apiKey, "***REDACTED***")}`
-    );
-    console.log(
-      `🔵 [Server] Request body size: ${
-        JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 1024,
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-          ],
-        }).length
-      } chars`
-    );
-
     const requestBody = {
       contents: [
         {
@@ -595,15 +509,6 @@ Return ONLY valid JSON, no markdown.`;
     }
 
     const result = await response.json();
-    console.log(
-      `✅ [Server] Gemini API response received (status: ${response.status})`
-    );
-    console.log(
-      `📋 [Server] Full response structure (first 3000 chars):`,
-      JSON.stringify(result, null, 2).substring(0, 3000)
-    );
-    console.log(`📋 [Server] Response type:`, typeof result);
-    console.log(`📋 [Server] Response keys:`, Object.keys(result || {}));
 
     // Check if candidates array exists and has items
     if (!result.candidates || result.candidates.length === 0) {
@@ -620,117 +525,14 @@ Return ONLY valid JSON, no markdown.`;
     // Extract text from response - check multiple possible response structures
     let text = "";
 
-    // Debug: Log candidate structure in detail
-    if (result.candidates) {
-      console.log(
-        `🔍 [Server] Found candidates array, length: ${result.candidates.length}`
-      );
-      if (result.candidates[0]) {
-        console.log(
-          `🔍 [Server] First candidate keys:`,
-          Object.keys(result.candidates[0])
-        );
-        console.log(
-          `🔍 [Server] First candidate:`,
-          JSON.stringify(result.candidates[0], null, 2).substring(0, 1500)
-        );
-
-        if (result.candidates[0].content) {
-          console.log(
-            `🔍 [Server] Content keys:`,
-            Object.keys(result.candidates[0].content)
-          );
-          console.log(
-            `🔍 [Server] Content:`,
-            JSON.stringify(result.candidates[0].content, null, 2).substring(
-              0,
-              1500
-            )
-          );
-
-          if (result.candidates[0].content.parts) {
-            console.log(
-              `🔍 [Server] Parts array length: ${result.candidates[0].content.parts.length}`
-            );
-            result.candidates[0].content.parts.forEach(
-              (part: { text?: string }, index: number) => {
-                console.log(
-                  `🔍 [Server] Part ${index}:`,
-                  JSON.stringify(part, null, 2).substring(0, 500)
-                );
-                if (part.text) {
-                  console.log(
-                    `🔍 [Server] Part ${index} has text, length: ${part.text.length}`
-                  );
-                  console.log(
-                    `🔍 [Server] Part ${index} text (first 200 chars):`,
-                    part.text.substring(0, 200)
-                  );
-                }
-              }
-            );
-          }
-        }
-
-        if (result.candidates[0].finishReason) {
-          console.log(
-            `🔍 [Server] Finish reason: ${result.candidates[0].finishReason}`
-          );
-        }
-
-        if (result.candidates[0].safetyRatings) {
-          console.log(
-            `🔍 [Server] Safety ratings:`,
-            JSON.stringify(result.candidates[0].safetyRatings, null, 2)
-          );
-        }
-      }
-    }
-
     // Try different response structures
     if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
       text = result.candidates[0].content.parts[0].text;
-      console.log(
-        `✅ [Server] Found text in result.candidates[0].content.parts[0].text (length: ${text.length})`
-      );
-    } else if (result.candidates?.[0]?.content?.parts) {
-      // Try to find text in any part
-      for (let i = 0; i < result.candidates[0].content.parts.length; i++) {
-        const part = result.candidates[0].content.parts[i];
-        if (part?.text) {
-          text = part.text;
-          console.log(
-            `✅ [Server] Found text in result.candidates[0].content.parts[${i}].text (length: ${text.length})`
-          );
-          break;
-        }
-      }
-    } else if (result.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      text = result.response.candidates[0].content.parts[0].text;
-      console.log(
-        `✅ [Server] Found text in result.response.candidates[0].content.parts[0].text (length: ${text.length})`
-      );
-    } else if (result.text) {
-      text = result.text;
-      console.log(
-        `✅ [Server] Found text in result.text (length: ${text.length})`
-      );
-    } else if (result.content?.parts?.[0]?.text) {
-      text = result.content.parts[0].text;
-      console.log(
-        `✅ [Server] Found text in result.content.parts[0].text (length: ${text.length})`
-      );
-    } else if (result.candidates?.[0]?.text) {
-      text = result.candidates[0].text;
-      console.log(
-        `✅ [Server] Found text in result.candidates[0].text (length: ${text.length})`
-      );
     }
 
     // Check if response was blocked by safety filters
     if (result.candidates?.[0]?.finishReason) {
       const finishReason = result.candidates[0].finishReason;
-      console.log(`📋 [Server] Finish reason: ${finishReason}`);
 
       if (
         finishReason === "SAFETY" ||
@@ -767,10 +569,6 @@ Return ONLY valid JSON, no markdown.`;
 
     // Check prompt feedback for issues
     if (result.promptFeedback) {
-      console.log(
-        `📋 [Server] Prompt feedback:`,
-        JSON.stringify(result.promptFeedback, null, 2)
-      );
       if (result.promptFeedback.blockReason) {
         console.warn(
           `⚠️ [Server] Prompt was blocked: ${result.promptFeedback.blockReason}`

@@ -1,5 +1,3 @@
-
-
 import { useMemo } from "react";
 import { Address } from "viem";
 import { formatTokenAmount } from "@/lib/utils";
@@ -17,11 +15,9 @@ export interface LeaderboardEntry {
   reputationScore: bigint;
 }
 
-
 function generateInitials(username: string, address: Address): string {
   let initials = "";
   if (username && username.length > 0) {
-    // Remove @ and special chars, split by space or underscore
     const cleanUsername = username
       .replace("@", "")
       .replace(/[^a-zA-Z0-9]/g, " ");
@@ -42,7 +38,6 @@ function generateInitials(username: string, address: Address): string {
     }
   }
 
-  // Fallback to address initials if no username
   if (initials.length < 2) {
     const addrStr = address.slice(2, 6).toUpperCase();
     initials = addrStr || "??";
@@ -51,9 +46,6 @@ function generateInitials(username: string, address: Address): string {
   return initials;
 }
 
-/**
- * Helper function to format username
- */
 function formatUsername(username: string, address: Address): string {
   if (username && username.length > 0) {
     return username.startsWith("@") ? username : `@${username}`;
@@ -61,12 +53,7 @@ function formatUsername(username: string, address: Address): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-/**
- * Get leaderboard entries with stats and usernames
- * @param limit Number of entries to fetch (default: 10, max: 10)
- */
 export function useLeaderboard(limit: number = 10) {
-  // Limit to max 10 for performance
   const actualLimit = Math.min(limit, 10);
   const {
     data: topUsers,
@@ -74,8 +61,6 @@ export function useLeaderboard(limit: number = 10) {
     isError: isErrorUsers,
   } = useTopUsers(actualLimit);
 
-  // Fetch stats and usernames for each top user (up to 10)
-  // We need to call hooks individually for React rules
   const stats1 = useUserStats(topUsers?.[0]);
   const stats2 = useUserStats(topUsers?.[1]);
   const stats3 = useUserStats(topUsers?.[2]);
@@ -129,7 +114,6 @@ export function useLeaderboard(limit: number = 10) {
 
   const isError = isErrorUsers || statsQueries.some((query) => query.isError);
 
-  // Extract data arrays first to satisfy React Compiler
   const statsData = useMemo(
     () => [
       stats1.data,
@@ -186,7 +170,6 @@ export function useLeaderboard(limit: number = 10) {
 
   const chainId = useChainId();
 
-  // Combine data into leaderboard entries
   const entries: LeaderboardEntry[] = useMemo(() => {
     if (!topUsers || topUsers.length === 0) return [];
 
@@ -194,7 +177,6 @@ export function useLeaderboard(limit: number = 10) {
       const stats = statsData[index];
       const username = usernamesData[index];
 
-      // Calculate accuracy
       const accuracy =
         stats && stats.totalPredictions > 0
           ? Number(
@@ -202,13 +184,13 @@ export function useLeaderboard(limit: number = 10) {
             )
           : 0;
 
-      // Get wins (correct predictions)
       const wins = stats ? Number(stats.correctPredictions) : 0;
 
-      // Format winnings
       const earned =
         stats && stats.totalWinnings > 0
-          ? `$${Number(formatTokenAmount(stats.totalWinnings, chainId)).toFixed(2)}`
+          ? `$${Number(formatTokenAmount(stats.totalWinnings, chainId)).toFixed(
+              2
+            )}`
           : "$0.00";
 
       const initials = generateInitials(username, address);

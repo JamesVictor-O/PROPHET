@@ -241,7 +241,7 @@ export function useUserPredictionsGraphQL() {
       return results;
     },
     enabled: !!address,
-    staleTime: 2000,
-    refetchInterval: 5000,
+    staleTime: 15000,
+    refetchInterval: 30000,
   });
 }

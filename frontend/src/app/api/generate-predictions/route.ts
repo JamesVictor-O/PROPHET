@@ -53,11 +53,9 @@ function extractJsonArray(text: string): PredictionSuggestion[] {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("🟢 [Server] /api/generate-predictions route called");
   try {
     const body = await request.json();
     const { category } = body;
-    console.log("🟢 [Server] Category received:", category);
 
     if (!category) {
       return NextResponse.json(
@@ -71,7 +69,6 @@ export async function POST(request: NextRequest) {
     const cached = suggestionCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log(`✅ [Server] Returning cached suggestions for: ${category}`);
       return NextResponse.json({ suggestions: cached.suggestions });
     }
 
@@ -151,10 +148,7 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
 
     for (const modelName of modelsToTry) {
       try {
-        console.log(`🤖 [Server] Trying model: ${modelName}`);
-
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-        console.log(`📡 [Server] Making request to Gemini API...`);
 
         const response = await fetch(apiUrl, {
           method: "POST",
@@ -172,19 +166,16 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
           }),
         });
 
-        console.log(`📊 [Server] Response status: ${response.status}`);
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage =
             errorData.error?.message || `API error: ${response.status}`;
 
-          // Handle rate limiting (429)
           if (response.status === 429) {
             console.warn(
               `⚠️ [Server] Rate limited on ${modelName}, waiting 2s before trying next model...`
             );
-            await delay(2000); // Wait 2 seconds before trying next model
+            await delay(2000);
             lastError = errorMessage;
             continue;
           }
@@ -197,7 +188,6 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
         }
 
         const data = await response.json();
-        console.log(`✅ [Server] Success with model: ${modelName}`);
 
         let text = "";
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
@@ -216,6 +206,7 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
           lastError = "Empty response from AI";
           continue;
         }
+
         let suggestions: PredictionSuggestion[];
         try {
           suggestions = extractJsonArray(text);
@@ -224,15 +215,10 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
           }
         } catch (parseError) {
           console.error("❌ [Server] Failed to parse JSON:", parseError);
-          console.error(
-            "❌ [Server] Text that failed to parse:",
-            text.substring(0, 1000)
-          );
           lastError = "Failed to parse AI response";
-          continue; // Try next model
+          continue;
         }
 
-        // Validate and filter suggestions
         const validSuggestions = suggestions.filter((s) => {
           return (
             s.question &&
@@ -256,10 +242,6 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
 
         validSuggestions.sort(
           (a, b) => b.controversyScore - a.controversyScore
-        );
-
-        console.log(
-          `✅ [Server] Generated ${validSuggestions.length} valid prediction suggestions for category: ${category}`
         );
 
         // Cache the results
@@ -293,7 +275,6 @@ Return ONLY valid JSON array, no markdown, no code blocks.`;
         : "Unknown error";
 
     console.error("❌ [Server] Error generating predictions:", errorMessage);
-    console.error("❌ [Server] Full error:", err);
 
     return NextResponse.json(
       {

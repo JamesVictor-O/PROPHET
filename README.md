@@ -2,18 +2,16 @@
 
 # 🔮 PROPHET
 
-<img src="frontend/public/Logo2.png" alt="Prophet Logo" width="300" />
+<img src="frontend/public/Logo3.png" alt="Prophet Logo" width="300" />
 
 > **Predict And Earn.** > **The most advanced ERC-7715 + Envio-powered prediction market platform**
 
 **A revolutionary mobile-first prediction market platform featuring Set-and-Forget AI strategies, One-Tap Betting, and real-time Envio-indexed activity feeds**
 
-![Celo](https://img.shields.io/badge/Celo-F5F5F5?style=for-the-badge&logo=celo&logoColor=35D07F)
+
 ![ERC-7715](https://img.shields.io/badge/ERC--7715-Advanced%20Permissions-blue?style=for-the-badge)
 ![Envio](https://img.shields.io/badge/Envio-Indexer-green?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
-![Solidity](https://img.shields.io/badge/Solidity-0.8+-363636?style=for-the-badge&logo=solidity&logoColor=white)
+
 
 [🚀 Live Demo](#-demo) • [🔐 ERC-7715 Features](#-erc-7715-advanced-permissions) • [📊 Envio Integration](#-envio-indexer-integration) • [💻 Development](#-getting-started) • [📖 Docs](#-documentation)
 
@@ -219,6 +217,11 @@ Blockchain
 
 **Documentation**: See `ADVANCED_PERMISSIONS_ARCHITECTURE.md` for complete technical details.
 
+### 🔗 Code Usage Links
+
+- **Requesting Permissions**: [permissions-manager.tsx](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/components/wallet/permissions-manager.tsx#L115-L136) - Uses `requestExecutionPermissions` to grant session key access.
+- **Redeeming Permissions**: [useRedeemDelegations.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/hooks/useRedeemDelegations.ts#L277-L288) - Uses `redeemDelegations` to execute transactions on behalf of the user.
+
 ---
 
 ## 📊 Envio Indexer Integration
@@ -352,6 +355,21 @@ Frontend (React/Next.js)
 - 📈 **Scalable** (handles thousands of markets)
 
 **Documentation**: See `indexer/README.md` for setup and GraphQL examples.
+
+### 🔗 Envio Usage Links
+
+- **GraphQL Service**: [envio.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/services/envio.ts) - Core GraphQL client and query definitions.
+- **React Hooks**: [useEnvioData.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/hooks/useEnvioData.ts) - Real-time data fetching for markets and activity.
+- **Event Handlers**: [EventHandlers.ts](file:///Users/mac/MyWork/metamask/PROPHET/indexer/src/EventHandlers.ts) - Server-side indexing logic for contract events.
+
+### 💡 How we leverage Envio
+
+Envio is the backbone of Prophet's data layer. We use it to:
+
+1. **Eliminate RPC Latency**: Instead of querying the blockchain directly (which takes seconds), we query Envio's indexed database (which takes milliseconds).
+2. **Real-Time Activity Feeds**: We use Envio to power our "Global Activity" feed, showing every prediction made on the platform as it happens.
+3. **Complex Aggregations**: Envio pre-calculates market pools, user win rates, and global statistics, allowing us to show rich data without complex frontend logic.
+4. **Mobile Optimization**: By reducing the number of RPC calls, we significantly improve battery life and data usage for our mobile-first users.
 
 ---
 
@@ -633,3 +651,6 @@ MIT License - see [LICENSE.md](LICENSE.md)
 _"Every prophet was once a skeptic. Prove you're a prophet and earn"_
 
 **Built with ❤️ using ERC-7715 and Envio**
+
+export HASURA_URL="https://prophet-production-0cb1.up.railway.app/v1/graphql"
+export HASURA_ADMIN_SECRET="Lebron2525"curl -sS -X POST "$HASURA_URL" \ -H "Content-Type: application/json" \ -H "x-hasura-admin-secret: $HASURA_ADMIN_SECRET" \ -d '{"query":"{ \_\_schema { queryType { fields { name } } } }"}' | head -c 1200

@@ -51,7 +51,6 @@ export function useIsResolved(marketId: bigint | number | undefined) {
 export function usePoolAmounts(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
-  // Use getMarketInfo to get yesPool and noPool from the Market struct
   const { data: market, isLoading } = useContractRead<MarketStruct>({
     address,
     abi,
@@ -75,7 +74,7 @@ export function useUserPrediction(
 
   return useContractRead<{
     user: Address;
-    side: Outcome; 
+    side: Outcome;
     outcomeIndex: bigint;
     amount: bigint;
     timestamp: bigint;
@@ -91,12 +90,9 @@ export function useUserPrediction(
   });
 }
 
-/**
- * Get odds for a side (as percentage)
- */
 export function useOdds(
   marketId: bigint | number | undefined,
-  side: 0 | 1 | undefined // 0 = Yes, 1 = No
+  side: 0 | 1 | undefined
 ) {
   const { address, abi } = usePredictionMarket();
 
@@ -114,7 +110,7 @@ export function useOdds(
 
 export function usePotentialWinnings(
   marketId: bigint | number | undefined,
-  side: 0 | 1 | undefined, // 0 = Yes, 1 = No
+  side: 0 | 1 | undefined,
   amount: bigint | undefined
 ) {
   const { address, abi } = usePredictionMarket();
@@ -157,17 +153,9 @@ export function usePredict() {
     address,
     abi,
     functionName: "predict",
-    // Note: predict now requires [marketId, userAddress, side, amount]
-    // The userAddress (EOA) should be passed in the args
   });
 }
 
-/**
- * Hook for commenting and staking on a CrowdWisdom market
- * Creates a new outcome if it doesn't exist, or stakes on existing one
- * Args: [marketId, userAddress, outcomeLabel, amount]
- * Note: userAddress (EOA) should be passed in the args
- */
 export function useCommentAndStake() {
   const { address, abi } = usePredictionMarket();
 
@@ -178,11 +166,6 @@ export function useCommentAndStake() {
   });
 }
 
-/**
- * Hook for staking on an existing outcome in a CrowdWisdom market
- * Args: [marketId, userAddress, outcomeIndex, amount]
- * Note: userAddress (EOA) should be passed in the args
- */
 export function useStakeOnOutcome() {
   const { address, abi } = usePredictionMarket();
 
@@ -193,10 +176,6 @@ export function useStakeOnOutcome() {
   });
 }
 
-/**
- * Get all outcomes for a CrowdWisdom market
- * Returns tuple: [outcomeLabels: string[], outcomePools: bigint[]]
- */
 export function useMarketOutcomes(marketId: bigint | number | undefined) {
   const { address, abi } = usePredictionMarket();
 
@@ -209,10 +188,6 @@ export function useMarketOutcomes(marketId: bigint | number | undefined) {
   });
 }
 
-/**
- * Get outcome label for a specific outcome index
- * Args: [marketId, outcomeIndex]
- */
 export function useOutcomeLabel(
   marketId: bigint | number | undefined,
   outcomeIndex: bigint | number | undefined
@@ -231,10 +206,6 @@ export function useOutcomeLabel(
   });
 }
 
-/**
- * Get odds for a CrowdWisdom outcome (as percentage)
- * Args: [marketId, outcomeIndex]
- */
 export function useOutcomeOdds(
   marketId: bigint | number | undefined,
   outcomeIndex: bigint | number | undefined
@@ -253,10 +224,6 @@ export function useOutcomeOdds(
   });
 }
 
-/**
- * Get user's stake on a specific outcome in a CrowdWisdom market
- * Args: [marketId, user, outcomeIndex]
- */
 export function useUserOutcomeStake(
   marketId: bigint | number | undefined,
   userAddress: string | undefined,
@@ -298,11 +265,6 @@ export function useOutcomePoolAmount(
   });
 }
 
-/**
- * Hook for claiming payout
- * Args: [marketId, userAddress]
- * Note: userAddress (EOA) should be passed in the args
- */
 export function useClaimPayout() {
   const { address, abi } = usePredictionMarket();
 
@@ -313,9 +275,6 @@ export function useClaimPayout() {
   });
 }
 
-/**
- * Check if user has claimed payout for a market
- */
 export function useHasClaimed(
   marketId: bigint | number | undefined,
   userAddress: string | undefined
@@ -345,18 +304,12 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
 
       try {
         const currentBlock = await publicClient.getBlockNumber();
-
-        // RPC providers typically limit queries to 100,000 blocks
-        // Use 99,000 to have a safety buffer
         const maxBlockRange = BigInt(99000);
-
-        // Calculate the starting block (limit to maxBlockRange)
         const fromBlock =
           currentBlock > maxBlockRange
             ? currentBlock - maxBlockRange
             : BigInt(0);
 
-        // Query PredictionMade events for this market using the ABI
         const logs = await publicClient.getLogs({
           address,
           event: {
@@ -376,7 +329,6 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
           fromBlock,
         });
 
-        // Count unique users
         const uniqueUsers = new Set<string>();
         logs.forEach((log: { args?: { user?: Address } }) => {
           if (log.args?.user) {
@@ -396,9 +348,6 @@ export function usePredictionCount(marketId: bigint | number | undefined) {
   });
 }
 
-/**
- * Get the maximum stake per user constant from the contract
- */
 export function useMaxStakePerUser() {
   const { address, abi } = usePredictionMarket();
 
@@ -410,9 +359,6 @@ export function useMaxStakePerUser() {
   });
 }
 
-/**
- * Hook for granting delegation to a session account
- */
 export function useGrantDelegation() {
   const { address, abi } = usePredictionMarket();
   return useContractWrite({
@@ -422,9 +368,6 @@ export function useGrantDelegation() {
   });
 }
 
-/**
- * Hook for revoking delegation from a session account
- */
 export function useRevokeDelegation() {
   const { address, abi } = usePredictionMarket();
   return useContractWrite({
@@ -434,9 +377,6 @@ export function useRevokeDelegation() {
   });
 }
 
-/**
- * Check if an address has delegation for a user
- */
 export function useHasDelegation(
   userAddress: Address | undefined,
   delegateAddress: Address | undefined

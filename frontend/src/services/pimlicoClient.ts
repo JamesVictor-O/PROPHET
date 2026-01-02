@@ -19,10 +19,6 @@ interface GasPriceResponse {
   };
 }
 
-/**
- * Pimlico client for gas price estimation
- * Used for estimating gas prices (maxFeePerGas, maxPriorityFeePerGas) for sending a UserOperation
- */
 export const pimlicoClient = (chainId: number) => {
   const rpcUrl = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${pimlicoKey}`;
 

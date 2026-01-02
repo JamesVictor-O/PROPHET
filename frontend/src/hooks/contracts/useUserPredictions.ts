@@ -42,7 +42,6 @@ export interface UserPrediction {
   marketType?: MarketType;
 }
 
-// Category color mapping
 const categoryColors: Record<string, string> = {
   music: "bg-[#2563EB]/10 text-[#2563EB] border-[#2563EB]/20",
   movies: "bg-orange-500/10 text-orange-400 border-orange-500/20",
@@ -52,7 +51,6 @@ const categoryColors: Record<string, string> = {
   other: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
-// Category display names
 const categoryDisplayNames: Record<string, string> = {
   music: "MUSIC",
   movies: "MOVIES",
@@ -85,7 +83,7 @@ function useUserPredictionForMarket(
     enabled: marketId !== undefined && !!userAddress && !!contractAddress,
   });
 
-  return { prediction, isLoading };
+  return { prediction, isLoading, isInitialLoading: isLoading && !prediction };
 }
 
 function useUserStakesForMarket(
@@ -127,14 +125,11 @@ export function useUserPredictions() {
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
 
-  // Get ALL market IDs directly (not limited to 10 like useAllMarkets)
   const { data: allMarketIds, isLoading: isLoadingMarketIds } =
     useAllMarketIds();
 
-  // Limit to first 50 markets to avoid too many calls
   const marketIds = useMemo(() => {
     if (!allMarketIds) return [];
-    // Reverse to get newest first, then limit to 50
     const idsArray = Array.from(allMarketIds);
     return idsArray
       .reverse()
@@ -142,8 +137,6 @@ export function useUserPredictions() {
       .map((id) => Number(id));
   }, [allMarketIds]);
 
-  // Create individual hooks for each market (up to 50)
-  // React hooks must be called unconditionally, so we create hooks for all 50 slots
   const predictions = [
     useUserPredictionForMarket(marketIds[0], userAddress),
     useUserPredictionForMarket(marketIds[1], userAddress),
@@ -199,9 +192,6 @@ export function useUserPredictions() {
 
   const allPredictions = predictions;
 
-  // Fetch market details for all market IDs (up to 50)
-  // We need market details to check creator and get market info
-  // React hooks must be called unconditionally, so we create hooks for all 50 slots
   const marketDetails = [
     useMarketDetails(marketIds[0]),
     useMarketDetails(marketIds[1]),
@@ -255,7 +245,6 @@ export function useUserPredictions() {
     useMarketDetails(marketIds[49]),
   ];
 
-  // Extract market data for dependency tracking
   const marketDataArray = useMemo(
     () => marketDetails.map((m) => m.data),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,46 +254,33 @@ export function useUserPredictions() {
   const userPredictions = useMemo(() => {
     if (!marketIds || !userAddress || marketIds.length === 0) return [];
 
-    // Calculate current timestamp for time calculations
-    // Note: Date.now() is fine here - it's recalculated on each useMemo run which is expected
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const results: UserPrediction[] = [];
 
-    // Check ALL markets (up to 50) to find user's predictions and created markets
     marketIds.forEach((marketId, index) => {
-      // Get prediction and market details for this market
       const prediction = allPredictions[index]?.prediction;
       const market = marketDetails[index]?.data;
 
-      if (!market) return; // Skip if market details not loaded yet
+      if (!market) return;
 
       const hasPrediction = prediction && prediction.amount > BigInt(0);
-
-      // Check if user created the market
       const isCreator =
         market.creator.toLowerCase() === userAddress.toLowerCase();
 
-      // Only include if user created the market OR has a prediction
       if (hasPrediction || isCreator) {
-        // If user has a prediction, use it; otherwise if they're creator, show as "created" with no stake
         const side = hasPrediction
           ? prediction.side === 0
             ? "yes"
             : "no"
-          : "yes"; // Default side for created markets without prediction (won't be used for calculations)
+          : "yes";
         const stakeAmount = prediction?.amount || BigInt(0);
         const stake = Number(formatTokenAmount(stakeAmount, chainId));
 
-        // For created markets without stake, we still want to show them
-        // but with 0 stake and no potential winnings calculation
-
-        // Format market data similar to formatMarketData in useAllMarkets
         const totalPoolNum = Number(market.totalPool);
         const yesPoolNum = Number(market.yesPool);
         const noPoolNum = Number(market.noPool);
         const marketType = market.marketType ?? MarketType.Binary;
 
-        // Calculate percentages (only for Binary markets)
         let yesPercent = 50;
         let noPercent = 50;
         if (marketType === MarketType.Binary && totalPoolNum > 0) {
@@ -320,7 +296,6 @@ export function useUserPredictions() {
             ) / 100;
         }
 
-        // Calculate time left
         const endTime = Number(market.endTime);
         const secondsLeft = endTime - currentTimestamp;
 
@@ -337,7 +312,6 @@ export function useUserPredictions() {
           }
         }
 
-        // Format pool amount
         const poolFormatted =
           totalPoolNum > 0
             ? `$${Number(
@@ -345,18 +319,14 @@ export function useUserPredictions() {
               ).toFixed(2)}`
             : "$0.00";
 
-        // Calculate potential/actual winnings (only if user has a stake)
         const winningPool = hasPrediction
           ? side === "yes"
             ? yesPoolNum
             : noPoolNum
-          : 0; // No winning pool if no prediction
+          : 0;
 
-        // Calculate potential winnings (only for active markets with stake)
         let potentialWin = 0;
         if (!market.resolved && winningPool > 0 && stakeAmount > BigInt(0)) {
-          // Potential winnings = (stake / winningPool) * (totalPool - fees)
-          // Assuming 7% total fees (5% platform + 2% creator)
           const poolAfterFees = totalPoolNum * 0.93;
           const potentialWinBigInt = BigInt(
             Math.floor((Number(stakeAmount) / winningPool) * poolAfterFees)
@@ -364,30 +334,25 @@ export function useUserPredictions() {
           potentialWin = Number(formatTokenAmount(potentialWinBigInt, chainId));
         }
 
-        // Determine status based on market resolution and winning outcome
         let status: "active" | "won" | "lost" | "pending" = "active";
         let actualWin: number | undefined = undefined;
 
-        // If user is creator but has no prediction, mark as "active" (market they created)
         if (isCreator && !hasPrediction) {
           status = "active";
         } else if (market.resolved && hasPrediction) {
-          // Market is resolved, check if user won
           const winningOutcome = market.winningOutcome;
           const hasWinningOutcome =
             winningOutcome !== undefined && winningOutcome !== null;
 
           if (hasWinningOutcome) {
-            const userSide = prediction.side; // 0 = Yes, 1 = No
+            const userSide = prediction.side;
             const userWon = userSide === winningOutcome;
 
             if (userWon) {
-              // Calculate actual winnings
               const winningPoolAmount =
                 winningOutcome === 0 ? yesPoolNum : noPoolNum;
 
               if (winningPoolAmount > 0 && stakeAmount > BigInt(0)) {
-                // After fees: 93% to winners (7% total fees)
                 const poolAfterFees = totalPoolNum * 0.93;
                 const actualWinBigInt = BigInt(
                   Math.floor(
@@ -401,7 +366,6 @@ export function useUserPredictions() {
               status = "lost";
             }
           } else {
-            // winningOutcome not available, mark as pending
             status = "pending";
           }
         }
@@ -412,7 +376,6 @@ export function useUserPredictions() {
         const categoryDisplay =
           categoryDisplayNames[categoryKey] || market.category.toUpperCase();
 
-        // Get outcomeIndex for CrowdWisdom markets
         const outcomeIndex =
           prediction?.outcomeIndex !== undefined
             ? Number(prediction.outcomeIndex)
@@ -450,8 +413,14 @@ export function useUserPredictions() {
     allPredictions.some((p) => p?.isLoading) ||
     marketDetails.some((m) => m?.isLoading);
 
+  const isInitialLoading =
+    isLoadingMarketIds ||
+    allPredictions.some((p) => p?.isInitialLoading) ||
+    marketDetails.some((m) => m?.isLoading);
+
   return {
     data: userPredictions,
     isLoading,
+    isInitialLoading,
   };
 }

@@ -65,9 +65,6 @@ export class StrategyExecutor {
     this.isRunning = true;
 
     setTimeout(() => {
-      console.log(
-        "[StrategyExecutor] Executing strategies (after initial delay to load execution history)..."
-      );
       this.executeStrategies();
     }, 2000);
 
@@ -102,26 +99,6 @@ export class StrategyExecutor {
       const markets = await this.getMarkets();
       const now = Date.now();
 
-      console.log(
-        `[StrategyExecutor] Checking ${markets.length} markets against ${activeStrategies.length} active strategies`
-      );
-      console.log(
-        `[StrategyExecutor] Active strategies:`,
-        activeStrategies.map((s) => ({
-          id: s.id,
-          name: s.name,
-          categories: s.conditions[0]?.categories,
-        }))
-      );
-      console.log(
-        `[StrategyExecutor] Available markets:`,
-        markets.map((m) => ({
-          id: m.id,
-          category: m.category,
-          question: m.question.substring(0, 50),
-        }))
-      );
-
       for (const strategy of activeStrategies) {
         console.log(
           `[StrategyExecutor] Processing strategy: ${strategy.id} (${strategy.name})`
@@ -136,14 +113,6 @@ export class StrategyExecutor {
 
         // Find matching markets
         const matches = this.findMatchingMarkets(markets, strategy);
-        console.log(
-          `[StrategyExecutor] Strategy ${strategy.id} matched ${matches.length} markets`,
-          matches.map((m) => ({
-            marketId: m.market.id,
-            category: m.market.category,
-            confidence: m.confidence,
-          }))
-        );
 
         for (const match of matches) {
           const marketId = parseInt(match.market.id);
@@ -173,9 +142,6 @@ export class StrategyExecutor {
           );
 
           if (!side) {
-            console.log(
-              `[StrategyExecutor] No side determined for market ${match.market.id} (confidence: ${match.confidence})`
-            );
             // Remove from pending if we're not executing
             this.pendingExecutions.delete(executionKey);
             continue;
@@ -241,13 +207,7 @@ export class StrategyExecutor {
     if (strategy.limits?.maxPredictionsPerDay) {
       const today = new Date().toDateString();
       const todayExecutions = this.getTodayExecutions(strategy.id, today);
-      console.log(
-        `[StrategyExecutor] Strategy ${strategy.id} daily check: ${todayExecutions}/${strategy.limits.maxPredictionsPerDay} predictions today`
-      );
       if (todayExecutions >= strategy.limits.maxPredictionsPerDay) {
-        console.log(
-          `[StrategyExecutor] Strategy ${strategy.id} hit daily limit: ${todayExecutions}/${strategy.limits.maxPredictionsPerDay}`
-        );
         return true;
       }
     }
@@ -255,21 +215,7 @@ export class StrategyExecutor {
     // Check total stake limit
     if (strategy.limits?.maxTotalStake) {
       const totalStaked = strategy.stats?.totalStaked || 0;
-      console.log(
-        `[StrategyExecutor] Strategy ${
-          strategy.id
-        } stake check: $${totalStaked.toFixed(2)} / $${
-          strategy.limits.maxTotalStake
-        } limit`
-      );
       if (totalStaked >= strategy.limits.maxTotalStake) {
-        console.log(
-          `[StrategyExecutor] Strategy ${
-            strategy.id
-          } hit total stake limit: $${totalStaked.toFixed(2)}/$${
-            strategy.limits.maxTotalStake
-          }`
-        );
         return true;
       }
     }
@@ -350,11 +296,6 @@ export class StrategyExecutor {
           (cat) => cat.toLowerCase().trim() === marketCategory
         );
         if (!categoryMatch) {
-          console.log(
-            `[StrategyExecutor] Category mismatch: market="${marketCategory}", strategy=${condition.categories.join(
-              ", "
-            )}`
-          );
           return false;
         }
       }
@@ -415,14 +356,14 @@ export class StrategyExecutor {
     if (condition.contrarian) {
       const threshold = condition.contrarianThreshold || 80;
       if (yesPercent > threshold || yesPercent < 100 - threshold) {
-        confidence += 20; 
+        confidence += 20;
       } else {
         confidence -= 30;
       }
     } else {
       if (yesPercent >= 45 && yesPercent <= 55) confidence += 15;
       if (poolSize === 0 || poolSize < 0.1) {
-        confidence = 70; 
+        confidence = 70;
       } else {
         if (yesPercent < 20 || yesPercent > 80) confidence -= 10;
       }
@@ -513,9 +454,6 @@ export class StrategyExecutor {
     );
 
     if (hasSuccessfulExecution) {
-      console.log(
-        `[StrategyExecutor] Already successfully predicted on market ${marketId} for strategy ${strategyId} (found ${executions.length} total executions)`
-      );
       return true;
     }
 
@@ -540,9 +478,6 @@ export class StrategyExecutor {
     // Also check if there's a pending execution (in case one is currently in progress)
     const executionKey = `${strategyId}-${marketId}`;
     if (this.pendingExecutions.has(executionKey)) {
-      console.log(
-        `[StrategyExecutor] Execution already pending for market ${marketId} and strategy ${strategyId}`
-      );
       return true;
     }
 
@@ -556,16 +491,6 @@ export class StrategyExecutor {
       const execDate = new Date(e.timestamp).toDateString();
       return execDate === today && e.status === "success";
     });
-    console.log(
-      `[StrategyExecutor] Today's executions for ${strategyId}: ${
-        todayExecutions.length
-      } successful (total: ${
-        executions.filter((e) => {
-          const execDate = new Date(e.timestamp).toDateString();
-          return execDate === today;
-        }).length
-      } total)`
-    );
     return todayExecutions.length;
   }
 
@@ -645,11 +570,6 @@ export class StrategyExecutor {
       if (execution.status === "failed") {
         this.pendingExecutions.delete(executionKey);
       }
-
-      // Keep in pendingExecutions until next cycle to prevent duplicate predictions
-      // The execution will be in getExecutions() by then, and hasPredictedOnMarket will return true
-      // We'll remove it in the next cycle when hasPredictedOnMarket confirms it's there
-      // This prevents the race condition where we remove it before state updates
 
       return result.success ? "success" : "failed";
     } catch (error) {

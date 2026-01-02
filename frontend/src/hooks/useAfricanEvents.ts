@@ -18,16 +18,16 @@ interface AfricanEventsResponse {
   latest: AfricanEvent[];
 }
 
-// API endpoint - Update this with your actual API endpoint
+
 const AFRICAN_EVENTS_API =
   process.env.NEXT_PUBLIC_AFRICAN_EVENTS_API || "/api/african-events";
 
 async function fetchAfricanEvents(): Promise<AfricanEventsResponse> {
   try {
     console.log("🟢 [useAfricanEvents] Fetching from:", AFRICAN_EVENTS_API);
-    // Try to fetch from API
+   
     const response = await fetch(AFRICAN_EVENTS_API, {
-      cache: "no-store", // Always fetch fresh data
+      cache: "no-store", 
     });
 
     console.log("🟢 [useAfricanEvents] Response status:", response.status);
@@ -68,12 +68,12 @@ async function fetchAfricanEvents(): Promise<AfricanEventsResponse> {
       "❌ [useAfricanEvents] API not available, using mock data:",
       error
     );
-    // Fallback to mock data for development
+
     return getMockAfricanEvents();
   }
 }
 
-// Mock data for development/demo
+
 function getMockAfricanEvents(): AfricanEventsResponse {
   const now = new Date();
 
@@ -211,7 +211,7 @@ export function useAfricanEvents() {
   return useQuery<AfricanEventsResponse>({
     queryKey: ["african-events"],
     queryFn: fetchAfricanEvents,
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
-    staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
+    refetchInterval: 5 * 60 * 1000, 
+    staleTime: 2 * 60 * 1000, 
   });
 }

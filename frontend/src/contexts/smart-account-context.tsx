@@ -59,7 +59,6 @@ export function SmartAccountProvider({ children }: SmartAccountProviderProps) {
   }, [smartAccount, smartAccountAddress]);
 
   const initializeSmartAccount = useCallback(async () => {
-    // Prevent concurrent initializations
     if (isInitializingRef.current) {
       console.log("Initialization already in progress, skipping...");
       return;
@@ -104,23 +103,16 @@ export function SmartAccountProvider({ children }: SmartAccountProviderProps) {
         { chainId }
       );
 
-      // Get public client for the current chain
+    
       const publicClientForChain = getPublicClient(chainId);
-
-      // 1. Create the Smart Account using the Hybrid (Standard AA) Implementation
-      // Type assertion needed because different chains have different transaction types
-      // The client works at runtime despite the type incompatibility
       const account = await toMetaMaskSmartAccount({
         // @ts-expect-error - Different chains have incompatible transaction types, but runtime works
         client: publicClientForChain,
-        // *** CRITICAL FIX: Use the standard ERC-4337 Hybrid Implementation ***
+       
         implementation: Implementation.Hybrid,
-        // The EOA is the signer and owner of the new Smart Account contract
         signer: { walletClient },
 
         deployParams: [eoaAddress, [], [], []],
-
-        // A salt is required to ensure the address is deterministic
         deploySalt: SMART_ACCOUNT_DEPLOY_SALT,
       });
 

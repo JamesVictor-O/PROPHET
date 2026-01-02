@@ -62,9 +62,7 @@ export function DashboardSidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-64 fixed left-0 h-screen border-r border-white/5 bg-[#020617] pt-20 transition-all">
-        {/* Navigation */}
         <nav className="flex-1 px-4 space-y-1.5">
           <p className="px-4 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-4">
             Navigation
