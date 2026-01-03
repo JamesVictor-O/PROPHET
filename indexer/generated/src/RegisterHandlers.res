@@ -31,7 +31,7 @@ let registerContractHandlers = (
             InternalConfig.name: "MarketFactory",
             abi: Types.MarketFactory.abi,
             addresses: [
-              "0x1cF71f7e4a5e79B2bEd17655eb22E31422d9A3f1"->Address.Evm.fromStringOrThrow
+              "0x1c849781862895235688912850235d9C6a86650e"->Address.Evm.fromStringOrThrow
 ,
             ],
             events: [
@@ -43,7 +43,7 @@ let registerContractHandlers = (
             InternalConfig.name: "PredictionMarket",
             abi: Types.PredictionMarket.abi,
             addresses: [
-              "0x1d06d3fDb2e9DC1bD870A26198559237640Ce310"->Address.Evm.fromStringOrThrow
+              "0xD5377BF1cfAA0Bb24d54c5010242d12Ed189d261"->Address.Evm.fromStringOrThrow
 ,
             ],
             events: [
@@ -58,7 +58,7 @@ let registerContractHandlers = (
             InternalConfig.name: "Oracle",
             abi: Types.Oracle.abi,
             addresses: [
-              "0x7b99147Fbcc797713357D29EAeF5e7bB5d8BA018"->Address.Evm.fromStringOrThrow
+              "0x439B12822485Bab0af0731bDfa58eEE5A50F8001"->Address.Evm.fromStringOrThrow
 ,
             ],
             events: [
@@ -70,7 +70,7 @@ let registerContractHandlers = (
             InternalConfig.name: "ReputationSystem",
             abi: Types.ReputationSystem.abi,
             addresses: [
-              "0xD763b4dC216B84C378aeAFD007166609F6F1f62C"->Address.Evm.fromStringOrThrow
+              "0x1Ef708437cCBBC0353779e68a3275E566b165AAF"->Address.Evm.fromStringOrThrow
 ,
             ],
             events: [
@@ -83,7 +83,7 @@ let registerContractHandlers = (
         let chain = ChainMap.Chain.makeUnsafe(~chainId=84532)
         {
           InternalConfig.confirmedBlockThreshold: 200,
-          startBlock: 35545281,
+          startBlock: 35797900,
           id: 84532,
           contracts,
           sources: NetworkSources.evm(~chain, ~contracts=[{name: "MarketFactory",events: [Types.MarketFactory.OwnershipTransferred.register()],abi: Types.MarketFactory.abi}, {name: "PredictionMarket",events: [Types.PredictionMarket.MarketCreated.register(), Types.PredictionMarket.PredictionMade.register(), Types.PredictionMarket.MarketResolved.register(), Types.PredictionMarket.PayoutClaimed.register()],abi: Types.PredictionMarket.abi}, {name: "Oracle",events: [Types.Oracle.MarketResolved.register()],abi: Types.Oracle.abi}, {name: "ReputationSystem",events: [Types.ReputationSystem.ReputationUpdated.register(), Types.ReputationSystem.UsernameSet.register()],abi: Types.ReputationSystem.abi}], ~hyperSync=Some("https://84532.hypersync.xyz"), ~allEventSignatures=[Types.MarketFactory.eventSignatures, Types.PredictionMarket.eventSignatures, Types.Oracle.eventSignatures, Types.ReputationSystem.eventSignatures]->Belt.Array.concatMany, ~shouldUseHypersyncClientDecoder=true, ~rpcs=[], ~lowercaseAddresses=false)
@@ -117,23 +117,23 @@ let registerAllHandlers = () => {
 
   registerContractHandlers(
     ~contractName="MarketFactory",
-    ~handlerPathRelativeToRoot="src/EventHandlers.ts",
-    ~handlerPathRelativeToConfig="src/EventHandlers.ts",
+    ~handlerPathRelativeToRoot="src/EventHandlers.js",
+    ~handlerPathRelativeToConfig="src/EventHandlers.js",
   )
   registerContractHandlers(
     ~contractName="Oracle",
-    ~handlerPathRelativeToRoot="src/EventHandlers.ts",
-    ~handlerPathRelativeToConfig="src/EventHandlers.ts",
+    ~handlerPathRelativeToRoot="src/EventHandlers.js",
+    ~handlerPathRelativeToConfig="src/EventHandlers.js",
   )
   registerContractHandlers(
     ~contractName="PredictionMarket",
-    ~handlerPathRelativeToRoot="src/EventHandlers.ts",
-    ~handlerPathRelativeToConfig="src/EventHandlers.ts",
+    ~handlerPathRelativeToRoot="src/EventHandlers.js",
+    ~handlerPathRelativeToConfig="src/EventHandlers.js",
   )
   registerContractHandlers(
     ~contractName="ReputationSystem",
-    ~handlerPathRelativeToRoot="src/EventHandlers.ts",
-    ~handlerPathRelativeToConfig="src/EventHandlers.ts",
+    ~handlerPathRelativeToRoot="src/EventHandlers.js",
+    ~handlerPathRelativeToConfig="src/EventHandlers.js",
   )
 
   let generatedConfig = {

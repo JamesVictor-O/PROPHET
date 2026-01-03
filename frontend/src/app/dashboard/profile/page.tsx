@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
 import { formatTokenAmount } from "@/lib/utils";
 import { useChainId } from "wagmi";
@@ -13,15 +13,9 @@ import { ProfileSettings } from "@/components/profile/profile-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUserStats, useUsername, useLeaderboard } from "@/hooks/contracts";
 import {
-  useUserPredictions,
-  useAllMarkets,
-  type UserPrediction,
-} from "@/hooks/contracts";
-import {
   useMarketsGraphQL,
   useUserPredictionsGraphQL,
   useUsernameUpdatesGraphQL,
-  type UserPredictionGraphQL,
 } from "@/hooks/graphql";
 import { formatAddress } from "@/lib/wallet-config";
 import { Loader2 } from "lucide-react";
@@ -72,6 +66,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("overview");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const hasLoadedOnceRef = useRef(false);
 
   // Fetch contract data
   const { data: userStats, isInitialLoading: isLoadingStats } =
@@ -80,31 +75,22 @@ export default function ProfilePage() {
     useUsername(address);
   const { data: leaderboardData } = useLeaderboard(100);
 
-  // Prefer Envio GraphQL for predictions/markets, but keep a contract fallback.
   const {
     data: userPredictionsGraphQL = [],
     isInitialLoading: isLoadingPredictionsGraphQL,
+    isError: isPredictionsGraphQLError,
+    error: predictionsGraphQLError,
   } = useUserPredictionsGraphQL();
-  const {
-    data: userPredictionsContract = [],
-    isInitialLoading: isLoadingPredictionsContract,
-  } = useUserPredictions();
 
   const {
     data: marketsFromEnvio = [],
     isInitialLoading: isLoadingMarketsGraphQL,
+    isError: isMarketsGraphQLError,
+    error: marketsGraphQLError,
   } = useMarketsGraphQL(200);
-  const {
-    data: marketsFromContract = [],
-    isInitialLoading: isLoadingMarketsContract,
-  } = useAllMarkets();
 
-  const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
-    userPredictionsGraphQL.length > 0
-      ? userPredictionsGraphQL
-      : userPredictionsContract;
-  const allMarkets =
-    marketsFromEnvio.length > 0 ? marketsFromEnvio : marketsFromContract;
+  const userPredictions = userPredictionsGraphQL;
+  const allMarkets = marketsFromEnvio;
 
   const { data: usernameUpdates, isInitialLoading: isLoadingUsernameUpdates } =
     useUsernameUpdatesGraphQL(address || undefined);
@@ -291,11 +277,16 @@ export default function ProfilePage() {
     isLoadingStats ||
     isLoadingUsername ||
     isLoadingPredictionsGraphQL ||
-    (userPredictionsGraphQL.length === 0 && isLoadingPredictionsContract) ||
     isLoadingMarketsGraphQL ||
-    (marketsFromEnvio.length === 0 && isLoadingMarketsContract) ||
     isLoadingUsernameUpdates;
 
+  useEffect(() => {
+    if (!isLoading) {
+      hasLoadedOnceRef.current = true;
+    }
+  }, [isLoading]);
+
+  const showBlockingLoader = isLoading && !hasLoadedOnceRef.current;
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-[#0F172A] text-white">
@@ -323,15 +314,27 @@ export default function ProfilePage() {
         <DashboardSidebar />
 
         <main className="flex-1 lg:ml-64 px-6 py-10 lg:px-12 max-w-7xl mx-auto transition-all">
-          {isLoading ? (
+          {showBlockingLoader ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
               <Loader2 className="w-6 h-6 animate-spin text-blue-500 mb-4" />
               <p className="text-slate-500 text-sm font-medium tracking-wide">
-                SYNCING PROFILE...
+                Loading profile...
               </p>
             </div>
           ) : (
             <div className="space-y-12">
+              {(isPredictionsGraphQLError || isMarketsGraphQLError) && (
+                <div className="p-4 rounded-2xl border border-rose-500/20 bg-rose-500/5">
+                  <p className="text-rose-200 text-sm font-medium">
+                    Envio/Hasura GraphQL is not returning data for this profile.
+                  </p>
+                  <p className="text-slate-400 text-xs mt-1">
+                    {String(
+                      predictionsGraphQLError || marketsGraphQLError || ""
+                    )}
+                  </p>
+                </div>
+              )}
               {/* 1. Integrated Header & Sparkline */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-end">
                 <div className="lg:col-span-2">

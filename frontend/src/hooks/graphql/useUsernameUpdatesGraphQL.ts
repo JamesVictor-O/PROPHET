@@ -15,7 +15,7 @@ export function useUsernameUpdatesGraphQL(userAddress: string | undefined) {
 
       const query = `
         query GetUsernameUpdates($user: String!) {
-          ReputationSystem_UsernameSet(where: {user: {_ilike: $user}}, limit: 100, order_by: {id: desc}) {
+          ReputationSystem_UsernameSet(where: {user: {_eq: $user}}, limit: 100) {
             id
             user
             username

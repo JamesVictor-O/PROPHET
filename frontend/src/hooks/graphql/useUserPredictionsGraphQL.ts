@@ -85,7 +85,7 @@ export function useUserPredictionsGraphQL() {
       // or just fetch what we need.
       const query = `
         query GetUserPredictions($user: String!) {
-          Prediction(where: {user: {_ilike: $user}}, order_by: {timestamp: desc}) {
+          Prediction(where: {user: {_eq: $user}}, order_by: {timestamp: desc}) {
             id
             marketId
             amount

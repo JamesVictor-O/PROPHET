@@ -4,20 +4,31 @@
 
 <img src="frontend/public/Logo3.png" alt="Prophet Logo" width="300" />
 
-> **Predict And Earn.** > **The most advanced ERC-7715 + Envio-powered prediction market platform**
+> **Predict And Earn.** **The most advanced ERC-7715 + Envio-powered prediction market platform**
 
 **A revolutionary mobile-first prediction market platform featuring Set-and-Forget AI strategies, One-Tap Betting, and real-time Envio-indexed activity feeds**
 
-
 ![ERC-7715](https://img.shields.io/badge/ERC--7715-Advanced%20Permissions-blue?style=for-the-badge)
 ![Envio](https://img.shields.io/badge/Envio-Indexer-green?style=for-the-badge)
-
 
 [🚀 Live Demo](#-demo) • [🔐 ERC-7715 Features](#-erc-7715-advanced-permissions) • [📊 Envio Integration](#-envio-indexer-integration) • [💻 Development](#-getting-started) • [📖 Docs](#-documentation)
 
 ---
 
 </div>
+
+---
+
+## 📣 Social Media (X)
+
+- **Cook-Off build thread / social post**: [x.com/codeX_james/status/2007564919001014602](https://x.com/codeX_james/status/2007564919001014602?s=20)
+- **Thread copy (repo)**: [`TWITTER_THREAD.md`](./TWITTER_THREAD.md)
+
+---
+
+## 📝 Feedback
+
+- **HackMD feedback doc**: [hackmd.io/@victorjames408/rk4Gp4Cz-x](https://hackmd.io/@victorjames408/rk4Gp4Cz-x)
 
 ---
 
@@ -46,6 +57,8 @@ Traditional prediction markets require:
 ## 🔐 ERC-7715 Advanced Permissions
 
 Prophet showcases the **most creative and advanced use of ERC-7715** in production:
+
+**Deep dive doc**: [`ADVANCED_PERMISSIONS_ARCHITECTURE.md`](./ADVANCED_PERMISSIONS_ARCHITECTURE.md)
 
 ### 🚀 Key Features
 
@@ -81,21 +94,23 @@ const strategy = {
 
 1. **Permission Grant** (One-Time):
 
-   - User grants ERC-7715 permission to session account
-   - Permission includes spending limits and time windows
-   - Stored in `PermissionProvider` with localStorage persistence
+   - User grants ERC‑7715 permission to the **session key** via MetaMask Advanced Permissions
+     - Implementation: [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx#L72-L146) (calls `requestExecutionPermissions(...)`)
+   - Permission is persisted + validated client-side
+     - Implementation: [`frontend/src/providers/PermissionProvider.tsx`](./frontend/src/providers/PermissionProvider.tsx)
 
 2. **Session Account Creation**:
 
-   - App generates session key (private key)
-   - Creates MetaMask Smart Account owned by session key
-   - Session account acts as delegate in ERC-7715 permission
+   - App generates a **session key** and creates a **session smart account (ERC‑4337)**
+     - Implementation: [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx)
 
 3. **Strategy Execution**:
-   - `StrategyExecutor` service monitors markets every 60 seconds
-   - When conditions match, calls `redeemWithUSDCTransfer()`
-   - Automatically transfers USDC from user's EOA to session account
-   - Executes prediction transaction via session account
+   - Strategy engine monitors Envio-indexed markets and triggers on matches
+     - Implementation: [`frontend/src/hooks/useStrategyExecutor.ts`](./frontend/src/hooks/useStrategyExecutor.ts)
+     - Core logic: [`frontend/src/services/strategyExecutor.ts`](./frontend/src/services/strategyExecutor.ts)
+   - When conditions match, it executes via **ERC‑7715 redemption + ERC‑4337 execution**
+     - Redeem + fund: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L92-L276) (`redeemDelegations(...)`)
+     - Execute call(s): [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L277-L393) (`sendUserOperationWithDelegation(...)`)
    - **All without wallet popups!**
 
 **Files**:
@@ -122,9 +137,13 @@ User clicks "Predict" → Transaction executes instantly → Done!
 **Implementation**:
 
 - Uses `redeemDelegations()` from MetaMask Smart Accounts Kit
-- Session account executes transactions via ERC-7715 delegation
-- Gas sponsored by Pimlico Paymaster
-- USDC automatically transferred from EOA to session account when needed
+  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L259-L270)
+- Executes contract calls via ERC‑7715 delegation + ERC‑4337 user operation
+  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L321-L376)
+- Gas sponsorship via bundler + Pimlico paymaster
+  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L298-L303) and [`frontend/src/services/pimlicoClient.ts`](./frontend/src/services/pimlicoClient.ts)
+- USDC auto-transfer (EOA → session smart account) during the permission window
+  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L239-L270)
 
 **Files**:
 
@@ -215,12 +234,22 @@ Blockchain
 3. **useRedeemDelegations**: Executes transactions via delegation
 4. **StrategyExecutor**: Monitors markets and auto-executes strategies
 
-**Documentation**: See `ADVANCED_PERMISSIONS_ARCHITECTURE.md` for complete technical details.
+**Deep dive (code)**: Start here:
+
+- [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx) (request permission)
+- [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts) (redeem + execute)
+- [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx) (session account lifecycle)
 
 ### 🔗 Code Usage Links
 
-- **Requesting Permissions**: [permissions-manager.tsx](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/components/wallet/permissions-manager.tsx#L115-L136) - Uses `requestExecutionPermissions` to grant session key access.
-- **Redeeming Permissions**: [useRedeemDelegations.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/hooks/useRedeemDelegations.ts#L277-L288) - Uses `redeemDelegations` to execute transactions on behalf of the user.
+- **Request Advanced Permissions (ERC‑7715)**:
+
+  - [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx#L72-L146) — calls `requestExecutionPermissions(...)` to grant a scoped, time-bound permission to the **session key EOA**.
+  - [`frontend/src/components/wallet/grant-permissions-button.tsx`](./frontend/src/components/wallet/grant-permissions-button.tsx#L44-L143) — streamlined “Enable One‑Tap Betting” flow (also uses `requestExecutionPermissions(...)`).
+
+- **Redeem Advanced Permissions (ERC‑7715)**:
+  - [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L92-L276) — `redeemDelegations(...)` executes a delegated transfer under the permission context.
+  - [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L277-L393) — `sendUserOperationWithDelegation(...)` executes the actual contract call(s) via ERC‑4337 + bundler/paymaster.
 
 ---
 
@@ -241,9 +270,13 @@ Prophet leverages **Envio Indexer** for the **best-in-class real-time data exper
 **Prophet Approach**:
 
 - Envio indexes all contract events in real-time
+- - Implementation: [`indexer/config.yaml`](./indexer/config.yaml) and [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts)
 - GraphQL API provides instant queries
+- - Implementation: [`frontend/src/hooks/graphql/useGraphQL.ts`](./frontend/src/hooks/graphql/useGraphQL.ts) (uses `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`)
 - Aggregated entities (Market, Prediction, User) pre-computed
+- - Implementation: [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts) (entity updates) + frontend consumers: [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts), [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts)
 - Sub-second query times
+- - Implementation: frontend queries via GraphQL hooks (no RPC polling): [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts), [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts)
 
 **Example Query**:
 
@@ -266,9 +299,12 @@ query GetMarkets {
 
 **Files**:
 
-- `indexer/src/EventHandlers.ts` - Event indexing logic
-- `indexer/schema.graphql` - GraphQL schema
-- `frontend/src/hooks/contracts/useAllMarkets.ts` - Frontend integration
+- [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts) — event handlers + entity updates (Market/Prediction/User/GlobalStats)
+- [`indexer/config.yaml`](./indexer/config.yaml) — indexed contracts + start blocks
+- [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts) — Markets data via Envio/Hasura GraphQL
+- [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts) — Predictions data via Envio/Hasura GraphQL
+- [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts) — activity/feeds via Envio/Hasura GraphQL
+- [`frontend/src/hooks/useStrategyExecutor.ts`](./frontend/src/hooks/useStrategyExecutor.ts) — strategies react to Envio-indexed markets and execute on matches
 
 #### 2. **Activity Feeds** 🎯
 
@@ -279,16 +315,10 @@ query GetMarkets {
 - User prediction history
 - Market resolution notifications
 
-**Implementation**:
-
-```typescript
-const { data: marketsData } = useAllMarkets();
-```
-
 **Files**:
 
-- `frontend/src/app/dashboard/home/page.tsx` - Home page with activity feed
-- `frontend/src/hooks/useAfricanEvents.ts` - Event data hook
+- [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts) — recent predictions feed from Envio GraphQL
+- [`frontend/src/app/dashboard/profile/page.tsx`](./frontend/src/app/dashboard/profile/page.tsx) — profile activity built from Envio-indexed data
 
 #### 3. **Aggregated Entities** 📊
 
@@ -358,9 +388,11 @@ Frontend (React/Next.js)
 
 ### 🔗 Envio Usage Links
 
-- **GraphQL Service**: [envio.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/services/envio.ts) - Core GraphQL client and query definitions.
-- **React Hooks**: [useEnvioData.ts](file:///Users/mac/MyWork/metamask/PROPHET/frontend/src/hooks/useEnvioData.ts) - Real-time data fetching for markets and activity.
-- **Event Handlers**: [EventHandlers.ts](file:///Users/mac/MyWork/metamask/PROPHET/indexer/src/EventHandlers.ts) - Server-side indexing logic for contract events.
+- **GraphQL client**: [`frontend/src/hooks/graphql/useGraphQL.ts`](./frontend/src/hooks/graphql/useGraphQL.ts) — frontend GraphQL client (requires `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`)
+- **Markets hook**: [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts)
+- **Predictions hook**: [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts)
+- **Recent activity hook**: [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts)
+- **Indexer handlers**: [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts)
 
 ### 💡 How we leverage Envio
 
@@ -574,7 +606,8 @@ forge script script/Deploy.s.sol:Deploy \
 ```env
 NEXT_PUBLIC_GEMINI_API_KEY=your_api_key_here
 NEXT_PUBLIC_PIMLICO_API_KEY=your_pimlico_key
-NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
+# Required: Envio/Hasura GraphQL endpoint (must end with /v1/graphql)
+NEXT_PUBLIC_ENVIO_GRAPHQL_URL=https://<your-hasura-service>.up.railway.app/v1/graphql
 ```
 
 **Indexer** (`indexer/.env`):
@@ -589,9 +622,9 @@ RPC_URL=your_base_sepolia_rpc_url
 
 ### ERC-7715 Implementation
 
-- **Architecture**: `ADVANCED_PERMISSIONS_ARCHITECTURE.md`
-- **Session Accounts**: `SMART_ACCOUNT_ARCHITECTURE_EXPLAINED.md`
-- **Code Examples**: See `frontend/src/hooks/useRedeemDelegations.ts`
+- **Request permissions (ERC‑7715)**: [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx)
+- **Redeem + execute (ERC‑7715 + ERC‑4337)**: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts)
+- **Session accounts**: [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx)
 
 ### Envio Indexer
 
@@ -642,15 +675,8 @@ RPC_URL=your_base_sepolia_rpc_url
 
 ---
 
-## 📜 License
-
-MIT License - see [LICENSE.md](LICENSE.md)
-
 ---
 
 _"Every prophet was once a skeptic. Prove you're a prophet and earn"_
 
-**Built with ❤️ using ERC-7715 and Envio**
-
-export HASURA_URL="https://prophet-production-0cb1.up.railway.app/v1/graphql"
-export HASURA_ADMIN_SECRET="Lebron2525"curl -sS -X POST "$HASURA_URL" \ -H "Content-Type: application/json" \ -H "x-hasura-admin-secret: $HASURA_ADMIN_SECRET" \ -d '{"query":"{ \_\_schema { queryType { fields { name } } } }"}' | head -c 1200
+**Built using ERC‑7715 Advanced Permissions and Envio**

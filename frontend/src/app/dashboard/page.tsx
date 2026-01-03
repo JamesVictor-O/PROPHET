@@ -12,7 +12,6 @@ import {
 } from "@/components/markets/create-market-modal";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, Info } from "lucide-react";
-import { useAllMarkets } from "@/hooks/contracts/useAllMarkets";
 import { useMarketsGraphQL } from "@/hooks/graphql/useMarketsGraphQL";
 import { defaultChain } from "@/lib/wallet-config";
 
@@ -34,33 +33,17 @@ export default function DashboardPage() {
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [selectedSide, setSelectedSide] = useState<"yes" | "no" | undefined>();
 
-  // Prefer Envio (Hasura GraphQL) for fast, aggregated market data.
-  // Fallback to contract polling if GraphQL is unavailable.
+  // Envio (Hasura GraphQL) is the single source of truth for Markets display.
   const {
     data: marketsFromEnvio = [],
     isLoading: isLoadingEnvio,
     isError: isEnvioError,
-  } = useMarketsGraphQL(50);
-  const {
-    data: marketsFromContract = [],
-    isLoading: isLoadingContract,
-    isError: isContractError,
     refetch: refetchMarkets,
-  } = useAllMarkets();
+  } = useMarketsGraphQL(50);
 
-  const marketsData =
-    marketsFromEnvio.length > 0 ? marketsFromEnvio : marketsFromContract;
-  const isLoadingMarkets =
-    isLoadingEnvio ||
-    (marketsFromEnvio.length === 0 && isLoadingContract);
-  // Only show a fatal error if BOTH sources fail to provide data.
-  // Envio can be down temporarily; in that case we still want to render using onchain fallback.
-  const hasMarketsData = marketsData.length > 0;
-  const isError =
-    !isLoadingMarkets &&
-    !hasMarketsData &&
-    ((isEnvioError && marketsFromEnvio.length === 0) ||
-      (isContractError && marketsFromContract.length === 0));
+  const marketsData = marketsFromEnvio;
+  const isLoadingMarkets = isLoadingEnvio;
+  const isError = !isLoadingMarkets && isEnvioError;
 
   // Unified formatting for a professional look
   const markets: Market[] = useMemo(() => {
@@ -192,20 +175,21 @@ function ErrorState({ chainId }: { chainId: number }) {
     <div className="max-w-xl mx-auto mt-20 p-8 rounded-[2rem] bg-rose-500/5 border border-rose-500/10 text-center">
       <Info className="w-8 h-8 text-rose-500 mx-auto mb-4" />
       <h3 className="text-white font-bold mb-2 uppercase text-[10px] tracking-widest">
-        Protocol Sync Error
+        Envio GraphQL Error
       </h3>
       <p className="text-slate-400 text-sm mb-6 font-medium">
-        Ensure your wallet is connected to{" "}
-        <span className="text-white">Base Sepolia (Chain ID: {chainId})</span>{" "}
-        and refresh the page.
+        We couldn&apos;t load markets from Envio/Hasura. Ensure{" "}
+        <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code> is set to your Hasura{" "}
+        <code>/v1/graphql</code> endpoint and that the <code>public</code> role
+        has SELECT permissions on the <code>Market</code> table.
       </p>
       <div className="text-left bg-black/40 p-4 rounded-xl space-y-2 border border-white/5">
         <p className="text-[9px] text-slate-500 uppercase tracking-widest">
           Troubleshooting Terminal
         </p>
         <ul className="text-[11px] text-slate-400 font-mono space-y-1">
-          <li>check_rpc_connection... FAILED</li>
-          <li> verify_contract_address... PENDING</li>
+          <li>check_envio_graphql_endpoint... FAILED</li>
+          <li>check_hasura_table_permissions... PENDING</li>
         </ul>
       </div>
     </div>

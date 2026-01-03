@@ -382,9 +382,11 @@ export function CreateStrategyModal({
                   [
                     "all",
                     "sports",
-                    "politics",
-                    "tech",
-                    "entertainment",
+                    "music",
+                    "movies",
+                    "reality-tv",
+                    "awards",
+                    "other",
                   ] as MarketCategory[]
                 ).map((cat) => (
                   <button

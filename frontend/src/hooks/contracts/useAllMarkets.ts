@@ -17,6 +17,11 @@ export interface MarketInfo {
   question: string;
   category: string;
   creator: Address;
+  /**
+   * Market creation timestamp (seconds since epoch) when available.
+   * Populated from Envio/Hasura. Onchain fallback may leave this undefined.
+   */
+  createdAt?: number;
   yesPool: bigint;
   noPool: bigint;
   totalPool: bigint;

@@ -2,7 +2,7 @@ import { Address } from "viem";
 import { useContractRead, useContractWrite } from "./useContract";
 import { PredictionMarketABI } from "@/lib/abis";
 import { getContractAddress } from "@/lib/contracts";
-import { MarketType, MarketStatus, Outcome, MarketStruct } from "@/lib/types";
+import {  Outcome, MarketStruct } from "@/lib/types";
 import { usePublicClient } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 

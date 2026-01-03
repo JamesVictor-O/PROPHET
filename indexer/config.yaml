@@ -1,9 +1,8 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: prophet-indexer
 networks:
-  - id: 84532 # Base Sepolia
-    start_block: 35545281 # Deployment block (ReputationSystem - earliest contract)
-    contracts:
+  - id: 84532 
+    start_block: 35545281 
       - name: MarketFactory
         address:
           - 0x1cF71f7e4a5e79B2bEd17655eb22E31422d9A3f1

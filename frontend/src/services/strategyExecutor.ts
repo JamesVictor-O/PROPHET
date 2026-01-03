@@ -71,6 +71,16 @@ export class StrategyExecutor {
     this.intervalId = setInterval(() => this.executeStrategies(), intervalMs);
   }
 
+  /**
+   * Run one evaluation cycle immediately.
+   * Useful for "event-driven" triggers when fresh Envio data arrives.
+   */
+  runOnce() {
+    if (this.stoppedDueToError) return;
+    // If not running, don't flip isRunning — this is just a one-off tick.
+    void this.executeStrategies();
+  }
+
   stop() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
@@ -257,7 +267,9 @@ export class StrategyExecutor {
       }
 
       for (const condition of strategy.conditions) {
-        if (this.matchesCondition(market, condition, marketsToCheck)) {
+        if (
+          this.matchesCondition(market, condition, strategy, marketsToCheck)
+        ) {
           const confidence = this.calculateConfidence(
             market,
             condition,
@@ -286,8 +298,25 @@ export class StrategyExecutor {
   private matchesCondition(
     market: MarketInfo,
     condition: StrategyCondition,
+    strategy: PredictionStrategy,
     sortedMarkets?: MarketInfo[]
   ): boolean {
+    if (condition.type === "new_market") {
+      const marketCreatedAt = market.createdAt;
+      if (typeof marketCreatedAt !== "number") {
+        return false;
+      }
+      const strategyCreatedAtSec = Math.floor(
+        new Date(strategy.createdAt).getTime() / 1000
+      );
+      if (
+        Number.isFinite(strategyCreatedAtSec) &&
+        marketCreatedAt < strategyCreatedAtSec
+      ) {
+        return false;
+      }
+    }
+
     // Category match
     if (condition.categories && condition.categories.length > 0) {
       if (!condition.categories.includes("all")) {
@@ -381,25 +410,18 @@ export class StrategyExecutor {
     if (strategy.action.side !== "auto") {
       return strategy.action.side;
     }
-
-    // Contrarian strategy: bet against the crowd when odds are extreme
     if (condition.contrarian) {
       const threshold = condition.contrarianThreshold || 80;
-      // If YES > threshold (overbought), bet NO
       if (market.yesPercent > threshold) {
         return "no";
       }
-      // If YES < (100 - threshold) (oversold), bet YES
       if (market.yesPercent < 100 - threshold) {
         return "yes";
       }
-      // If not extreme enough, don't bet (will be filtered by confidence)
+
       return market.yesPercent < 50 ? "yes" : "no";
     }
 
-    // Simple heuristic: bet on the side with better odds (lower percentage = better odds)
-    // If yes is < 50%, bet yes (odds favor yes)
-    // If yes is > 50%, bet no (odds favor no)
     return market.yesPercent < 50 ? "yes" : "no";
   }
 
@@ -457,8 +479,6 @@ export class StrategyExecutor {
       return true;
     }
 
-    // Also treat certain failures as terminal (non-retryable).
-    // Example: contract revert "PredictionMarket: market closed" should never be retried.
     const hasTerminalFailure = executions.some((e) => {
       if (e.marketId !== marketId) return false;
       if (e.status !== "failed") return false;

@@ -23,10 +23,10 @@ export function WhyProphet() {
     },
     {
       icon: <Shield className="w-8 h-8" />,
-      title: "Immutable. Automatic.",
-      sub: "TRUSTLESS",
+      title: "Automated Strategies",
+      sub: "AUTOMATION",
       description:
-        "No middlemen. No 'wait for payout'. Smart contracts stream your wins the second the market hits.",
+        "Predict the Future with our Automated Strategies,  Stake while you sleep, and get paid in real-time.",
       color: "from-purple-600 to-purple-400",
       accent: "text-purple-400",
     },

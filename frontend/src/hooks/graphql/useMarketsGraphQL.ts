@@ -26,11 +26,21 @@ interface MarketGraphQL {
   predictionCount: string;
 }
 
-export function useMarketsGraphQL(limit: number = 50) {
+export function useMarketsGraphQL(
+  limit: number = 50,
+  options?: {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchInterval?: number;
+  }
+) {
   const chainId = useChainId();
+  const enabled = options?.enabled ?? true;
+  const staleTime = options?.staleTime ?? 15000;
+  const refetchInterval = options?.refetchInterval ?? 30000;
 
   return useQuery({
-    queryKey: ["marketsGraphQL", limit, chainId],
+    queryKey: ["marketsGraphQL", limit, chainId, staleTime, refetchInterval],
     queryFn: async (): Promise<MarketInfo[]> => {
       const query = `
         query {
@@ -69,6 +79,9 @@ export function useMarketsGraphQL(limit: number = 50) {
         const totalPool = yesPool + noPool;
         const now = BigInt(Math.floor(Date.now() / 1000));
         const timeLeft = endTime > now ? endTime - now : BigInt(0);
+        const createdAtSec = market.createdAt
+          ? Number(market.createdAt)
+          : undefined;
 
         // Calculate percentages
         const yesPercent =
@@ -100,6 +113,9 @@ export function useMarketsGraphQL(limit: number = 50) {
           question: market.question,
           category: market.category,
           creator: market.creator as Address,
+          createdAt: Number.isFinite(createdAtSec as number)
+            ? createdAtSec
+            : undefined,
           yesPool,
           noPool,
           totalPool,
@@ -121,8 +137,8 @@ export function useMarketsGraphQL(limit: number = 50) {
         };
       });
     },
-    enabled: true,
-    staleTime: 15000,
-    refetchInterval: 30000,
+    enabled,
+    staleTime,
+    refetchInterval,
   });
 }

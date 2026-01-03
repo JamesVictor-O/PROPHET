@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { useStrategies } from "./useStrategies";
-import { useAllMarkets } from "./contracts/useAllMarkets";
 import { useMarketsGraphQL } from "./graphql/useMarketsGraphQL";
 import { useRedeemDelegations } from "./useRedeemDelegations";
 import { PredictionMarketABI } from "@/lib/abis";
@@ -20,21 +19,26 @@ export function useStrategyExecutor() {
   const { strategies, addExecution, updateStrategy, getStrategyExecutions } =
     useStrategies();
 
-  // Use Envio GraphQL for real-time market data (listens for MarketCreated events)
-  const { data: marketsFromEnvio } = useMarketsGraphQL(50);
+  const activeStrategies = strategies.filter((s) => s.status === "active");
 
-  // Fallback to contract polling if Envio is not available
-  const { data: marketsFromContract } = useAllMarkets();
+  // Envio GraphQL is the single source of truth for strategy triggers (MarketCreated → indexed → GraphQL).
+  // We poll faster here to feel "event-driven" in the demo (without relying on RPC).
+  const { data: marketsFromEnvio } = useMarketsGraphQL(50, {
+    enabled: activeStrategies.length > 0,
+    staleTime: 2000,
+    refetchInterval: 5000,
+  });
 
   const { redeemWithUSDCTransfer, canUseRedeem } = useRedeemDelegations();
   const executorRef = useRef<StrategyExecutor | null>(null);
   const lastStrategyIdsRef = useRef<string>(""); // Track last strategy IDs to prevent unnecessary restarts
+  const lastEnvioMarketFingerprintRef = useRef<string>(""); // Track market changes to trigger immediate runs
 
   // Get token decimals based on chain
   const tokenDecimals =
     defaultChain.id === 84532 || defaultChain.id === 8453 ? 6 : 18;
 
-  // Get markets function for executor - prefer Envio, fallback to contract
+  // Get markets function for executor - Envio only
   const getMarkets = useCallback(async (): Promise<MarketInfo[]> => {
     // Use Envio data if available (real-time from MarketCreated events)
     if (marketsFromEnvio && marketsFromEnvio.length > 0) {
@@ -44,16 +48,8 @@ export function useStrategyExecutor() {
       return marketsFromEnvio;
     }
 
-    // Fallback to contract data if Envio is not available
-    if (marketsFromContract && marketsFromContract.length > 0) {
-      console.log(
-        `[useStrategyExecutor] Using ${marketsFromContract.length} markets from contract polling`
-      );
-      return marketsFromContract as MarketInfo[];
-    }
-
     return [];
-  }, [marketsFromEnvio, marketsFromContract]);
+  }, [marketsFromEnvio]);
 
   // Execute prediction function
   const executePrediction = useCallback(
@@ -163,8 +159,6 @@ export function useStrategyExecutor() {
       return;
     }
 
-    // Get all active strategies (test strategies are included if explicitly created)
-    const activeStrategies = strategies.filter((s) => s.status === "active");
     console.log(
       `[useStrategyExecutor] Found ${activeStrategies.length} active strategies out of ${strategies.length} total`,
       activeStrategies.map((s) => ({
@@ -213,12 +207,12 @@ export function useStrategyExecutor() {
     );
 
     executorRef.current = executor;
-    // Start with a longer interval to prevent rapid-fire executions
+    // We still keep a safety interval, but we also "tick" immediately when Envio data changes.
     console.log(
       `[useStrategyExecutor] Starting executor with ${activeStrategies.length} active strategies:`,
       activeStrategies.map((s) => ({ id: s.id, name: s.name }))
     );
-    executor.start(60000); // Check every 60 seconds instead of 30
+    executor.start(15000); // check every 15s (Envio polling runs every 5s)
 
     return () => {
       executor.stop();
@@ -233,11 +227,26 @@ export function useStrategyExecutor() {
     executePrediction,
     getStrategyExecutions,
     updateStrategy,
+    activeStrategies,
   ]);
 
-  // Get all active strategies for display (test strategies included)
-  const activeStrategies = strategies.filter((s) => s.status === "active");
   const isRunning = address && canUseRedeem && activeStrategies.length > 0;
+
+  // When Envio markets change, run an immediate evaluation cycle (feels like "listening to events").
+  useEffect(() => {
+    if (!isRunning) return;
+    if (!marketsFromEnvio || marketsFromEnvio.length === 0) return;
+
+    const fingerprint = marketsFromEnvio
+      .slice(0, 10)
+      .map((m) => `${m.id}:${m.question}`)
+      .join("|");
+
+    if (fingerprint && fingerprint !== lastEnvioMarketFingerprintRef.current) {
+      lastEnvioMarketFingerprintRef.current = fingerprint;
+      executorRef.current?.runOnce();
+    }
+  }, [isRunning, marketsFromEnvio]);
 
   // Debug: Log whenever isRunning or activeStrategiesCount changes
   useEffect(() => {

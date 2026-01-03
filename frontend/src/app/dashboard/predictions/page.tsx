@@ -9,7 +9,6 @@ import { PredictionCard } from "@/components/predictions/prediction-card";
 import { PredictionsStats } from "@/components/predictions/predictions-stats";
 import { useUserPredictionsGraphQL } from "@/hooks/graphql";
 import type { UserPredictionGraphQL } from "@/hooks/graphql";
-import { useUserPredictions, type UserPrediction } from "@/hooks/contracts";
 import { Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 
@@ -21,28 +20,19 @@ export default function PredictionsPage() {
     isError: isGraphQLError,
     error: graphQLError,
   } = useUserPredictionsGraphQL();
-  const { data: userPredictionsContract = [], isLoading: isLoadingContract } =
-    useUserPredictions();
   const [activeTab, setActiveTab] = useState("all");
 
-  // Prefer Envio GraphQL for speed/freshness. Fallback to onchain reads if GraphQL is empty/unavailable.
-  const userPredictions: Array<UserPredictionGraphQL | UserPrediction> =
-    userPredictionsGraphQL.length > 0
-      ? userPredictionsGraphQL
-      : userPredictionsContract;
-
-  const isLoading =
-    isLoadingGraphQL ||
-    (userPredictionsGraphQL.length === 0 && isLoadingContract);
+  // Envio (Hasura GraphQL) is the single source of truth for Predictions display.
+  const userPredictions: Array<UserPredictionGraphQL> = userPredictionsGraphQL;
+  const isLoading = isLoadingGraphQL;
 
   const { createdMarkets, stakedPredictions } = useMemo(() => {
     if (!userPredictions) return { createdMarkets: [], stakedPredictions: [] };
     const created = userPredictions.filter(
-      (p: UserPredictionGraphQL | UserPrediction) =>
-        p.isCreator && p.stake === 0
+      (p: UserPredictionGraphQL) => p.isCreator && p.stake === 0
     );
     const staked = userPredictions.filter(
-      (p: UserPredictionGraphQL | UserPrediction) => p.stake > 0
+      (p: UserPredictionGraphQL) => p.stake > 0
     );
     return { createdMarkets: created, stakedPredictions: staked };
   }, [userPredictions]);
@@ -51,10 +41,10 @@ export default function PredictionsPage() {
     if (activeTab === "all") return stakedPredictions;
     if (activeTab === "active")
       return stakedPredictions.filter(
-        (p: UserPredictionGraphQL | UserPrediction) => p.status === "active"
+        (p: UserPredictionGraphQL) => p.status === "active"
       );
     return stakedPredictions.filter(
-      (p: UserPredictionGraphQL | UserPrediction) => p.status !== "active"
+      (p: UserPredictionGraphQL) => p.status !== "active"
     );
   }, [stakedPredictions, activeTab]);
 
@@ -99,7 +89,7 @@ export default function PredictionsPage() {
                 Connect your wallet to access your prediction history.
               </p>
             </div>
-          ) : isGraphQLError && userPredictionsGraphQL.length === 0 ? (
+          ) : isGraphQLError ? (
             <div className="text-center py-20 border border-white/5 rounded-3xl bg-white/1 space-y-3">
               <p className="text-slate-300 font-medium">
                 We couldn&apos;t load predictions from Envio right now.
@@ -109,17 +99,13 @@ export default function PredictionsPage() {
                   ? graphQLError.message
                   : String(graphQLError)}
               </p>
-              {userPredictionsContract.length > 0 ? (
-                <p className="text-slate-500 text-sm">
-                  Showing onchain results instead.
-                </p>
-              ) : (
-                <p className="text-slate-500 text-sm">
-                  If this is production, check that{" "}
-                  <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code> is set to your
-                  Hasura <code>/v1/graphql</code> endpoint.
-                </p>
-              )}
+              <p className="text-slate-500 text-sm">
+                If this is production, check that{" "}
+                <code>NEXT_PUBLIC_ENVIO_GRAPHQL_URL</code> is set to your Hasura{" "}
+                <code>/v1/graphql</code> endpoint and the <code>public</code>{" "}
+                role has SELECT permissions on <code>Prediction</code> and{" "}
+                <code>Market</code>.
+              </p>
             </div>
           ) : (
             <div className="space-y-16">
@@ -128,31 +114,28 @@ export default function PredictionsPage() {
                 stats={{
                   total: stakedPredictions.length,
                   active: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL | UserPrediction) =>
-                      p.status === "active"
+                        (p: UserPredictionGraphQL) => p.status === "active"
                   ).length,
                   won: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL | UserPrediction) =>
-                      p.status === "won"
+                        (p: UserPredictionGraphQL) => p.status === "won"
                   ).length,
                   lost: stakedPredictions.filter(
-                    (p: UserPredictionGraphQL | UserPrediction) =>
-                      p.status === "lost"
+                        (p: UserPredictionGraphQL) => p.status === "lost"
                   ).length,
                   totalEarned: stakedPredictions
                     .filter(
-                      (p: UserPredictionGraphQL | UserPrediction) =>
-                        p.status === "won" && p.actualWin
+                          (p: UserPredictionGraphQL) =>
+                            p.status === "won" && p.actualWin
                     )
                     .reduce(
                       (
                         sum: number,
-                        p: UserPredictionGraphQL | UserPrediction
+                            p: UserPredictionGraphQL
                       ) => sum + (p.actualWin || 0),
                       0
                     ),
                   totalStaked: stakedPredictions.reduce(
-                    (sum: number, p: UserPredictionGraphQL | UserPrediction) =>
+                        (sum: number, p: UserPredictionGraphQL) =>
                       sum + p.stake,
                     0
                   ),
@@ -199,10 +182,10 @@ export default function PredictionsPage() {
                     {filteredStaked.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
                         {filteredStaked.map(
-                          (p: UserPredictionGraphQL | UserPrediction) => (
+                          (p: UserPredictionGraphQL) => (
                             <PredictionCard
                               key={p.id}
-                              prediction={p as unknown as UserPrediction}
+                              prediction={p}
                             />
                           )
                         )}
@@ -236,10 +219,10 @@ export default function PredictionsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
                     {createdMarkets.map(
-                      (p: UserPredictionGraphQL | UserPrediction) => (
+                      (p: UserPredictionGraphQL) => (
                         <PredictionCard
                           key={p.id}
-                          prediction={p as unknown as UserPrediction}
+                          prediction={p}
                         />
                       )
                     )}
