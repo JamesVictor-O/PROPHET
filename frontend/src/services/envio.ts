@@ -1,12 +1,20 @@
-const HASURA_URL = process.env.NEXT_PUBLIC_HASURA_URL;
-const ADMIN_SECRET = process.env.NEXT_PUBLIC_HASURA_ADMIN_SECRET;
+const GRAPHQL_URL =
+  process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL || process.env.NEXT_PUBLIC_HASURA_URL;
 
-export async function fetchGraphQL(query: string, variables: any = {}) {
-  const response = await fetch(HASURA_URL!, {
+export async function fetchGraphQL(
+  query: string,
+  variables: Record<string, unknown> = {}
+) {
+  if (!GRAPHQL_URL) {
+    throw new Error(
+      "Missing GraphQL endpoint. Set NEXT_PUBLIC_ENVIO_GRAPHQL_URL to your Hasura /v1/graphql endpoint (or set NEXT_PUBLIC_HASURA_URL)."
+    );
+  }
+
+  const response = await fetch(GRAPHQL_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Hasura-Admin-Secret": ADMIN_SECRET!,
     },
     body: JSON.stringify({
       query,

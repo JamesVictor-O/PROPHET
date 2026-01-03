@@ -3,6 +3,7 @@
 ## Problem
 
 Your deployment is crashing with:
+
 - `ts-node: not found`
 - `WARNING: Generated directory not detected. Consider running envio codegen first`
 
@@ -19,10 +20,12 @@ Railway will auto-detect `nixpacks.toml` and use it.
 ### Steps:
 
 1. **Make sure these files are in your `indexer/` directory:**
+
    - ✅ `nixpacks.toml` (created)
    - ✅ `package.json` (updated with `prestart` and `postinstall`)
 
 2. **In Railway:**
+
    - Go to your service → Settings
    - Set **Root Directory** to `indexer`
    - Railway will automatically:
@@ -32,6 +35,7 @@ Railway will auto-detect `nixpacks.toml` and use it.
      - Start with `npm start`
 
 3. **Environment Variables** (add these in Railway):
+
    ```
    ENVIO_PG_DATABASE_URL=postgres://postgres:password@envio-postgres:5432/envio-prod
    TUI_OFF=true
@@ -51,6 +55,7 @@ If Railway detects `Dockerfile`, it will use Docker instead.
 1. **Make sure `Dockerfile` exists in `indexer/` directory**
 
 2. **In Railway:**
+
    - Go to your service → Settings
    - Set **Root Directory** to `indexer`
    - Railway will build using the Dockerfile
@@ -66,6 +71,7 @@ Use the `Dockerfile` I created.
 ### Steps:
 
 1. **Build command:**
+
    ```bash
    docker build -t prophet-indexer .
    ```
@@ -83,21 +89,25 @@ Use the `Dockerfile` I created.
 ## What I Fixed
 
 ### 1. Updated `package.json`:
+
 - Added `prestart` script: Runs `codegen` before `start`
 - Added `postinstall` script: Installs generated dependencies automatically
 
 ### 2. Created `Dockerfile`:
+
 - Multi-stage build
 - Installs all dependencies (including generated)
 - Runs `codegen` during build
 - Production-ready image
 
 ### 3. Created `nixpacks.toml`:
+
 - Railway-specific build configuration
 - Ensures codegen runs before start
 - Installs all dependencies
 
 ### 4. Created `railway.toml`:
+
 - Alternative Railway configuration
 - Explicit build and start commands
 
@@ -126,11 +136,13 @@ If you're already deployed and want a quick fix:
 ## Verify It Works
 
 After deployment, check logs for:
+
 - ✅ `Running codegen...`
 - ✅ `Generated directory detected`
 - ✅ `Indexer started successfully`
 
 If you still see errors, check:
+
 1. Are all environment variables set?
 2. Is PostgreSQL accessible?
 3. Are the generated files present?
@@ -176,4 +188,3 @@ The `postinstall` script should install it, but if not:
 ---
 
 **The key fix:** `prestart` script ensures `codegen` runs before `start`, and `postinstall` ensures `ts-node` is installed in the generated directory.
-
