@@ -11,8 +11,7 @@
 ![ERC-7715](https://img.shields.io/badge/ERC--7715-Advanced%20Permissions-blue?style=for-the-badge)
 ![Envio](https://img.shields.io/badge/Envio-Indexer-green?style=for-the-badge)
 
-[🚀 Live Demo](#-demo) • [🔐 ERC-7715 Features](#-erc-7715-advanced-permissions) • [📊 Envio Integration](#-envio-indexer-integration) • [💻 Development](#-getting-started) • [📖 Docs](#-documentation)
-
+[🚀 Live Demo](#-demo) • [🔐 ERC-7715 Features](#-erc-7715-advanced-permissions) • [📊 Envio Integration](#-envio-indexer-integration) 
 ---
 
 </div>
@@ -22,7 +21,7 @@
 ## 📣 Social Media (X)
 
 - **Cook-Off build thread / social post**: [x.com/codeX_james/status/2007564919001014602](https://x.com/codeX_james/status/2007564919001014602?s=20)
-- **Thread copy (repo)**: [`TWITTER_THREAD.md`](./TWITTER_THREAD.md)
+
 
 ---
 
