@@ -1,681 +1,688 @@
-<div align="center">
+# Prophet — AI-Native Prediction Market on 0G Labs
 
-# 🔮 PROPHET
-
-<img src="frontend/public/Logo3.png" alt="Prophet Logo" width="300" />
-
-> **Predict And Earn.** **The most advanced ERC-7715 + Envio-powered prediction market platform**
-
-**A revolutionary mobile-first prediction market platform featuring Set-and-Forget AI strategies, One-Tap Betting, and real-time Envio-indexed activity feeds**
-
-![ERC-7715](https://img.shields.io/badge/ERC--7715-Advanced%20Permissions-blue?style=for-the-badge)
-![Envio](https://img.shields.io/badge/Envio-Indexer-green?style=for-the-badge)
-
-[🚀 Live Demo](#-demo) • [🔐 ERC-7715 Features](#-erc-7715-advanced-permissions) • [📊 Envio Integration](#-envio-indexer-integration) 
----
-
-</div>
+> *Making opinions tradable. Privately. Autonomously. Verifiably.*
 
 ---
 
-## 📣 Social Media (X)
+## Table of Contents
 
-- **Cook-Off build thread / social post**: [x.com/codeX_james/status/2007564919001014602](https://x.com/codeX_james/status/2007564919001014602?s=20)
-
-
----
-
-## 📝 Feedback
-
-- **HackMD feedback doc**: [hackmd.io/@victorjames408/rk4Gp4Cz-x](https://hackmd.io/@victorjames408/rk4Gp4Cz-x)
-
----
-
-## 🌟 What is PROPHET?
-
-Prophet is the **first prediction market platform** to fully leverage **ERC-7715 Execution Permissions** and **Envio Indexer** to deliver:
-
-- 🤖 **Set-and-Forget AI Prediction Strategies** - Automatically place predictions using delegated permissions
-- ⚡ **One-Tap Betting** - Zero wallet popups after initial permission grant
-- 📊 **Real-Time Activity Feeds** - Live market updates powered by Envio GraphQL
-- 🎯 **Session Account Architecture** - Advanced permission delegation with auto-transfer
-
-### 🎯 The Problem We Solve
-
-Traditional prediction markets require:
-
-- ❌ **Repeated wallet confirmations** for every transaction
-- ❌ **Manual monitoring** of markets and opportunities
-- ❌ **Slow data queries** from blockchain RPC calls
-- ❌ **No automation** for active trading strategies
-
-**Prophet solves this by combining ERC-7715 permissions with Envio indexing to create the most seamless prediction market experience.**
+1. [Problem Statement](#1-problem-statement)
+2. [Solution — What is Prophet?](#2-solution--what-is-prophet)
+3. [Why 0G Labs?](#3-why-0g-labs)
+4. [System Architecture](#4-system-architecture)
+5. [0G Labs Integration — Layer by Layer](#5-0g-labs-integration--layer-by-layer)
+6. [Core Flows](#6-core-flows)
+   - [Market Creation](#61-market-creation)
+   - [Placing a Bet (Sealed Position)](#62-placing-a-bet-sealed-position)
+   - [Market Resolution](#63-market-resolution)
+   - [Fund Disbursement](#64-fund-disbursement)
+   - [Liquidity Management](#65-liquidity-management)
+7. [Smart Contract Architecture](#7-smart-contract-architecture)
+8. [AI Oracle — How It Works](#8-ai-oracle--how-it-works)
+9. [Privacy Layer — TEE Sealed Inference](#9-privacy-layer--tee-sealed-inference)
+10. [Tech Stack](#10-tech-stack)
+11. [Hackathon Track](#11-hackathon-track)
+12. [Roadmap](#12-roadmap)
 
 ---
 
-## 🔐 ERC-7715 Advanced Permissions
+## 1. Problem Statement
 
-Prophet showcases the **most creative and advanced use of ERC-7715** in production:
+Prediction markets are one of the most powerful tools humanity has for aggregating collective intelligence and making opinions tradable. The idea is simple — if you believe something will happen, you should be able to put money on it and be rewarded for being right.
 
-**Deep dive doc**: [`ADVANCED_PERMISSIONS_ARCHITECTURE.md`](./ADVANCED_PERMISSIONS_ARCHITECTURE.md)
+But in practice, every major prediction market platform is broken in at least one critical way:
 
-### 🚀 Key Features
+### Polymarket
+- **Centralized market creation** — only the Polymarket team decides which markets exist
+- **Fully public positions** — every bet you place is visible on-chain the moment you make it, meaning large players can see your position and trade against you (front-running)
+- **Human resolution committee** — outcomes are decided by UMA's human oracle committee, which has been disputed and manipulated before
+- **No persistent liquidity** — new markets start with zero liquidity and often die before gaining traction
 
-#### 1. **Set-and-Forget Prediction Strategies** 🤖
+### Augur
+- **Token holder voting for resolution** — takes days, is gameable by large token holders, and has no accountability
+- **No liquidity bootstrapping** — anyone can create a market but nobody provides liquidity, so most markets are effectively dead
+- **High gas fees on Ethereum** — makes small bets economically unviable
 
-**The Killer Feature**: Users can create AI-powered prediction strategies that automatically execute predictions without any manual intervention.
+### The Core Problem
+Every existing prediction market forces you to choose between **decentralization** and **functionality**. You either get a centralized platform that works (Polymarket) or a decentralized one that doesn't (Augur).
 
-**How It Works**:
+The root cause is not product design — it is **infrastructure**. Prediction markets need:
+- Fast, cheap settlement for high-frequency betting
+- Decentralized storage for oracle evidence and market history
+- Verifiable AI compute for autonomous resolution
+- Privacy-preserving execution to prevent front-running
+- Autonomous agents for always-on liquidity
 
-```typescript
-const strategy = {
-  name: "Sports Market Auto-Bet",
-  conditions: [
-    {
-      type: "new_market",
-      categories: ["sports"],
-      minConfidence: 60,
-    },
-  ],
-  action: {
-    stakeAmount: 0.025,
-    side: "auto",
-    minConfidence: 50,
-  },
-  limits: {
-    maxTotalStake: 10.0,
-    maxPredictionsPerDay: 5,
-  },
-};
-```
-
-**Architecture**:
-
-1. **Permission Grant** (One-Time):
-
-   - User grants ERC‑7715 permission to the **session key** via MetaMask Advanced Permissions
-     - Implementation: [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx#L72-L146) (calls `requestExecutionPermissions(...)`)
-   - Permission is persisted + validated client-side
-     - Implementation: [`frontend/src/providers/PermissionProvider.tsx`](./frontend/src/providers/PermissionProvider.tsx)
-
-2. **Session Account Creation**:
-
-   - App generates a **session key** and creates a **session smart account (ERC‑4337)**
-     - Implementation: [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx)
-
-3. **Strategy Execution**:
-   - Strategy engine monitors Envio-indexed markets and triggers on matches
-     - Implementation: [`frontend/src/hooks/useStrategyExecutor.ts`](./frontend/src/hooks/useStrategyExecutor.ts)
-     - Core logic: [`frontend/src/services/strategyExecutor.ts`](./frontend/src/services/strategyExecutor.ts)
-   - When conditions match, it executes via **ERC‑7715 redemption + ERC‑4337 execution**
-     - Redeem + fund: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L92-L276) (`redeemDelegations(...)`)
-     - Execute call(s): [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L277-L393) (`sendUserOperationWithDelegation(...)`)
-   - **All without wallet popups!**
-
-**Files**:
-
-- `frontend/src/services/strategyExecutor.ts` - Core executor logic
-- `frontend/src/hooks/useStrategyExecutor.ts` - React integration
-- `frontend/src/hooks/useRedeemDelegations.ts` - ERC-7715 execution with auto-transfer
-- `frontend/src/components/strategies/` - Strategy management UI
-
-#### 2. **One-Tap Betting** ⚡
-
-**Traditional Flow** (Every Prediction):
-
-```
-User clicks "Predict" → MetaMask popup → Sign transaction → Wait for confirmation
-```
-
-**Prophet Flow** (After Permission Grant):
-
-```
-User clicks "Predict" → Transaction executes instantly → Done!
-```
-
-**Implementation**:
-
-- Uses `redeemDelegations()` from MetaMask Smart Accounts Kit
-  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L259-L270)
-- Executes contract calls via ERC‑7715 delegation + ERC‑4337 user operation
-  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L321-L376)
-- Gas sponsorship via bundler + Pimlico paymaster
-  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L298-L303) and [`frontend/src/services/pimlicoClient.ts`](./frontend/src/services/pimlicoClient.ts)
-- USDC auto-transfer (EOA → session smart account) during the permission window
-  - Implementation: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L239-L270)
-
-**Files**:
-
-- `frontend/src/hooks/useRedeemDelegations.ts` - Redeem delegation with USDC transfer
-- `frontend/src/components/wallet/permissions-manager.tsx` - Permission UI
-- `frontend/src/providers/SessionAccountProvider.tsx` - Session account management
-
-#### 3. **Redeem Delegations with Auto Transfer** 💰
-
-**Innovation**: Prophet implements a unique pattern where USDC is automatically transferred from the user's EOA to the session account **within the same permission context**, then executes contract calls.
-
-```typescript
-// Step 1: Transfer USDC from EOA to session account (via DelegationManager)
-const transferExecution = createExecution({
-  target: usdcAddress,
-  callData: encodeFunctionData({
-    abi: ERC20_ABI,
-    functionName: "transfer",
-    args: [sessionAccountAddress, usdcAmount],
-  }),
-});
-
-// Step 2: Redeem delegation (executes FROM user's account)
-await redeemDelegations(sessionWalletClient, publicClient, delegationManager, [
-  {
-    permissionContext: permission.context,
-    executions: [transferExecution],
-    mode: ExecutionMode.SingleDefault,
-  },
-]);
-
-// Step 3: Execute prediction from session account (now has USDC)
-await sendUserOperationWithDelegation({
-  account: sessionSmartAccount,
-  calls: [predictionCall],
-  permissionsContext: permission.context,
-  delegationManager,
-});
-```
-
-**Why This Matters**:
-
-- Session account doesn't need pre-funding
-- USDC transfer and execution happen atomically
-- Permission limits are enforced by `ERC20PeriodTransferEnforcer`
-- Automatic retry logic handles nonce mismatches
-
-**Files**:
-
-- `frontend/src/hooks/useRedeemDelegations.ts` - Complete implementation
-
-#### 4. **Permission Management** 🔒
-
-- **Persistent Storage**: Permissions stored in localStorage with expiry validation
-- **Auto-Validation**: Checks permission expiry before execution
-- **Revocation**: Users can revoke permissions anytime
-- **Limit Enforcement**: Daily and total spending limits enforced by smart contracts
-
-**Files**:
-
-- `frontend/src/providers/PermissionProvider.tsx` - Permission state management
-- `frontend/src/components/wallet/permissions-manager.tsx` - Permission UI
-
-### 🏗️ Architecture Overview
-
-```
-User EOA (MetaMask)
-    ↓
-    │ 1. Grant ERC-7715 Permission (once)
-    ↓
-MetaMask Creates Gator Smart Account (auto)
-    ↓
-    │ 2. Delegates to Session Account
-    ↓
-Session Smart Account (ERC-4337)
-    ↓
-    │ 3. Execute Transactions (many times, no popups)
-    ↓
-Bundler + Paymaster (Pimlico)
-    ↓
-Blockchain
-```
-
-**Key Components**:
-
-1. **SessionAccountProvider**: Creates and manages session smart account
-2. **PermissionProvider**: Stores and validates ERC-7715 permissions
-3. **useRedeemDelegations**: Executes transactions via delegation
-4. **StrategyExecutor**: Monitors markets and auto-executes strategies
-
-**Deep dive (code)**: Start here:
-
-- [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx) (request permission)
-- [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts) (redeem + execute)
-- [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx) (session account lifecycle)
-
-### 🔗 Code Usage Links
-
-- **Request Advanced Permissions (ERC‑7715)**:
-
-  - [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx#L72-L146) — calls `requestExecutionPermissions(...)` to grant a scoped, time-bound permission to the **session key EOA**.
-  - [`frontend/src/components/wallet/grant-permissions-button.tsx`](./frontend/src/components/wallet/grant-permissions-button.tsx#L44-L143) — streamlined “Enable One‑Tap Betting” flow (also uses `requestExecutionPermissions(...)`).
-
-- **Redeem Advanced Permissions (ERC‑7715)**:
-  - [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L92-L276) — `redeemDelegations(...)` executes a delegated transfer under the permission context.
-  - [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts#L277-L393) — `sendUserOperationWithDelegation(...)` executes the actual contract call(s) via ERC‑4337 + bundler/paymaster.
+None of the existing blockchains provided all of these together — until 0G Labs.
 
 ---
 
-## 📊 Envio Indexer Integration
+## 2. Solution — What is Prophet?
 
-Prophet leverages **Envio Indexer** for the **best-in-class real-time data experience**:
+Prophet is a fully autonomous, privacy-preserving, AI-native prediction market built on 0G Labs infrastructure.
 
-### 🚀 Key Features
+It is the first prediction market where:
 
-#### 1. **Real-Time Market Data** 📈
+| Feature | How Prophet Does It |
+|---|---|
+| **Market resolution** | AI oracle agent running on 0G Compute — autonomous, auditable, no human committee |
+| **Position privacy** | TEE sealed inference — your bet is encrypted until market closes, zero front-running |
+| **Liquidity** | Agent ID-powered market maker — seeds and maintains liquidity 24/7 automatically |
+| **Market creation** | Any user, any question — LLM validates and assigns resolution sources automatically |
+| **Oracle accountability** | Full reasoning chain stored permanently on 0G Storage — anyone can verify |
+| **Settlement** | Sub-second finality on 0G Chain — instant payouts to winners |
 
-**Traditional Approach**:
-
-- Query blockchain RPC for each market (slow, expensive)
-- No historical data aggregation
-- Manual state management
-
-**Prophet Approach**:
-
-- Envio indexes all contract events in real-time
-- - Implementation: [`indexer/config.yaml`](./indexer/config.yaml) and [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts)
-- GraphQL API provides instant queries
-- - Implementation: [`frontend/src/hooks/graphql/useGraphQL.ts`](./frontend/src/hooks/graphql/useGraphQL.ts) (uses `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`)
-- Aggregated entities (Market, Prediction, User) pre-computed
-- - Implementation: [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts) (entity updates) + frontend consumers: [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts), [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts)
-- Sub-second query times
-- - Implementation: frontend queries via GraphQL hooks (no RPC polling): [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts), [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts)
-
-**Example Query**:
-
-```graphql
-query GetMarkets {
-  Market(limit: 10, order_by: { createdAt: desc }) {
-    id
-    marketId
-    question
-    category
-    totalPool
-    yesPool
-    noPool
-    predictionCount
-    status
-    resolved
-  }
-}
-```
-
-**Files**:
-
-- [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts) — event handlers + entity updates (Market/Prediction/User/GlobalStats)
-- [`indexer/config.yaml`](./indexer/config.yaml) — indexed contracts + start blocks
-- [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts) — Markets data via Envio/Hasura GraphQL
-- [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts) — Predictions data via Envio/Hasura GraphQL
-- [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts) — activity/feeds via Envio/Hasura GraphQL
-- [`frontend/src/hooks/useStrategyExecutor.ts`](./frontend/src/hooks/useStrategyExecutor.ts) — strategies react to Envio-indexed markets and execute on matches
-
-#### 2. **Activity Feeds** 🎯
-
-**Home Page Activity Feed**:
-
-- Real-time trending events from Envio
-- Latest market updates
-- User prediction history
-- Market resolution notifications
-
-**Files**:
-
-- [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts) — recent predictions feed from Envio GraphQL
-- [`frontend/src/app/dashboard/profile/page.tsx`](./frontend/src/app/dashboard/profile/page.tsx) — profile activity built from Envio-indexed data
-
-#### 3. **Aggregated Entities** 📊
-
-Envio automatically aggregates raw events into useful entities:
-
-**Market Entity**:
-
-- Combines `MarketCreated`, `PredictionMade`, `MarketResolved` events
-- Pre-computes `totalPool`, `yesPool`, `noPool`, `predictionCount`
-- Tracks `status` and `resolved` state
-
-**User Entity**:
-
-- Aggregates all user predictions
-- Calculates `totalPredictions`, `correctPredictions`, `totalWinnings`
-- Tracks `currentStreak`, `bestStreak`, `reputationScore`
-
-**GlobalStats Entity**:
-
-- Platform-wide metrics
-- `totalMarkets`, `totalPredictions`, `totalVolume`, `totalUsers`
-
-**Files**:
-
-- `indexer/src/EventHandlers.ts` - Entity aggregation logic
-- `indexer/schema.graphql` - Entity definitions
-
-#### 4. **Event Indexing** 🔄
-
-Envio indexes all contract events:
-
-- `MarketCreated` → Creates Market entity
-- `PredictionMade` → Updates Market pools, creates Prediction entity
-- `MarketResolved` → Updates Market status
-- `PayoutClaimed` → Updates Prediction and User entities
-- `ReputationUpdated` → Updates User reputation
-- `UsernameSet` → Updates User username
-
-**Files**:
-
-- `indexer/src/EventHandlers.ts` - Complete event handlers
-- `indexer/config.yaml` - Indexer configuration
-
-### 🏗️ Architecture
-
-```
-Contract Events
-    ↓
-Envio Indexer (Real-time)
-    ↓
-PostgreSQL Database
-    ↓
-GraphQL API (Hasura)
-    ↓
-Frontend (React/Next.js)
-```
-
-**Benefits**:
-
-- ⚡ **Sub-second queries** vs. multi-second RPC calls
-- 📊 **Pre-aggregated data** (pools, counts, stats)
-- 🔄 **Real-time updates** via GraphQL subscriptions
-- 💰 **Cost efficient** (no RPC rate limits)
-- 📈 **Scalable** (handles thousands of markets)
-
-**Documentation**: See `indexer/README.md` for setup and GraphQL examples.
-
-### 🔗 Envio Usage Links
-
-- **GraphQL client**: [`frontend/src/hooks/graphql/useGraphQL.ts`](./frontend/src/hooks/graphql/useGraphQL.ts) — frontend GraphQL client (requires `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`)
-- **Markets hook**: [`frontend/src/hooks/graphql/useMarketsGraphQL.ts`](./frontend/src/hooks/graphql/useMarketsGraphQL.ts)
-- **Predictions hook**: [`frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useUserPredictionsGraphQL.ts)
-- **Recent activity hook**: [`frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts`](./frontend/src/hooks/graphql/useRecentPredictionsGraphQL.ts)
-- **Indexer handlers**: [`indexer/src/EventHandlers.ts`](./indexer/src/EventHandlers.ts)
-
-### 💡 How we leverage Envio
-
-Envio is the backbone of Prophet's data layer. We use it to:
-
-1. **Eliminate RPC Latency**: Instead of querying the blockchain directly (which takes seconds), we query Envio's indexed database (which takes milliseconds).
-2. **Real-Time Activity Feeds**: We use Envio to power our "Global Activity" feed, showing every prediction made on the platform as it happens.
-3. **Complex Aggregations**: Envio pre-calculates market pools, user win rates, and global statistics, allowing us to show rich data without complex frontend logic.
-4. **Mobile Optimization**: By reducing the number of RPC calls, we significantly improve battery life and data usage for our mobile-first users.
+Prophet does not replace Polymarket's UX — it replaces Polymarket's broken infrastructure with something that is decentralized, verifiable, and actually works.
 
 ---
 
-## ⚡ Key Features
+## 3. Why 0G Labs?
 
-### 🎯 Dual Market Types
+Prophet could not exist on any other chain. Here is exactly why each 0G module is necessary:
 
-1. **Binary Markets** (Yes/No)
+| 0G Module | Why Prophet Needs It |
+|---|---|
+| **0G Chain** | EVM-compatible, 11,000 TPS, sub-second finality — makes real-time betting and instant payouts viable |
+| **0G Storage** | Stores oracle reasoning, market metadata, agent memory, and historical resolution data — permanently and cheaply |
+| **0G Compute** | Runs the AI oracle and market maker inference — decentralized GPU, pay-per-use, no vendor lock-in |
+| **TEE Sealed Inference** | Encrypts user positions until resolution — the only way to prevent front-running without a centralized server |
+| **Agent ID** | Gives the oracle agent and market maker agent persistent on-chain identities — they can own wallets, sign transactions, and be held accountable |
 
-   - Classic predictions: "Will [Artist] release an album this month?"
-   - Minimum stake: $0.25 cUSD
-
-2. **CrowdWisdom Markets** (Multi-Outcome) 🆕
-   - Dynamic outcomes: "Who will win Big Brother Naija 2024?"
-   - Users can create new outcomes by commenting
-   - Minimum stake: $1.00 cUSD
-
-### 🤖 AI-Powered Market Validation
-
-- **Smart Detection** - Identifies invalid markets (past events, fixed results)
-- **Auto-Categorization** - Suggests market categories
-- **Question Improvement** - AI reformulates unclear questions
-- **Market Type Suggestion** - Recommends Binary vs CrowdWisdom
-
-### 📱 Mobile-First Design
-
-- Fully responsive, touch-optimized interface
-- Fast loading optimized for mobile browsers
-- Offline-first with system font fallbacks
-
-### 🏆 Reputation & Leaderboard
-
-- Accuracy tracking and earnings display
-- Top Prophets leaderboard
-- Username system for prophet identity
+No other infrastructure stack provides all five of these together. Ethereum is too slow and expensive. Solana has no decentralized compute or storage. Traditional prediction markets bolt on centralized infrastructure to compensate — Prophet doesn't need to.
 
 ---
 
-## 🏗️ Technical Architecture
-
-### 📦 Smart Contracts (Solidity + Foundry)
-
-**Deployed on Base Sepolia Testnet**
+## 4. System Architecture
 
 ```
-contract/
-├── src/
-│   ├── core/
-│   │   ├── MarketFactory.sol        # Factory for creating markets
-│   │   ├── PredictionMarket.sol     # Core prediction logic (Binary + CrowdWisdom)
-│   │   ├── Oracle.sol               # Market resolution system
-│   │   └── ReputationSystem.sol     # User stats & leaderboard
-│   └── interfaces/
-│       ├── IPredictionMarket.sol    # Market interface
-│       └── IMarketFactory.sol       # Factory interface
+┌─────────────────────────────────────────────────────────────────┐
+│                        PROPHET SYSTEM                           │
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
+│  │   Frontend   │    │  Oracle      │    │  Market Maker    │  │
+│  │   (Next.js)  │    │  Agent       │    │  Agent           │  │
+│  │              │    │  (Agent ID)  │    │  (Agent ID)      │  │
+│  └──────┬───────┘    └──────┬───────┘    └────────┬─────────┘  │
+│         │                  │                      │            │
+│         ▼                  ▼                      ▼            │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    0G CHAIN (EVM)                       │   │
+│  │                                                         │   │
+│  │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │   │
+│  │  │  Prophet    │  │  Position    │  │  Payout       │  │   │
+│  │  │  Factory    │  │  Vault (TEE) │  │  Distributor  │  │   │
+│  │  └─────────────┘  └──────────────┘  └───────────────┘  │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│         │                  │                      │            │
+│         ▼                  ▼                      ▼            │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐    │
+│  │  0G Storage  │  │  0G Compute   │  │  TEE Sealed      │    │
+│  │              │  │               │  │  Inference       │    │
+│  │ - Market     │  │ - LLM oracle  │  │                  │    │
+│  │   metadata   │  │ - Market      │  │ - Encrypt bets   │    │
+│  │ - Oracle     │  │   maker model │  │ - Decrypt at     │    │
+│  │   reasoning  │  │ - Question    │  │   resolution     │    │
+│  │ - Agent      │  │   classifier  │  │                  │    │
+│  │   memory     │  │               │  │                  │    │
+│  └──────────────┘  └───────────────┘  └──────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Contract Features**:
+### Key Architectural Principles
 
-- ✅ Dual Market Types (Binary + CrowdWisdom)
-- ✅ Dynamic Outcome Creation
-- ✅ Anti-Farming Rules
-- ✅ Automated Payouts
-- ✅ Gas Optimized
+**1. Separation of concerns**
+The oracle agent, market maker agent, and smart contracts are fully independent. Each has its own Agent ID, its own wallet, and its own responsibilities. A failure in one does not cascade to the others.
 
-### 💻 Frontend (Next.js 16 + React 19)
+**2. Immutability of resolution rules**
+When a market is created, its resolution sources, deadline, and criteria are locked into the smart contract on 0G Chain. Nobody — not even the creator — can change them after deployment.
 
-```
-frontend/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── validate-market/     # AI validation API route
-│   │   ├── dashboard/
-│   │   │   ├── home/                # Home page with activity feed
-│   │   │   ├── strategies/         # Set-and-Forget strategies
-│   │   │   └── profile/             # User profile
-│   │   └── layout.tsx
-│   ├── components/
-│   │   ├── strategies/              # Strategy management
-│   │   ├── markets/
-│   │   ├── dashboard/
-│   │   └── wallet/                  # Permission management
-│   ├── hooks/
-│   │   ├── useStrategyExecutor.ts  # Strategy executor hook
-│   │   ├── useRedeemDelegations.ts # ERC-7715 execution
-│   │   └── contracts/
-│   ├── providers/
-│   │   ├── SessionAccountProvider.tsx
-│   │   └── PermissionProvider.tsx
-│   ├── services/
-│   │   ├── strategyExecutor.ts      # Core executor service
-│   │   └── bundlerClient.ts         # Pimlico bundler
-│   └── lib/
-```
+**3. Permanent accountability**
+Every oracle decision, with full reasoning, is written to 0G Storage permanently. The oracle's track record is public and queryable by anyone.
 
-**Tech Stack**:
-
-- ⚛️ React 19 with compiler optimizations
-- 🚀 Next.js 16 (Turbopack)
-- 🎨 Tailwind CSS v4
-- 🔗 Wagmi + Viem
-- 📱 Radix UI
-- 🎯 TypeScript
-- 🤖 Google Gemini API
-- 📦 Sonner
-
-### 📊 Envio Indexer
-
-```
-indexer/
-├── src/
-│   └── EventHandlers.ts            # Event indexing logic
-├── schema.graphql                  # GraphQL schema
-├── config.yaml                     # Indexer configuration
-└── generated/                      # Auto-generated types
-```
-
-**Indexed Contracts**:
-
-- MarketFactory - Market creation events
-- PredictionMarket - Prediction and resolution events
-- Oracle - Market resolution events
-- ReputationSystem - User reputation events
-
-**GraphQL Endpoints**:
-
-- `/v1/graphql` - Main GraphQL API
-- Real-time subscriptions supported
-- Pre-aggregated entities (Market, Prediction, User, GlobalStats)
+**4. Privacy by default**
+User positions are never stored in plaintext anywhere. They enter the TEE sealed vault encrypted and are only decrypted at the moment of resolution — simultaneously for all participants.
 
 ---
 
-## 🚀 Getting Started
+## 5. 0G Labs Integration — Layer by Layer
 
-### Prerequisites
+### 5.1 0G Chain — The Settlement Layer
 
-- Node.js 18+ and npm/yarn/pnpm
-- Git
-- Docker Desktop (for Envio indexer)
-- MetaMask wallet with Base Sepolia testnet
+0G Chain is the backbone of Prophet. It is where all financial logic lives.
 
-### Installation
+**What runs on 0G Chain:**
+- `ProphetFactory.sol` — deploys new market contracts when users create markets
+- `MarketContract.sol` — holds collateral, manages YES/NO token state, enforces deadlines
+- `PositionVault.sol` — receives and stores encrypted position commitments
+- `PayoutDistributor.sol` — releases collateral to winning token holders after resolution
 
-```bash
-# Clone the repository
-git clone https://github.com/JamesVictor-O/PROPHET.git
-cd PROPHET
+**Why 0G Chain specifically:**
+- 11,000 TPS means bets settle in real time even during high-traffic events (e.g. election night)
+- Sub-second finality means payouts reach winners within seconds of resolution
+- Full EVM compatibility means standard Solidity smart contracts work without modification
+- Low gas fees make small bets (under $1) economically viable for the first time
 
-# Install frontend dependencies
-cd frontend
-npm install
+---
 
-# Set up environment variables
-cp .env.example .env.local
-# Add your GEMINI_API_KEY and PIMLICO_API_KEY to .env.local
+### 5.2 0G Storage — The Memory Layer
 
-# Run development server
-npm run dev
+0G Storage serves as Prophet's permanent, decentralized memory. It has two sub-layers that Prophet uses for different purposes:
+
+**Log Layer (immutable, append-only):**
+Used for data that should never be modified after writing.
+- Oracle reasoning chains — every piece of evidence the oracle read and every conclusion it drew when resolving a market
+- Historical market outcomes — the full archive of every market ever resolved on Prophet
+- Agent audit logs — a timestamped record of every action both agents have ever taken
+
+**KV Layer (mutable, fast key-value access):**
+Used for data that needs to be read and updated frequently.
+- Market metadata — question text, deadline, assigned resolution sources, current status
+- Agent working memory — the oracle agent's intermediate state while gathering evidence for an active resolution
+- Market maker state — current YES/NO price quotes, liquidity depth, position inventory
+
+**Storage key structure:**
+```
+market:{marketId}:metadata         → Market details (question, deadline, sources, status)
+market:{marketId}:resolution       → Oracle verdict + reasoning (written at resolution)
+oracle:track-record:{marketId}     → Whether this resolution was challenged + outcome
+agent:market-maker:state           → Current pricing model state
 ```
 
-### Envio Indexer Setup
+**Why 0G Storage specifically:**
+- 95% cheaper than AWS S3 — makes storing full oracle reasoning chains for every market economically viable
+- Instant KV retrieval — the oracle agent can pull market context in milliseconds when waking up
+- Decentralized — no single point of failure or censorship for historical data
+- The Log layer's immutability is a core accountability guarantee — oracle reasoning cannot be edited after the fact
 
-```bash
-cd indexer
+---
 
-# Install dependencies
-npm install
+### 5.3 0G Compute — The Intelligence Layer
 
-# Generate types from schema
-npm run codegen
+0G Compute is the decentralized GPU network that powers Prophet's AI capabilities. Prophet makes three distinct calls to 0G Compute:
 
-# Start the indexer (requires Docker)
-npm run dev
+**Call 1 — Question Classifier (at market creation)**
+When a user submits a market question, a lightweight LLM call classifies it:
+- What category does this question belong to? (Sports / Crypto / Politics / Finance / Custom)
+- Is the question unambiguous — can it have exactly one correct answer?
+- Is the question resolvable — does real-world verifiable data exist to answer it?
+- What is a reasonable resolution deadline for this type of question?
+
+The output maps the question to a category, which then pulls the correct set of pre-approved resolution sources from 0G Storage.
+
+**Call 2 — Oracle Resolution (at market deadline)**
+The most critical compute call. When a market's deadline is reached, the oracle agent sends a structured prompt to 0G Compute containing:
+- The market question and resolution criteria
+- The list of approved data sources to check
+- The current date and any relevant context
+
+The LLM reads from each source, synthesizes the evidence, and produces:
+- A binary verdict (YES or NO)
+- A confidence score (0–100%)
+- A full written reasoning chain citing specific sources and evidence
+
+**Call 3 — Market Maker Pricing (continuous)**
+The market maker agent periodically calls 0G Compute to update its probability estimate for each active market. The model takes as input:
+- Current trading volume and price history (from 0G Storage KV)
+- Time remaining until deadline
+- Any significant news signals related to the market topic
+
+The output is an updated YES/NO price quote that the agent posts on-chain.
+
+**Why 0G Compute specifically:**
+- Pay-per-use pricing — Prophet only pays for inference when it is actually needed, no monthly subscriptions
+- 90% cheaper than AWS/GCP GPU instances — makes frequent market maker repricing economically viable
+- Decentralized — no vendor can censor or throttle Prophet's oracle calls
+- Supports TEEML — compute results can be verified cryptographically, which feeds directly into the TEE privacy layer
+
+---
+
+### 5.4 TEE Sealed Inference — The Privacy Layer
+
+TEE (Trusted Execution Environment) sealed inference is the feature that makes Prophet fundamentally different from every existing prediction market.
+
+**The problem it solves:**
+On Polymarket, every bet is a public on-chain transaction. The moment you place a large YES position on a market, every other participant can see it. Sophisticated players monitor the mempool and front-run large bets, degrading market quality and discouraging serious capital from participating.
+
+**How sealed inference works in Prophet:**
+
+1. When a user places a bet, their position (direction + size) is encrypted inside the TEE before it ever touches the public chain
+2. The encrypted commitment is stored in `PositionVault.sol` on 0G Chain — the chain records that a position exists, but not what it is
+3. The TEE holds the decryption key, which is only released when the market's deadline timestamp is verified on-chain
+4. At resolution, all positions are decrypted simultaneously — nobody's position is revealed before anyone else's
+5. The smart contract reads the decrypted positions and distributes payouts accordingly
+
+**What this enables:**
+- Large capital participants can take meaningful positions without being front-run
+- Deeper liquidity across all markets as sophisticated players engage more freely
+- Fairer price discovery since position information cannot be exploited
+- MEV resistance — there is nothing to extract from encrypted position data
+
+---
+
+### 5.5 Agent ID — The Identity Layer
+
+Agent ID gives Prophet's two autonomous agents persistent, verifiable on-chain identities. This is what separates them from simple bots.
+
+**Oracle Agent (Agent ID: `prophet-oracle.0g`)**
+- Has its own wallet and can pay for 0G Compute calls independently
+- Signs every resolution it posts on-chain with its cryptographic identity
+- Builds a permanent, publicly queryable reputation score based on resolution history
+- Can be slashed (penalized) if it loses a dispute — creating a real economic incentive to be accurate
+
+**Market Maker Agent (Agent ID: `prophet-mm.0g`)**
+- Has its own liquidity wallet funded from market creation fees
+- Signs every price quote it posts on-chain
+- Operates 24/7 without any human intervention
+- Its pricing history is permanently stored in 0G Storage for transparency
+
+---
+
+## 6. Core Flows
+
+### 6.1 Market Creation
+
+```
+User submits question
+        │
+        ▼
+0G Compute: LLM validates question
+  ├── Is it unambiguous? ──── NO ──→ Return error to user
+  └── Is it resolvable? ──── NO ──→ Return error to user
+        │ YES
+        ▼
+0G Compute: Classify question category
+  └── Sports / Crypto / Politics / Finance / Custom
+        │
+        ▼
+0G Storage: Pull trusted source registry for category
+  └── Returns list of pre-approved data sources
+        │
+        ▼
+0G Chain: ProphetFactory deploys MarketContract
+  └── Locks in: question, deadline, sources, collateral requirements
+        │
+        ▼
+0G Storage (KV): Write market metadata
+  └── market:{id}:metadata = { question, deadline, sources, status: "open" }
+        │
+        ▼
+Agent ID (Market Maker): Wakes up, reads new market
+        │
+        ▼
+0G Compute: Market maker generates opening price
+  └── Initial YES probability estimate based on question context
+        │
+        ▼
+0G Chain: Market maker posts opening YES/NO quotes
+  └── Market is now live and tradeable
 ```
 
-Visit `http://localhost:8080` for GraphQL Playground (password: `testing`).
+**User experience:** The user types one question and sets a deadline. Everything else — validation, source assignment, contract deployment, and initial liquidity — happens automatically within seconds.
 
-### Contract Deployment
+---
 
-```bash
-cd contract
+### 6.2 Placing a Bet (Sealed Position)
 
-# Install Foundry
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
-
-# Run tests
-forge test
-
-# Deploy to Base Sepolia
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url $BASE_SEPOLIA_RPC \
-  --broadcast \
-  --verify
+```
+User selects YES or NO + amount
+        │
+        ▼
+Frontend: Encrypt position inside TEE
+  └── Encrypted payload = TEE(direction, amount, userAddress, marketId)
+        │
+        ▼
+0G Chain: Submit encrypted commitment to PositionVault.sol
+  └── Contract records: commitment hash + collateral (USDT locked)
+  └── Public chain only sees: "a position exists" — not what it is
+        │
+        ▼
+0G Storage (KV): Update market liquidity depth
+  └── Total volume tracked without revealing individual positions
+        │
+        ▼
+Agent ID (Market Maker): Detects volume change, reprices
+  └── Adjusts YES/NO spread based on aggregate activity
 ```
 
-### Environment Variables
+**Privacy guarantee:** At no point is the user's direction or size visible to any other market participant, the market maker agent, or the public chain.
 
-**Frontend** (`frontend/.env.local`):
+---
 
-```env
-NEXT_PUBLIC_GEMINI_API_KEY=your_api_key_here
-NEXT_PUBLIC_PIMLICO_API_KEY=your_pimlico_key
-# Required: Envio/Hasura GraphQL endpoint (must end with /v1/graphql)
-NEXT_PUBLIC_ENVIO_GRAPHQL_URL=https://<your-hasura-service>.up.railway.app/v1/graphql
+### 6.3 Market Resolution
+
 ```
-
-**Indexer** (`indexer/.env`):
-
-```env
-RPC_URL=your_base_sepolia_rpc_url
+0G Chain: Deadline block reached
+  └── MarketContract emits ResolutionRequested event
+        │
+        ▼
+Agent ID (Oracle): Wakes up, reads event
+        │
+        ▼
+0G Storage (KV): Pull market metadata
+  └── Question, resolution criteria, approved sources
+        │
+        ▼
+0G Compute: Oracle LLM gathers evidence
+  └── Reads each approved source
+  └── Synthesizes verdict + confidence score + reasoning chain
+        │
+        ▼
+0G Storage (Log): Write full reasoning chain permanently
+  └── oracle:{marketId}:resolution = { verdict, confidence, reasoning, sources, timestamp }
+        │
+        ▼
+0G Chain: Oracle agent posts verdict (signed with Agent ID)
+  └── MarketContract enters 24-hour challenge window
+        │
+        ├── No challenge filed ──────────────────────────→ Resolution finalized
+        │
+        └── Challenge filed (with stake)
+                  │
+                  ▼
+            0G Compute: Second oracle call (stricter evidence requirements)
+                  │
+                  ├── Challenge upheld ──→ Challenger earns stake, resolution overturned
+                  └── Challenge rejected ──→ Oracle verdict stands, challenger loses stake
 ```
 
 ---
 
-## 📖 Documentation
+### 6.4 Fund Disbursement
 
-### ERC-7715 Implementation
+```
+Resolution finalized on 0G Chain
+        │
+        ▼
+TEE: Deadline timestamp verified → Decryption keys released
+        │
+        ▼
+PositionVault.sol: All positions decrypted simultaneously
+  └── No position is revealed before any other
+        │
+        ▼
+PayoutDistributor.sol: Reads verdict + decrypted positions
+  └── Calculates each winner's share of the collateral pool
+        │
+        ▼
+0G Chain: USDT transferred to winning addresses
+  └── Sub-second finality — winners receive funds within seconds
+        │
+        ▼
+0G Storage (Log): Disbursement record written
+  └── market:{id}:payouts = { winners[], amounts[], txHash, timestamp }
+```
 
-- **Request permissions (ERC‑7715)**: [`frontend/src/components/wallet/permissions-manager.tsx`](./frontend/src/components/wallet/permissions-manager.tsx)
-- **Redeem + execute (ERC‑7715 + ERC‑4337)**: [`frontend/src/hooks/useRedeemDelegations.ts`](./frontend/src/hooks/useRedeemDelegations.ts)
-- **Session accounts**: [`frontend/src/providers/SessionAccountProvider.tsx`](./frontend/src/providers/SessionAccountProvider.tsx)
-
-### Envio Indexer
-
-- **Setup Guide**: `indexer/README.md`
-- **GraphQL Queries**: See `indexer/README.md#graphql-queries`
-- **Event Handlers**: `indexer/src/EventHandlers.ts`
-
-### Strategy Executor
-
-- **How It Works**: `frontend/src/services/strategyExecutor.ts`
-- **React Integration**: `frontend/src/hooks/useStrategyExecutor.ts`
-- **UI Components**: `frontend/src/components/strategies/`
-
----
-
-## 🎯 Why Prophet Wins
-
-### For Users:
-
-✅ **Set-and-Forget Strategies** - Automate predictions with AI  
-✅ **One-Tap Betting** - Zero wallet popups after permission grant  
-✅ **Real-Time Data** - Instant market updates via Envio  
-✅ **Mobile-First** - Works perfectly on any device
-
-### For Developers:
-
-✅ **Most Advanced ERC-7715 Implementation** - Session accounts, auto-transfer, strategy execution  
-✅ **Best Envio Usage** - Real-time indexing, GraphQL queries, aggregated entities  
-✅ **Production-Ready** - Complete error handling, retry logic, permission limits  
-✅ **Well-Documented** - Comprehensive architecture docs and code comments
+**Fee structure:**
+- 1% of winning pool → Oracle agent wallet (incentive to resolve accurately)
+- 1% of winning pool → Market maker agent wallet (incentive to maintain liquidity)
+- 0.5% → Prophet protocol treasury (for governance and development)
 
 ---
 
-## 🗓️ Roadmap
+### 6.5 Liquidity Management
 
-### Phase 2: Enhanced Features
+The market maker agent is Prophet's solution to the liquidity cold-start problem that kills most permissionless prediction markets.
 
-- [ ] **GraphQL Subscriptions** - Real-time market updates via WebSocket
-- [ ] **Advanced Strategy Conditions** - Time-based triggers, odds thresholds
-- [ ] **Multi-Chain Support** - Expand to other EVM chains
-- [ ] **Mobile App** - Native iOS/Android apps
+```
+Market created
+        │
+        ▼
+Market Maker Agent: Seeds initial liquidity
+  └── Posts opening YES/NO prices from its own liquidity wallet
+        │
+        ▼
+[Continuous loop while market is open]
+        │
+        ▼
+0G Compute: Reprice based on:
+  ├── Current aggregate trading volume
+  ├── Time remaining to deadline
+  └── External signals (news sentiment, on-chain data)
+        │
+        ▼
+0G Chain: Post updated YES/NO quotes
+        │
+        ▼
+0G Storage (KV): Update agent state
+  └── agent:market-maker:state = { prices, inventory, lastUpdated }
+        │
+        ▼
+[Wait for next pricing interval or significant volume event]
+        │
+        └──────────────────────────────────────────────────┐
+                                                           │
+                                                    [Repeat loop]
+```
 
-### Phase 3: Scale
-
-- [ ] **Community Markets** - User-curated markets
-- [ ] **Tournaments** - Competitive prediction events
-- [ ] **API Access** - Public GraphQL API for third-party integrations
+**Liquidity sources:**
+1. Market maker agent (primary — always present from day one)
+2. Human liquidity providers (secondary — can deposit into liquidity pools and earn fees)
+3. Market creation bond (the user who creates a market deposits a small bond that seeds initial liquidity)
 
 ---
 
+## 7. Smart Contract Architecture
+
+Prophet deploys four smart contracts on 0G Chain:
+
+### `ProphetFactory.sol`
+Responsible for deploying new market contracts. Acts as the registry of all Prophet markets.
+
+```solidity
+function createMarket(
+    string calldata question,
+    uint256 deadline,
+    string[] calldata resolutionSources,
+    address oracleAgent,
+    address marketMakerAgent
+) external returns (address marketContract);
+```
+
+### `MarketContract.sol`
+The core contract for each individual prediction market. Manages the full lifecycle.
+
+```solidity
+// Key state
+enum MarketStatus { Open, PendingResolution, Challenged, Resolved }
+address public oracleAgent;
+address public marketMakerAgent;
+uint256 public deadline;
+MarketStatus public status;
+bool public outcome; // true = YES, false = NO
+
+// Key functions
+function placeBet(bytes calldata encryptedPosition) external payable;
+function postResolution(bool verdict, bytes32 reasoningHash) external onlyOracle;
+function challengeResolution() external payable;
+function finalizeResolution() external;
+```
+
+### `PositionVault.sol`
+Stores encrypted position commitments. Integrates with TEE for decryption at resolution.
+
+```solidity
+function commitPosition(
+    address market,
+    bytes calldata encryptedCommitment
+) external payable;
+
+function revealPositions(
+    address market,
+    bytes calldata teeDecryptionProof
+) external onlyAtResolution returns (Position[] memory);
+```
+
+### `PayoutDistributor.sol`
+Calculates and distributes winnings after positions are revealed.
+
+```solidity
+function distributePayout(
+    address market,
+    Position[] calldata revealedPositions,
+    bool outcome
+) external onlyAfterResolution;
+```
+
 ---
 
-_"Every prophet was once a skeptic. Prove you're a prophet and earn"_
+## 8. AI Oracle — How It Works
 
-**Built using ERC‑7715 Advanced Permissions and Envio**
+The oracle is the most critical component of Prophet. Here is exactly what happens when it resolves a market.
+
+### Source Registry
+Prophet maintains a curated registry of trusted data sources per category, stored in 0G Storage. This registry is governed by Prophet token holders and updated through on-chain proposals.
+
+| Category | Trusted Sources |
+|---|---|
+| Crypto prices | CoinGecko API, Binance, on-chain Chainlink feeds |
+| Sports | ESPN, BBC Sport, official league/federation APIs |
+| Politics | Reuters, AP News, official government websites |
+| Finance | Yahoo Finance, Bloomberg public feeds, SEC EDGAR |
+| Custom | LLM selects best available sources from registry |
+
+### Oracle Prompt Structure
+When the oracle agent calls 0G Compute at resolution time, it sends a structured prompt:
+
+```
+You are a prediction market oracle. Your task is to resolve the following market.
+
+Market question: {question}
+Resolution deadline: {deadline}
+Resolution criteria: {criteria}
+
+You must read the following approved sources and determine the outcome:
+{source_1}, {source_2}, {source_3}
+
+Provide:
+1. Your verdict: YES or NO
+2. Your confidence: 0-100%
+3. Your full reasoning, citing specific evidence from each source
+4. Any ambiguities you encountered and how you resolved them
+
+If you cannot determine the outcome with >70% confidence, return INCONCLUSIVE.
+```
+
+### Dispute Mechanism
+Any user can challenge a resolution within 24 hours by staking 5% of the market's total pool. A challenge triggers a second oracle call with stricter evidence requirements and a longer evidence-gathering window. If the challenge is upheld, the challenger receives their stake back plus 50% of the oracle agent's fee. If rejected, the challenger loses their stake to the oracle agent.
+
+This creates a robust incentive structure: the oracle is financially motivated to be accurate, and challengers are financially motivated to only dispute genuine errors.
+
+---
+
+## 9. Privacy Layer — TEE Sealed Inference
+
+### What is a TEE?
+A Trusted Execution Environment (TEE) is a secure area of a processor that guarantees code executes privately — even the hardware operator cannot see what is happening inside. 0G Labs provides TEE-based sealed inference as part of its compute stack.
+
+### How Prophet Uses It
+
+**At bet placement:**
+```
+User input: { direction: "YES", amount: 100 USDT }
+                    │
+                    ▼
+              TEE encryption
+                    │
+                    ▼
+On-chain storage: 0xA3F9...2B1C  ← meaningless to any observer
+```
+
+**At resolution:**
+```
+0G Chain: Deadline block confirmed
+                    │
+                    ▼
+TEE verifies deadline → releases decryption keys
+                    │
+                    ▼
+All positions decrypted simultaneously
+                    │
+                    ▼
+Smart contract processes revealed positions → payouts
+```
+
+### What This Prevents
+- **Front-running** — nobody can see your position and copy or trade against it
+- **Informed manipulation** — the market maker agent prices based on aggregate volume signals only, not individual positions
+- **MEV extraction** — encrypted data has no extractable value for block producers
+
+---
+
+## 10. Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Smart contracts | Solidity, Hardhat, OpenZeppelin |
+| Blockchain | 0G Chain (EVM-compatible) |
+| Decentralized storage | 0G Storage SDK (TypeScript) |
+| AI inference | 0G Compute (LLM inference API) |
+| Privacy | 0G TEE Sealed Inference |
+| Agent identity | 0G Agent ID |
+| Frontend | Next.js, TypeScript, wagmi, viem |
+| Wallet integration | MetaMask, WalletConnect |
+| Backend (agent runner) | Node.js |
+| Testing | Hardhat test suite, Chai |
+
+---
+
+## 11. Hackathon Track
+
+**Primary: Track 2 — Agentic Trading Arena (Verifiable Finance)**
+
+Prophet is a direct response to Track 2's core mandate: transitioning from manual DeFi to fully autonomous, verifiable financial logic. Every key feature maps to the track's stated priorities:
+
+| Track 2 Requirement | Prophet Implementation |
+|---|---|
+| Autonomous financial logic | AI oracle + AI market maker — zero human intervention |
+| Sealed inference for privacy | TEE-encrypted positions until resolution |
+| Front-running mitigation | Positions invisible until simultaneous reveal at close |
+| Verifiable execution | Oracle reasoning stored permanently on 0G Storage |
+| AI-driven strategy agents | Market maker agent continuously reprices based on 0G Compute |
+
+**Secondary: Track 5 — Privacy & Sovereign Infrastructure**
+
+The TEE sealed position system is a privacy-preserving protocol that could be extracted and used by any DeFi application that needs to hide user intent until execution — making it a reusable piece of privacy infrastructure, not just a feature of Prophet.
+
+---
+
+## 12. Roadmap
+
+### Hackathon MVP (Weeks 1–6)
+- [ ] Core smart contracts deployed on 0G testnet (Galileo)
+- [ ] 0G Storage integration for market metadata and oracle reasoning
+- [ ] 0G Compute integration for oracle resolution (single market category: Crypto)
+- [ ] TEE sealed position vault (encrypt + decrypt flow)
+- [ ] Agent ID oracle agent with basic resolution capability
+- [ ] Agent ID market maker with basic pricing model
+- [ ] Minimal frontend — create market, place bet, view resolution
+- [ ] End-to-end demo: one full market lifecycle
+
+### Post-Hackathon V1
+- [ ] Multi-category markets (Sports, Politics, Finance)
+- [ ] Full challenge and dispute system
+- [ ] Human liquidity provider pools
+- [ ] Oracle reputation scoring dashboard
+- [ ] Mobile-responsive frontend
+- [ ] Mainnet deployment on 0G Chain
+
+### V2
+- [ ] Cross-chain market creation (create on Ethereum, settle on 0G)
+- [ ] Conditional markets ("If X happens, then will Y happen?")
+- [ ] Prophet governance token for source registry management
+- [ ] SDK for third-party integrations
+
+---
+
+## Contributing
+
+Prophet is being built in public as part of the 0G APAC Hackathon 2026. Follow the build journey on X: `#0GHackathon #BuildOn0G`
+
+---
+
+## License
+
+MIT
+
+---
+
+*Built with 0G Labs infrastructure. Powered by the belief that opinions should be tradable — privately, fairly, and autonomously.*
