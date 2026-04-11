@@ -120,7 +120,10 @@ export default function MarketDetailPage() {
   const probability = brief?.marketProbability ?? 0;
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div
+      className="flex flex-col min-h-screen"
+      style={{ background: "#161616" }}
+    >
       {/* Top bar */}
       <div
         className="flex items-center gap-3 px-8 py-4"

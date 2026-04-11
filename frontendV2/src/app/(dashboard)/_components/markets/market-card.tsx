@@ -7,6 +7,8 @@ import {
   ArrowDownRight01Icon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
+import { useState } from "react";
+import TradeModal from "./trade-modal";
 
 export interface ProphetMarket {
   id: string;
@@ -19,6 +21,7 @@ export interface ProphetMarket {
 }
 
 export default function MarketCard({ market }: { market: ProphetMarket }) {
+  const [isTradeOpen, setIsTradeOpen] = useState(false);
   const up = market.change >= 0;
 
   return (
@@ -121,19 +124,18 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
         </div>
 
         <div className="flex gap-2">
-          <Link href={`/market/${market.id}`} className="flex-1">
-            <button
-              className="w-full justify-center px-4 py-2 text-[12px] font-semibold transition-all hover:opacity-80"
-              style={{
-                background: "#7B6EF4",
-                color: "#0a0a0a",
-                clipPath:
-                  "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
-              }}
-            >
-              Trade
-            </button>
-          </Link>
+          <button
+            onClick={() => setIsTradeOpen(true)}
+            className="flex-1 w-full justify-center px-4 py-2 text-[12px] font-semibold transition-all hover:opacity-80"
+            style={{
+              background: "#7B6EF4",
+              color: "#0a0a0a",
+              clipPath:
+                "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+            }}
+          >
+            Trade
+          </button>
           <Link href={`/market/${market.id}`} className="flex-1 text-center">
             <button
               className="w-full flex items-center justify-center gap-1 px-4 py-2 text-[12px] font-semibold transition-all hover:bg-white/10"
@@ -155,6 +157,14 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
           </Link>
         </div>
       </div>
+
+      <TradeModal
+        isOpen={isTradeOpen}
+        onClose={() => setIsTradeOpen(false)}
+        marketAddress={market.id}
+        marketTitle={market.title}
+        marketYesPct={market.price}
+      />
     </div>
   );
 }

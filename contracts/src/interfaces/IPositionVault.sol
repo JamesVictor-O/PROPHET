@@ -146,4 +146,25 @@ interface IPositionVault {
     /// @notice Returns the total USDT committed to a market across all positions
     /// @param market The market address
     function getTotalCommitted(address market) external view returns (uint256);
+
+    /// @notice Returns all market addresses where a bettor has committed a position
+    /// @dev Enables portfolio pages to enumerate a user's positions without an indexer
+    /// @param bettor The bettor address
+    function getMarketsForBettor(address bettor) external view returns (address[] memory);
+
+    /// @notice Returns the total USDT a bettor has staked in a specific market
+    /// @param market The market address
+    /// @param bettor The bettor address
+    function getBettorCollateral(address market, address bettor) external view returns (uint256);
+
+    /// @notice Returns the revealed position for a bettor after TEE decryption
+    /// @dev Returns empty struct and hasReveal=false if positions not yet revealed
+    /// @param market The market address
+    /// @param bettor The bettor address
+    /// @return position The revealed position (direction + collateral)
+    /// @return hasReveal Whether a reveal exists for this bettor in this market
+    function getRevealedPositionForBettor(
+        address market,
+        address bettor
+    ) external view returns (RevealedPosition memory position, bool hasReveal);
 }

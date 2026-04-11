@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { MarketLib } from "./libraries/MarketLib.sol";
 import { MarketContract } from "./MarketContract.sol";
 
@@ -10,8 +12,17 @@ import { MarketContract } from "./MarketContract.sol";
 /// @notice Entry point for Prophet prediction market creation
 /// @dev Deploys and registers MarketContract instances
 /// @dev Maintains the canonical registry of all valid Prophet markets
+/// @dev Creation friction design:
+///        - Creator locks a USDT bond (creationBondAmount) when calling createMarket().
+///        - The bond is forwarded to the new MarketContract and held there.
+///        - Bond is refunded to creator on clean resolution or archive (zero interest).
+///        - Bond is forfeited to treasury if the oracle cancels (unresolvable market).
+///        - A 24-hour pending window runs before the market goes Open. Community members
+///          call signalInterest() to express intent (free — no funds locked). If zero
+///          signals arrive the market auto-archives via archiveMarket().
 contract ProphetFactory is Ownable, ReentrancyGuard {
 
+    using SafeERC20 for IERC20;
     using MarketLib for string;
 
     // ─────────────────────────────────────────────────────────────
@@ -44,6 +55,19 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     bool public paused;
 
     // ─────────────────────────────────────────────────────────────
+    // Creation-Friction Parameters (owner-updatable)
+    // ─────────────────────────────────────────────────────────────
+
+    /// @notice USDT amount creator must deposit when creating a market
+    /// @dev Forwarded to the MarketContract. Refunded on clean resolution/archive.
+    /// @dev Default: 10 USDT. Enough to deter throwaway markets, low enough to be accessible.
+    uint256 public creationBondAmount = 10e6;
+
+    /// @notice Duration of the pending-period community filter in seconds
+    /// @dev Default: 24 hours. After this window, market activates or archives.
+    uint256 public pendingPeriod = 24 hours;
+
+    // ─────────────────────────────────────────────────────────────
     // Market Registry
     // ─────────────────────────────────────────────────────────────
 
@@ -66,9 +90,9 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     event MarketCreated(
         address indexed marketAddress,
         address indexed creator,
-        string question,
+        string  question,
         uint256 deadline,
-        string category,
+        string  category,
         bytes32 resolutionSourcesHash,
         uint256 indexed marketIndex
     );
@@ -83,6 +107,9 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
         address newTreasury
     );
 
+    event CreationBondAmountUpdated(uint256 oldAmount, uint256 newAmount);
+    event PendingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+
     event FactoryPaused(address by);
     event FactoryUnpaused(address by);
 
@@ -96,6 +123,7 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     error ProphetFactory__Paused();
     error ProphetFactory__InvalidOffset();
     error ProphetFactory__LimitTooHigh();
+    error ProphetFactory__BondTransferFailed();
 
     // ─────────────────────────────────────────────────────────────
     // Constructor
@@ -116,10 +144,10 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
         if (_marketMakerAgent == address(0)) revert ProphetFactory__ZeroAddress();
         if (_protocolTreasury == address(0)) revert ProphetFactory__ZeroAddress();
 
-        USDT               = _usdt;
-        oracleAgent        = _oracleAgent;
-        marketMakerAgent   = _marketMakerAgent;
-        protocolTreasury   = _protocolTreasury;
+        USDT             = _usdt;
+        oracleAgent      = _oracleAgent;
+        marketMakerAgent = _marketMakerAgent;
+        protocolTreasury = _protocolTreasury;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -129,8 +157,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     /// @notice Link PositionVault and PayoutDistributor to this factory
     /// @dev Must be called once after all contracts are deployed
     /// @dev Can only be set once — prevents accidental overwrite
-    /// @param _positionVault Deployed PositionVault address
-    /// @param _payoutDistributor Deployed PayoutDistributor address
     function setVaultAndDistributor(
         address _positionVault,
         address _payoutDistributor
@@ -138,10 +164,10 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
         if (positionVault != address(0) || payoutDistributor != address(0)) {
             revert ProphetFactory__AlreadyInitialized();
         }
-        if (_positionVault == address(0))    revert ProphetFactory__ZeroAddress();
+        if (_positionVault == address(0))     revert ProphetFactory__ZeroAddress();
         if (_payoutDistributor == address(0)) revert ProphetFactory__ZeroAddress();
 
-        positionVault    = _positionVault;
+        positionVault     = _positionVault;
         payoutDistributor = _payoutDistributor;
 
         emit VaultAndDistributorSet(_positionVault, _payoutDistributor);
@@ -152,6 +178,9 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     // ─────────────────────────────────────────────────────────────
 
     /// @notice Deploy a new prediction market
+    /// @dev Creator must have approved this factory for at least creationBondAmount USDT.
+    ///      The bond is transferred from creator → factory → market contract.
+    ///      It is returned to the creator on clean resolution or archive.
     /// @param question The prediction question — max 280 characters
     /// @param deadline Unix timestamp when market closes
     /// @param category Category string: "crypto","sports","politics","finance","custom"
@@ -163,18 +192,22 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
         string calldata category,
         bytes32 resolutionSourcesHash
     ) external nonReentrant returns (address marketAddress) {
-        // Validate factory is initialized and not paused
         if (positionVault == address(0) || payoutDistributor == address(0)) {
             revert ProphetFactory__NotInitialized();
         }
         if (paused) revert ProphetFactory__Paused();
 
-        // Validate all market parameters using MarketLib
         MarketLib.validateQuestion(question);
         MarketLib.validateDeadline(deadline);
         MarketLib.validateCategory(category);
 
-        // Deploy new MarketContract
+        // Pull the creation bond from the caller before deploying the market
+        uint256 bond = creationBondAmount;
+        if (bond > 0) {
+            IERC20(USDT).safeTransferFrom(msg.sender, address(this), bond);
+        }
+
+        // Deploy new MarketContract — pass bond amount and pending period
         MarketContract market = new MarketContract(
             address(this),
             oracleAgent,
@@ -187,10 +220,17 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
             question,
             deadline,
             category,
-            resolutionSourcesHash
+            resolutionSourcesHash,
+            pendingPeriod,
+            bond
         );
 
         marketAddress = address(market);
+
+        // Forward bond to the market contract so it can refund/slash autonomously
+        if (bond > 0) {
+            IERC20(USDT).safeTransfer(marketAddress, bond);
+        }
 
         // Register in all tracking structures
         allMarkets.push(marketAddress);
@@ -238,7 +278,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     }
 
     /// @notice Returns all markets created by a specific address
-    /// @param creator The creator address to query
     function getMarketsByCreator(
         address creator
     ) external view returns (address[] memory) {
@@ -251,7 +290,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     }
 
     /// @notice Returns whether a given address is a valid Prophet market
-    /// @dev Used by PositionVault and PayoutDistributor for access control
     function isValidMarket(address market) external view returns (bool) {
         return isMarket[market];
     }
@@ -261,11 +299,24 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     // ─────────────────────────────────────────────────────────────
 
     /// @notice Update the protocol treasury address
-    /// @param newTreasury New treasury address
     function updateTreasury(address newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert ProphetFactory__ZeroAddress();
         emit TreasuryUpdated(protocolTreasury, newTreasury);
         protocolTreasury = newTreasury;
+    }
+
+    /// @notice Update the USDT bond required at market creation
+    /// @dev Set to 0 to disable the bond requirement entirely
+    function updateCreationBond(uint256 newAmount) external onlyOwner {
+        emit CreationBondAmountUpdated(creationBondAmount, newAmount);
+        creationBondAmount = newAmount;
+    }
+
+    /// @notice Update the duration of the pending-period community filter
+    /// @param newPeriod Duration in seconds (e.g. 24 hours = 86400)
+    function updatePendingPeriod(uint256 newPeriod) external onlyOwner {
+        emit PendingPeriodUpdated(pendingPeriod, newPeriod);
+        pendingPeriod = newPeriod;
     }
 
     /// @notice Pause market creation — emergency use only

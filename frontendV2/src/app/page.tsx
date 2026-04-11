@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, AiBrain01Icon } from "@hugeicons/core-free-icons";
 import Image from "next/image";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 const SOCIAL = [
   { label: "X (Twitter)", href: "https://x.com/prophet" },
@@ -108,25 +109,8 @@ export default function LandingPage() {
             Prophet
           </span>
         </div>
-        <div
-          className="flex items-center gap-1.5 px-2.5 py-1"
-          style={{
-            border: "1px solid rgba(123,110,244,0.3)",
-            background: "rgba(123,110,244,0.07)",
-          }}
-        >
-          <HugeiconsIcon
-            icon={AiBrain01Icon}
-            size={10}
-            color="#7B6EF4"
-            strokeWidth={1.5}
-          />
-          <span
-            className="text-[10px] font-medium uppercase tracking-widest"
-            style={{ color: "rgba(123,110,244,0.85)" }}
-          >
-            Powered by 0G Labs
-          </span>
+        <div className="flex items-center gap-4">
+          <ConnectButton />
         </div>
       </div>
 
@@ -150,7 +134,7 @@ export default function LandingPage() {
 
         <div className="flex flex-col items-center gap-3 mt-4">
           <button
-            onClick={() => router.push("/market")}
+            onClick={() => router.push("/dashboard")}
             className="group flex items-center gap-2.5 px-8 py-4 text-[15px] font-bold transition-all"
             style={{
               background: "rgba(123,110,244,0.9)",
@@ -187,13 +171,17 @@ export default function LandingPage() {
           >
             100% Autonomous
           </span>
+          <span
+            className="text-[10px] font-medium uppercase tracking-widest"
+            style={{ color: "rgba(123,110,244,0.85)" }}
+          >
+            Built on 0G Labs
+          </span>
           <div
             className="flex-1 h-px"
             style={{ background: "rgba(255,255,255,0.06)" }}
           />
         </div>
-
-  
       </div>
 
       {/* ── SECTION: THE PROBLEM ──────────────────────────── */}
@@ -216,7 +204,6 @@ export default function LandingPage() {
                 We fixed the infrastructure.
               </span>
             </h2>
-          
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -561,7 +548,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col items-center gap-3">
             <button
-              onClick={() => router.push("/market")}
+              onClick={() => router.push("/dashboard")}
               className="flex items-center gap-2.5 px-8 py-4 text-[14px] font-semibold transition-all"
               style={{
                 background: "rgba(123,110,244,0.9)",

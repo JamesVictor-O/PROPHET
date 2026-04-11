@@ -1,5 +1,6 @@
 import React from "react";
 import "./globals.css";
+import { Web3Provider } from "./_components/web3-provider";
 
 export const metadata = {
   title: "frontendV2",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <Web3Provider>{children}</Web3Provider>
+      </body>
     </html>
   );
 }

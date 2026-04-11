@@ -53,6 +53,18 @@ contract PositionVault is IPositionVault, ReentrancyGuard {
     /// @notice Whether a specific bettor has a position in a specific market
     mapping(address => mapping(address => bool)) private _hasBet;
 
+    /// @notice All markets a bettor has ever committed a position in
+    mapping(address => address[]) private _bettorMarkets;
+
+    /// @notice Total USDT a bettor has committed in a specific market
+    mapping(address => mapping(address => uint256)) private _bettorCollateral;
+
+    /// @notice Revealed position for a specific bettor in a market (set after TEE reveal)
+    mapping(address => mapping(address => RevealedPosition)) private _bettorRevealedPosition;
+
+    /// @notice Whether a bettor has a revealed position in a market
+    mapping(address => mapping(address => bool)) private _bettorHasReveal;
+
     // ─────────────────────────────────────────────────────────────
     // Constructor
     // ─────────────────────────────────────────────────────────────
@@ -130,7 +142,15 @@ contract PositionVault is IPositionVault, ReentrancyGuard {
 
         // Update accounting
         _totalCommitted[market] += collateralAmount;
+
+        // Track bettor -> market reverse index (only add market once per bettor)
+        if (!_hasBet[market][bettor]) {
+            _bettorMarkets[bettor].push(market);
+        }
         _hasBet[market][bettor] = true;
+
+        // Accumulate per-bettor collateral (supports multiple bets in same market)
+        _bettorCollateral[bettor][market] += collateralAmount;
 
         emit PositionCommitted(market, bettor, collateralAmount, positionIndex);
     }
@@ -170,6 +190,12 @@ contract PositionVault is IPositionVault, ReentrancyGuard {
         for (uint256 i = 0; i < positions.length; ) {
             _revealedPositions[market].push(positions[i]);
             _marketPositions[market][i].revealed = true;
+
+            // Index by bettor for O(1) portfolio lookups
+            address bettor = positions[i].bettor;
+            _bettorRevealedPosition[bettor][market] = positions[i];
+            _bettorHasReveal[bettor][market] = true;
+
             unchecked { ++i; }
         }
 
@@ -262,6 +288,37 @@ contract PositionVault is IPositionVault, ReentrancyGuard {
     /// @inheritdoc IPositionVault
     function getTotalCommitted(address market) external view override returns (uint256) {
         return _totalCommitted[market];
+    }
+
+    /// @notice Returns all market addresses where a bettor has committed a position
+    /// @dev Used by the portfolio page to enumerate a user's active and past positions
+    /// @param bettor The bettor address
+    function getMarketsForBettor(address bettor) external view returns (address[] memory) {
+        return _bettorMarkets[bettor];
+    }
+
+    /// @notice Returns the total USDT a bettor has staked in a specific market
+    /// @dev Accumulates all bets if the bettor placed multiple positions in the same market
+    /// @param market The market address
+    /// @param bettor The bettor address
+    function getBettorCollateral(address market, address bettor) external view returns (uint256) {
+        return _bettorCollateral[bettor][market];
+    }
+
+    /// @notice Returns the revealed position for a bettor in a market after TEE decryption
+    /// @dev Returns empty struct and false if positions have not been revealed yet
+    /// @param market The market address
+    /// @param bettor The bettor address
+    /// @return position The revealed position (direction + collateral)
+    /// @return hasReveal Whether a reveal exists for this bettor in this market
+    function getRevealedPositionForBettor(
+        address market,
+        address bettor
+    ) external view returns (RevealedPosition memory position, bool hasReveal) {
+        hasReveal = _bettorHasReveal[bettor][market];
+        if (hasReveal) {
+            position = _bettorRevealedPosition[bettor][market];
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

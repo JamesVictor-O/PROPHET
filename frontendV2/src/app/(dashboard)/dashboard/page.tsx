@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowUpRight01Icon,
@@ -7,8 +8,11 @@ import {
   AnalyticsUpIcon,
   SafeIcon,
 } from "@hugeicons/core-free-icons";
+import CreateMarketModal from "../_components/create-market-modal";
 
 export default function DashboardPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="p-8  mx-auto flex flex-col gap-8 min-h-screen">
       {/* Header */}
@@ -19,6 +23,13 @@ export default function DashboardPage() {
             Your automated positions and overview of the Prophet ecosystem.
           </p>
         </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all hover:opacity-90"
+          style={{ background: "#7B6EF4", color: "#0a0a0a" }}
+        >
+          Create Market
+        </button>
       </div>
 
       {/* Metrics Row */}
@@ -109,6 +120,10 @@ export default function DashboardPage() {
           </tbody>
         </table>
       </div>
+      <CreateMarketModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 }

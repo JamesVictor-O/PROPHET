@@ -12,7 +12,14 @@ import { MarketLib } from "./libraries/MarketLib.sol";
 /// @title MarketContract
 /// @notice Core contract for a single Prophet prediction market
 /// @dev One instance deployed per market by ProphetFactory
-/// @dev Manages full lifecycle: Open → PendingResolution → Challenged → Resolved/Cancelled
+/// @dev Lifecycle:
+///      Pending  -> Open (interest threshold met after 24h social filter)
+///      Pending  -> Archived (zero interest after 24h)
+///      Open     -> PendingResolution (deadline passed)
+///      PendingResolution -> Challenged (oracle posts verdict, 24h challenge window)
+///      Challenged -> Resolved (no challenge filed, window expires)
+///      Challenged -> Resolved (challenge processed by oracle)
+///      PendingResolution -> Cancelled (oracle inconclusive x2)
 contract MarketContract is IMarketContract, ReentrancyGuard {
 
     using SafeERC20 for IERC20;
@@ -32,6 +39,10 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     address public immutable override creator;
     uint256 public immutable override deadline;
     bytes32 public immutable override resolutionSourcesHash;
+
+    /// @notice USDT bond locked at creation — refunded on clean resolution or archive
+    /// @dev Set once from ProphetFactory.creationBondAmount at deploy time
+    uint256 public immutable override creatorBond;
 
     // ─────────────────────────────────────────────────────────────
     // Market Parameters — set at construction
@@ -56,8 +67,15 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     uint256 public override challengeStake;
     bool public override challengeResolved;
 
+    // Pending-period social filter state
+    uint256 public override pendingDeadline;
+    uint256 public override interestCount;
+
     // Bettor tracking
     mapping(address => bool) private _hasBet;
+
+    // Interest signal tracking
+    mapping(address => bool) private _hasSignaled;
 
     // ─────────────────────────────────────────────────────────────
     // Constants
@@ -67,6 +85,11 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     uint256 private constant CHALLENGE_STAKE_BPS = 500;   // 5% of total collateral
     uint256 private constant MIN_CHALLENGE_STAKE = 50e6;  // 50 USDT minimum
     uint256 private constant MIN_BET_AMOUNT      = 1e6;   // 1 USDT minimum bet
+
+    // Liquidity tier thresholds (USDT, 6 decimals)
+    uint256 private constant TIER_LOW_THRESHOLD    = 100e6;     // 100 USDT
+    uint256 private constant TIER_MEDIUM_THRESHOLD = 1_000e6;   // 1 000 USDT
+    uint256 private constant TIER_HIGH_THRESHOLD   = 10_000e6;  // 10 000 USDT
 
     // ─────────────────────────────────────────────────────────────
     // Constructor — called by ProphetFactory.createMarket()
@@ -84,7 +107,9 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         string memory question_,
         uint256 _deadline,
         string memory category_,
-        bytes32 _resolutionSourcesHash
+        bytes32 _resolutionSourcesHash,
+        uint256 _pendingPeriod,
+        uint256 _creatorBond
     ) {
         factory               = _factory;
         oracleAgent           = _oracleAgent;
@@ -96,9 +121,13 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         creator               = _creator;
         deadline              = _deadline;
         resolutionSourcesHash = _resolutionSourcesHash;
+        creatorBond           = _creatorBond;
         _question             = question_;
         _category             = category_;
-        status                = MarketStatus.Open;
+
+        // Market starts in Pending — community filter runs for pendingPeriod
+        status          = MarketStatus.Pending;
+        pendingDeadline = block.timestamp + _pendingPeriod;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -112,6 +141,11 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
     modifier onlyPayoutDistributor() {
         if (msg.sender != payoutDistributor) revert MarketContract__NotPayoutDistributor();
+        _;
+    }
+
+    modifier onlyWhenPending() {
+        if (status != MarketStatus.Pending) revert MarketContract__NotPending();
         _;
     }
 
@@ -138,7 +172,57 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Core Functions
+    // Pending-Period Social Filter
+    // ─────────────────────────────────────────────────────────────
+
+    /// @inheritdoc IMarketContract
+    function signalInterest() external override onlyWhenPending {
+        // Pending period must still be active
+        if (block.timestamp > pendingDeadline) revert MarketContract__PendingPeriodNotOver();
+
+        // Creator signaling their own market doesn't count
+        if (msg.sender == creator) revert MarketContract__CreatorCannotSignal();
+
+        // Each address can only signal once
+        if (_hasSignaled[msg.sender]) revert MarketContract__AlreadySignaled();
+
+        _hasSignaled[msg.sender] = true;
+        interestCount++;
+
+        emit InterestSignaled(address(this), msg.sender, interestCount);
+    }
+
+    /// @inheritdoc IMarketContract
+    function activateMarket() external override onlyWhenPending {
+        // Pending period must have elapsed
+        if (block.timestamp <= pendingDeadline) revert MarketContract__PendingPeriodStillActive();
+
+        // Must have at least one signal from the community
+        if (interestCount == 0) revert MarketContract__HasInterest();
+
+        status = MarketStatus.Open;
+
+        emit MarketActivated(address(this), interestCount, block.timestamp);
+    }
+
+    /// @inheritdoc IMarketContract
+    function archiveMarket() external override onlyWhenPending {
+        // Pending period must have elapsed
+        if (block.timestamp <= pendingDeadline) revert MarketContract__PendingPeriodStillActive();
+
+        // Can only archive if no one signaled interest
+        if (interestCount > 0) revert MarketContract__HasInterest();
+
+        status = MarketStatus.Archived;
+
+        emit MarketArchived(address(this), creator, creatorBond);
+
+        // Refund the creation bond to creator immediately
+        _refundBondToCreator();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Core Market Functions
     // ─────────────────────────────────────────────────────────────
 
     /// @inheritdoc IMarketContract
@@ -156,7 +240,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         if (encryptedCommitment.length == 0) revert MarketContract__InvalidTeeAttestation();
 
         // Transfer USDT from bettor to this contract
-        // SafeERC20 handles non-standard USDT implementations
         IERC20(USDT).safeTransferFrom(msg.sender, address(this), collateralAmount);
 
         // Update total collateral
@@ -204,7 +287,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             revert MarketContract__InvalidTeeAttestation();
         }
 
-        // Store verdict
         outcome              = verdict;
         verdictReasoningHash = reasoningHash;
         resolutionTimestamp  = block.timestamp;
@@ -231,13 +313,11 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         // Only one challenge allowed
         if (challenger != address(0)) revert MarketContract__ChallengeAlreadyFiled();
 
-        // Calculate required stake
         uint256 required = requiredChallengeStake();
 
-        // Transfer challenge stake from challenger
         IERC20(USDT).safeTransferFrom(msg.sender, address(this), required);
 
-        challenger    = msg.sender;
+        challenger     = msg.sender;
         challengeStake = required;
 
         emit ResolutionChallenged(address(this), msg.sender, required);
@@ -257,16 +337,14 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
         emit ResolutionFinalized(address(this), outcome, block.timestamp);
 
-        // Trigger TEE decryption — oracle agent's off-chain service listens for this
-        // and submits revealPositions() to PositionVault
-        // The actual reveal is handled off-chain then submitted back on-chain
+        // Clean resolution — refund creator bond
+        _refundBondToCreator();
     }
 
     /// @inheritdoc IMarketContract
     function processChallengeOutcome(
         bool challengeUpheld
     ) external override onlyOracle onlyWhenChallenged {
-        // A challenge must have been filed
         if (challenger == address(0)) revert MarketContract__NoChallengeToProcess();
 
         challengeResolved = true;
@@ -280,7 +358,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             uint256 reward = FeeLib.calculateChallengeReward(fees.oracleFee);
             uint256 totalChallengerPayout = challengeStake + reward;
 
-            // Pay challenger their stake back + reward
             IERC20(USDT).safeTransfer(challenger, totalChallengerPayout);
 
             emit ChallengeUpheld(address(this), challenger, reward);
@@ -294,6 +371,9 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         status = MarketStatus.Resolved;
 
         emit ResolutionFinalized(address(this), outcome, block.timestamp);
+
+        // Refund creator bond on resolution (regardless of challenge outcome — oracle erred, not creator)
+        _refundBondToCreator();
     }
 
     /// @inheritdoc IMarketContract
@@ -305,10 +385,8 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             revert MarketContract__ArrayLengthMismatch();
         }
 
-        // Calculate and distribute fees first
         FeeLib.FeeBreakdown memory fees = FeeLib.calculateFeeBreakdown(totalCollateral);
 
-        // Distribute fees to their recipients
         if (fees.oracleFee > 0) {
             IERC20(USDT).safeTransfer(oracleAgent, fees.oracleFee);
             emit FeeDistributed(fees.oracleFee, oracleAgent, "oracle");
@@ -322,7 +400,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             emit FeeDistributed(fees.protocolFee, protocolTreasury, "protocol");
         }
 
-        // Distribute winnings to each winner
         uint256 totalPaid;
         for (uint256 i = 0; i < winners.length; ) {
             if (amounts[i] > 0) {
@@ -341,7 +418,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     ) external override onlyOracle {
         if (status == MarketStatus.Cancelled) revert MarketContract__AlreadyCancelled();
 
-        // Only cancellable when pending resolution (oracle gave up after two INCONCLUSIVE)
         if (status != MarketStatus.PendingResolution) {
             revert MarketContract__NotPendingResolution();
         }
@@ -350,7 +426,15 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
         emit MarketCancelled(address(this), reason);
 
-        // PositionVault will handle individual refunds
+        // Bond forfeited to treasury — creator made an unresolvable market
+        if (creatorBond > 0) {
+            IERC20(USDT).safeTransfer(protocolTreasury, creatorBond);
+        }
+
+        // Transfer all bettor collateral to PositionVault for individual refunds
+        if (totalCollateral > 0) {
+            IERC20(USDT).safeTransfer(positionVault, totalCollateral);
+        }
         IPositionVault(positionVault).refundAll(address(this));
     }
 
@@ -394,6 +478,27 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     }
 
     /// @inheritdoc IMarketContract
+    function getPendingInfo() external view override returns (
+        uint256 pendingDeadline_,
+        uint256 interestCount_,
+        uint256 creatorBond_,
+        bool isPendingOver_
+    ) {
+        pendingDeadline_ = pendingDeadline;
+        interestCount_   = interestCount;
+        creatorBond_     = creatorBond;
+        isPendingOver_   = block.timestamp > pendingDeadline;
+    }
+
+    /// @inheritdoc IMarketContract
+    function liquidityTier() external view override returns (LiquidityTier) {
+        if (totalCollateral >= TIER_HIGH_THRESHOLD)   return LiquidityTier.High;
+        if (totalCollateral >= TIER_MEDIUM_THRESHOLD) return LiquidityTier.Medium;
+        if (totalCollateral >= TIER_LOW_THRESHOLD)    return LiquidityTier.Low;
+        return LiquidityTier.Seed;
+    }
+
+    /// @inheritdoc IMarketContract
     function timeUntilDeadline() external view override returns (uint256) {
         if (block.timestamp >= deadline) return 0;
         return deadline - block.timestamp;
@@ -422,21 +527,31 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         return _hasBet[bettor];
     }
 
+    /// @inheritdoc IMarketContract
+    function hasSignaled(address user) external view override returns (bool) {
+        return _hasSignaled[user];
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Internal Helpers
     // ─────────────────────────────────────────────────────────────
 
+    /// @notice Transfer creator bond back to the creator if one was paid
+    function _refundBondToCreator() internal {
+        if (creatorBond > 0) {
+            IERC20(USDT).safeTransfer(creator, creatorBond);
+            emit CreatorBondRefunded(address(this), creator, creatorBond);
+        }
+    }
+
     /// @notice Verify a TEE attestation proof
     /// @dev TODO: integrate 0G TEE verification SDK before mainnet
-    /// @dev For hackathon MVP this is a stub — always returns true
-    /// @param attestation The TEE attestation bytes to verify
-    /// @return valid Whether the attestation is valid
+    /// @dev For hackathon MVP this is a stub — always returns true for non-empty bytes
     function _verifyTeeAttestation(
         bytes calldata attestation
     ) internal pure returns (bool valid) {
         // TODO: Replace with real 0G TEE attestation verification
         // Reference: https://docs.0g.ai — TEE verification SDK
-        // For now: treat non-empty attestation as valid
         valid = attestation.length > 0;
     }
 
