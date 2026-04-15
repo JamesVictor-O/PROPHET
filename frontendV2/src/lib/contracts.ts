@@ -3,13 +3,15 @@ import MarketContractArtifact from "./abis/MarketContract.json";
 import PositionVaultArtifact from "./abis/PositionVault.json";
 import PayoutDistributorArtifact from "./abis/PayoutDistributor.json";
 
+// 0G Galileo testnet (chain 16602)
 export const PROPHET_FACTORY_ADDRESS =
-  "0x15b9e263b6e896d4d8f0d9c89878678aa6abadec";
+  "0x0D08b49a5f26B429E4d72BF1556FB01E3313156b";
 export const POSITION_VAULT_ADDRESS =
-  "0x0115ca8539906db2d9a4bee36c64ea94a0d7fa31";
+  "0xCdC7Bc596C72E4Ff4c8c23B11eeEcb23cA9C97C0";
 export const PAYOUT_DISTRIBUTOR_ADDRESS =
-  "0x284991966a8256521e72470e3b92e03e8ab8c1c3";
-export const MOCK_USDT_ADDRESS = "0xc2b0d2a7e858f13b349843ff87dbf4ebf9227f49";
+  "0x80E7AEc2c254d21b720811FBc3C5E47FE796E133";
+export const MOCK_USDT_ADDRESS =
+  "0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49";
 
 // Ensure we get the `abi` array from the Foundry compilation artifact
 export const PROPHET_FACTORY_ABI = ProphetFactoryArtifact.abi;

@@ -46,6 +46,7 @@ contract MarketContractTest is Test {
     event ChallengeRejected(address indexed market, address indexed challenger, uint256 slashedStake);
     event ResolutionFinalized(address indexed market, bool outcome, uint256 timestamp);
     event MarketCancelled(address indexed market, string reason);
+    event CreatorBondRefunded(address indexed market, address indexed creator, uint256 amount);
 
     // ── Setup ──────────────────────────────────────────────────────
 
@@ -112,6 +113,21 @@ contract MarketContractTest is Test {
         _triggerResolution();
         _postResolution(verdict);
         _finalizeResolution();
+    }
+
+    /// @dev Sets factory bond to `bond`, deploys a new market, and activates it (BOB signals).
+    function _createOpenMarketWithBond(uint256 bond) internal returns (MarketContract m) {
+        factory.updateCreationBond(bond);
+        if (bond > 0) {
+            usdt.mint(address(this), bond);
+            usdt.approve(address(factory), bond);
+        }
+        uint256 dl = block.timestamp + 48 hours;
+        m = MarketContract(factory.createMarket("Bond market?", dl, "crypto", SOURCES_HASH));
+        vm.prank(BOB);
+        m.signalInterest();
+        vm.warp(block.timestamp + 2);
+        m.activateMarket();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -628,6 +644,91 @@ contract MarketContractTest is Test {
         vm.prank(ORACLE);
         vm.expectRevert(IMarketContract.MarketContract__NotPendingResolution.selector);
         market.cancelMarket("reason");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Creator bond (creationBondAmount from factory at deploy time)
+    // ─────────────────────────────────────────────────────────────
+
+    function test_creatorBond_Immutable_MatchesFactoryAtDeployTime() public {
+        MarketContract mBond = _createOpenMarketWithBond(10e6);
+        assertEq(mBond.creatorBond(), 10e6);
+        assertEq(usdt.balanceOf(address(mBond)), 10e6);
+
+        factory.updateCreationBond(99e6);
+        assertEq(mBond.creatorBond(), 10e6); // snapshot at deploy
+    }
+
+    function test_creatorBond_RefundedOnFinalizeResolution() public {
+        MarketContract mBond = _createOpenMarketWithBond(10e6);
+        uint256 creatorAfterCreate = usdt.balanceOf(address(this));
+
+        _placeBetOn(ALICE, mBond, ALICE_BET, true);
+
+        vm.warp(mBond.deadline() + 1);
+        mBond.triggerResolution();
+        vm.prank(ORACLE);
+        mBond.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        vm.warp(block.timestamp + 25 hours);
+
+        vm.expectEmit(true, true, false, true);
+        emit CreatorBondRefunded(address(mBond), address(this), 10e6);
+        mBond.finalizeResolution();
+
+        assertEq(usdt.balanceOf(address(this)), creatorAfterCreate + 10e6);
+        assertEq(uint8(mBond.status()), uint8(IMarketContract.MarketStatus.Resolved));
+    }
+
+    function test_creatorBond_RefundedOnProcessChallengeOutcome() public {
+        MarketContract mBond = _createOpenMarketWithBond(10e6);
+        uint256 creatorAfterCreate = usdt.balanceOf(address(this));
+
+        _placeBetOn(ALICE, mBond, ALICE_BET, true);
+
+        vm.warp(mBond.deadline() + 1);
+        mBond.triggerResolution();
+        vm.prank(ORACLE);
+        mBond.postResolution(true, REASONING_HASH, VALID_ATTEST);
+
+        uint256 stake = mBond.requiredChallengeStake();
+        vm.startPrank(BOB);
+        usdt.approve(address(mBond), stake);
+        mBond.challengeResolution();
+        vm.stopPrank();
+
+        vm.prank(ORACLE);
+        mBond.processChallengeOutcome(false);
+
+        assertEq(usdt.balanceOf(address(this)), creatorAfterCreate + 10e6);
+        assertEq(uint8(mBond.status()), uint8(IMarketContract.MarketStatus.Resolved));
+    }
+
+    function test_creatorBond_ForfeitedToTreasury_OnCancel() public {
+        MarketContract mBond = _createOpenMarketWithBond(10e6);
+
+        _placeBetOn(ALICE, mBond, ALICE_BET, true);
+
+        uint256 treasuryBefore = usdt.balanceOf(TREASURY);
+
+        vm.warp(mBond.deadline() + 1);
+        mBond.triggerResolution();
+        vm.prank(ORACLE);
+        mBond.cancelMarket("INCONCLUSIVE");
+
+        assertEq(usdt.balanceOf(TREASURY), treasuryBefore + 10e6);
+        assertEq(uint8(mBond.status()), uint8(IMarketContract.MarketStatus.Cancelled));
+    }
+
+    function _placeBetOn(
+        address user,
+        MarketContract m_,
+        uint256 amount,
+        bool direction
+    ) internal {
+        vm.startPrank(user);
+        usdt.approve(address(m_), amount);
+        m_.placeBet(abi.encode(direction, amount), amount);
+        vm.stopPrank();
     }
 
     // ─────────────────────────────────────────────────────────────

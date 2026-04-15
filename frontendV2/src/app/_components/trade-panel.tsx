@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useAccount,
   useReadContract,
@@ -13,15 +13,18 @@ import { MARKET_CONTRACT_ABI, MOCK_USDT_ADDRESS } from "../../lib/contracts";
 export default function TradePanel({
   marketAddress,
   marketYesPct,
+  tradeEnabled = true,
 }: {
   marketAddress?: string;
   marketYesPct: number;
+  /** When false, market is not in Open status — bets revert on-chain */
+  tradeEnabled?: boolean;
 }) {
   const { address: userAddress } = useAccount();
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amountStr, setAmountStr] = useState("");
 
-  const amountUnits = amountStr ? parseUnits(amountStr, 18) : BigInt(0);
+  const amountUnits = amountStr ? parseUnits(amountStr, 6) : BigInt(0);
 
   // 1. Read USDT Allowance
   const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
@@ -59,13 +62,12 @@ export default function TradePanel({
   const { isLoading: isBetConfirming, isSuccess: isBetSuccess } =
     useWaitForTransactionReceipt({ hash: betHash });
 
-  // Automatically refresh allowance read-state if the user completes successful token approval
-  if (isApproveSuccess && needsApproval) {
-    refetchAllowance();
-  }
+  useEffect(() => {
+    if (isApproveSuccess) void refetchAllowance();
+  }, [isApproveSuccess, refetchAllowance]);
 
   const handleAction = () => {
-    if (!marketAddress || amountUnits === BigInt(0)) return;
+    if (!tradeEnabled || !marketAddress || amountUnits === BigInt(0)) return;
 
     if (needsApproval) {
       writeApprove({
@@ -104,6 +106,14 @@ export default function TradePanel({
       }}
     >
       <h3 className="font-bold text-white mb-4">Trade</h3>
+
+      {!tradeEnabled && (
+        <p className="mb-4 text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          Trading is only available while the market is <strong>Open</strong>{" "}
+          (after the pending period and activation). Check back once the market
+          is live.
+        </p>
+      )}
 
       {/* Side Segmented Toggle */}
       <div
@@ -205,6 +215,7 @@ export default function TradePanel({
       <button
         onClick={handleAction}
         disabled={
+          !tradeEnabled ||
           !userAddress ||
           !marketAddress ||
           !amountStr ||
@@ -218,7 +229,11 @@ export default function TradePanel({
           color: needsApproval ? "#fff" : "#0a0a0a",
         }}
       >
-        {!userAddress ? "Connect Wallet To Proceed" : buttonText}
+        {!tradeEnabled
+          ? "Trading unavailable"
+          : !userAddress
+            ? "Connect Wallet To Proceed"
+            : buttonText}
       </button>
     </div>
   );

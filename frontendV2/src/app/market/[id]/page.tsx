@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -10,12 +10,14 @@ import {
   ArrowUpRight01Icon,
   Clock01Icon,
   BarChartIcon,
-  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import TradePanel from "../../_components/trade-panel";
-import PlatformLogo from "../../../_components/markets/platform-logo";
-import { useMarketEvent } from "@/lib/hooks/use-market-event";
-import { AIBriefContent } from "@/app/(dashboard)/alpha/_components/ai-brief-content";
+import {
+  useMarketDetail,
+  formatUsdtUsd,
+  formatDeadlineTs,
+} from "@/lib/hooks/use-market-detail";
+import { zeroGGalileo } from "@/lib/web3-config";
 
 const PriceChart = dynamic(() => import("../../_components/price-chart"), {
   ssr: false,
@@ -24,64 +26,12 @@ const PriceChart = dynamic(() => import("../../_components/price-chart"), {
 const TABS = ["Summary", "Recent Trades"] as const;
 type Tab = (typeof TABS)[number];
 
-const RECENT_TRADES = [
-  {
-    side: "yes",
-    price: 67,
-    shares: 150,
-    value: 100.5,
-    time: "2m ago",
-    user: "0x3f...a1",
-  },
-  {
-    side: "no",
-    price: 33,
-    shares: 90,
-    value: 29.7,
-    time: "5m ago",
-    user: "0x7b...c4",
-  },
-  {
-    side: "yes",
-    price: 66,
-    shares: 200,
-    value: 132,
-    time: "11m ago",
-    user: "0x1a...d9",
-  },
-  {
-    side: "yes",
-    price: 65,
-    shares: 75,
-    value: 48.75,
-    time: "18m ago",
-    user: "0xfe...2e",
-  },
-  {
-    side: "no",
-    price: 34,
-    shares: 300,
-    value: 102,
-    time: "24m ago",
-    user: "0x5c...77",
-  },
-  {
-    side: "yes",
-    price: 64,
-    shares: 500,
-    value: 320,
-    time: "31m ago",
-    user: "0x8d...b0",
-  },
-  {
-    side: "no",
-    price: 36,
-    shares: 120,
-    value: 43.2,
-    time: "40m ago",
-    user: "0x2f...61",
-  },
-];
+const explorer = zeroGGalileo.blockExplorers.default.url;
+
+function shortHash(h: string, left = 6, right = 4) {
+  if (!h || h.length < 12) return h;
+  return `${h.slice(0, left)}…${h.slice(-right)}`;
+}
 
 export default function MarketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,47 +39,38 @@ export default function MarketDetailPage() {
   const [tab, setTab] = useState<Tab>("Summary");
   const [range, setRange] = useState("3M");
 
-  const { data, isLoading, isError } = useMarketEvent(id ?? "");
-  const event = data?.event;
-  const brief = data?.brief;
+  const {
+    address,
+    invalidAddress,
+    notRegistered,
+    detail,
+    canTrade,
+    impliedYesPct,
+    isLoading,
+    error,
+  } = useMarketDetail(id);
 
-  const platform = brief?.platform ?? "polymarket";
-  const platformLabel = platform === "bayse" ? "Bayse" : "Polymarket";
-
-  const title = brief?.eventTitle ?? (isLoading ? "" : "Market not found");
-  const description = event?.description ?? "";
-  const category = brief?.category ?? "";
-  const image = brief?.image || `https://picsum.photos/seed/${id}/52/52`;
-  const closesAt = brief?.closesAt
-    ? new Date(brief.closesAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+  const title = detail?.question ?? (isLoading ? "Loading…" : "Market");
+  const category = detail?.category ?? "";
+  const closesAt = detail ? formatDeadlineTs(detail.deadline) : "";
+  const volumeFormatted = detail
+    ? `${formatUsdtUsd(detail.totalCollateral)} Vol`
     : "";
-  const volumeFormatted = brief
-    ? brief.volume >= 1_000_000
-      ? `$${(brief.volume / 1_000_000).toFixed(1)}M Vol`
-      : `$${(brief.volume / 1_000).toFixed(0)}K Vol`
+  const liquidityFormatted = detail
+    ? formatUsdtUsd(detail.totalCollateral)
     : "";
-  const liquidityFormatted = brief
-    ? brief.liquidity >= 1_000_000
-      ? `$${(brief.liquidity / 1_000_000).toFixed(1)}M`
-      : `$${(brief.liquidity / 1_000).toFixed(0)}K`
-    : "";
-  const probability = brief?.marketProbability ?? 0;
 
   return (
     <div
       className="flex flex-col min-h-screen"
       style={{ background: "#161616" }}
     >
-      {/* Top bar */}
       <div
         className="flex items-center gap-3 px-8 py-4"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
       >
         <button
+          type="button"
           className="flex items-center justify-center w-7 h-7 transition-all"
           style={{
             border: "1px solid rgba(255,255,255,0.07)",
@@ -152,12 +93,13 @@ export default function MarketDetailPage() {
             strokeWidth={1.5}
           />
         </button>
-        <span
-          className="text-[13px]"
+        <Link
+          href="/markets"
+          className="text-[13px] hover:text-white/80"
           style={{ color: "rgba(255,255,255,0.25)" }}
         >
           Markets
-        </span>
+        </Link>
         <span
           className="text-[13px]"
           style={{ color: "rgba(255,255,255,0.15)" }}
@@ -172,361 +114,350 @@ export default function MarketDetailPage() {
         </span>
       </div>
 
-      {/* Main layout */}
-      <div className="flex flex-1 gap-0">
-        {/* Left: chart + tabs */}
-        <div className="flex flex-col flex-1 min-w-0 px-8 py-6 gap-5">
-          {/* Market header */}
-          <div className="flex items-start gap-4">
-            <div
-              className="relative shrink-0 overflow-hidden rounded-xl"
-              style={{
-                width: 52,
-                height: 52,
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              {isLoading ? (
-                <div
-                  style={{
-                    width: 52,
-                    height: 52,
-                    background: "rgba(255,255,255,0.06)",
-                    animation: "skeleton-pulse 1.5s ease-in-out infinite",
-                  }}
-                />
-              ) : (
-                <Image
-                  src={image}
-                  alt={title}
-                  fill
-                  className="object-cover"
-                  sizes="52px"
-                />
-              )}
-            </div>
+      {invalidAddress && (
+        <div className="px-8 py-12 text-center text-sm text-white/40">
+          This URL is not a valid market address. Open a market from the{" "}
+          <Link href="/markets" className="text-[#7B6EF4] hover:underline">
+            markets list
+          </Link>
+          .
+        </div>
+      )}
 
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <PlatformLogo platform={platform} size={16} />
+      {notRegistered && address && (
+        <div className="px-8 py-12 text-center text-sm text-amber-200/80 max-w-lg mx-auto">
+          <p className="mb-2">
+            <code className="text-xs text-white/60">{address}</code> is not
+            registered on this Prophet factory.
+          </p>
+          <Link href="/markets" className="text-[#7B6EF4] hover:underline text-sm">
+            Back to markets
+          </Link>
+        </div>
+      )}
+
+      {error && address && !notRegistered && (
+        <div className="px-8 py-8">
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300 max-w-xl">
+            Failed to load market:{" "}
+            {error instanceof Error ? error.message : "Unknown error"}
+          </div>
+        </div>
+      )}
+
+      {!invalidAddress && !notRegistered && (
+        <div className="flex flex-1 gap-0">
+          <div className="flex flex-col flex-1 min-w-0 px-8 py-6 gap-5">
+            <div className="flex items-start gap-4">
+              <div
+                className="relative shrink-0 overflow-hidden rounded-xl flex items-center justify-center text-lg font-bold text-white/60"
+                style={{
+                  width: 52,
+                  height: 52,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background:
+                    "linear-gradient(135deg, rgba(123,110,244,0.25), rgba(52,211,153,0.15))",
+                }}
+              >
+                {category ? category.charAt(0) : "?"}
+              </div>
+
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className="text-[10px] font-medium"
+                    className="text-[10px] font-medium uppercase tracking-wide"
                     style={{ color: "rgba(255,255,255,0.4)" }}
                   >
-                    {platformLabel}
+                    Prophet · 0G Galileo
                   </span>
-                </div>
-                {category && (
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "rgba(255,255,255,0.25)" }}
-                  >
-                    {category}
-                  </span>
-                )}
-                {closesAt && (
-                  <div className="flex items-center gap-1 ml-auto">
-                    <HugeiconsIcon
-                      icon={Clock01Icon}
-                      size={10}
-                      color="rgba(255,255,255,0.2)"
-                      strokeWidth={1.5}
-                    />
+                  {detail?.statusLabel && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded"
+                      style={{
+                        background: "rgba(123,110,244,0.15)",
+                        color: "rgba(167,159,250,0.95)",
+                      }}
+                    >
+                      {detail.statusLabel}
+                    </span>
+                  )}
+                  {category && (
                     <span
                       className="text-[10px]"
                       style={{ color: "rgba(255,255,255,0.25)" }}
                     >
-                      Closes {closesAt}
+                      {category}
                     </span>
-                  </div>
-                )}
-              </div>
-              {isLoading ? (
-                <div
-                  style={{
-                    width: "70%",
-                    height: 20,
-                    background: "rgba(255,255,255,0.06)",
-                    borderRadius: 3,
-                    animation: "skeleton-pulse 1.5s ease-in-out infinite",
-                  }}
-                />
-              ) : (
-                <h1 className="text-[18px] font-semibold text-white leading-snug">
-                  {title}
-                </h1>
-              )}
-              <div className="flex items-center gap-4">
-                {volumeFormatted && (
-                  <div className="flex items-center gap-1.5">
-                    <HugeiconsIcon
-                      icon={BarChartIcon}
-                      size={11}
-                      color="rgba(255,255,255,0.2)"
-                      strokeWidth={1.5}
-                    />
-                    <span
-                      className="text-[11px]"
-                      style={{ color: "rgba(255,255,255,0.3)" }}
-                    >
-                      {volumeFormatted}
-                    </span>
-                  </div>
-                )}
-                {/* current probability */}
-                {!isLoading && brief && (
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <span className="text-[22px] font-bold text-white leading-none">
-                      {probability}¢
-                    </span>
-                    <div
-                      className="flex items-center gap-1 px-1.5 py-0.5"
-                      style={{
-                        background: "rgba(52,211,153,0.1)",
-                        border: "1px solid rgba(52,211,153,0.15)",
-                      }}
-                    >
+                  )}
+                  {closesAt && (
+                    <div className="flex items-center gap-1 ml-auto">
                       <HugeiconsIcon
-                        icon={ArrowUpRight01Icon}
+                        icon={Clock01Icon}
                         size={10}
-                        color="#34d399"
-                        strokeWidth={2}
+                        color="rgba(255,255,255,0.2)"
+                        strokeWidth={1.5}
                       />
                       <span
-                        className="text-[10px] font-semibold"
-                        style={{ color: "#34d399" }}
+                        className="text-[10px]"
+                        style={{ color: "rgba(255,255,255,0.25)" }}
                       >
-                        YES
+                        Closes {closesAt}
                       </span>
                     </div>
-                  </div>
+                  )}
+                </div>
+                {isLoading ? (
+                  <div
+                    style={{
+                      width: "70%",
+                      height: 20,
+                      background: "rgba(255,255,255,0.06)",
+                      borderRadius: 3,
+                      animation: "skeleton-pulse 1.5s ease-in-out infinite",
+                    }}
+                  />
+                ) : (
+                  <h1 className="text-[18px] font-semibold text-white leading-snug">
+                    {title}
+                  </h1>
                 )}
+                <div className="flex items-center gap-4 flex-wrap">
+                  {volumeFormatted && (
+                    <div className="flex items-center gap-1.5">
+                      <HugeiconsIcon
+                        icon={BarChartIcon}
+                        size={11}
+                        color="rgba(255,255,255,0.2)"
+                        strokeWidth={1.5}
+                      />
+                      <span
+                        className="text-[11px]"
+                        style={{ color: "rgba(255,255,255,0.3)" }}
+                      >
+                        {volumeFormatted}
+                      </span>
+                    </div>
+                  )}
+                  {!isLoading && detail && (
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-[22px] font-bold text-white leading-none">
+                        {impliedYesPct}¢
+                      </span>
+                      <span
+                        className="text-[10px] text-white/30 max-w-[140px] text-right"
+                        title="Placeholder until a market-maker feed is wired"
+                      >
+                        implied YES
+                      </span>
+                      <div
+                        className="flex items-center gap-1 px-1.5 py-0.5"
+                        style={{
+                          background: "rgba(52,211,153,0.1)",
+                          border: "1px solid rgba(52,211,153,0.15)",
+                        }}
+                      >
+                        <HugeiconsIcon
+                          icon={ArrowUpRight01Icon}
+                          size={10}
+                          color="#34d399"
+                          strokeWidth={2}
+                        />
+                        <span
+                          className="text-[10px] font-semibold"
+                          style={{ color: "#34d399" }}
+                        >
+                          YES
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Chart */}
-          <div
-            className="flex flex-col"
-            style={{
-              border: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(255,255,255,0.015)",
-            }}
-          >
-            {/* Chart toolbar */}
             <div
-              className="flex items-center justify-between px-4 py-2.5"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+              className="flex flex-col"
+              style={{
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.015)",
+              }}
             >
-              <span
-                className="text-[10px] uppercase tracking-widest"
-                style={{ color: "rgba(255,255,255,0.2)" }}
+              <div
+                className="flex items-center justify-between px-4 py-2.5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
               >
-                YES probability
-              </span>
-              <div className="flex items-center gap-0.5">
-                {["1W", "1M", "3M", "All"].map((r) => (
+                <span
+                  className="text-[10px] uppercase tracking-widest"
+                  style={{ color: "rgba(255,255,255,0.2)" }}
+                >
+                  YES probability (placeholder chart)
+                </span>
+                <div className="flex items-center gap-0.5">
+                  {["1W", "1M", "3M", "All"].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRange(r)}
+                      className="px-2 py-1 text-[10px] font-medium transition-all"
+                      style={{
+                        color: range === r ? "white" : "rgba(255,255,255,0.3)",
+                        background:
+                          range === r ? "rgba(255,255,255,0.07)" : "transparent",
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ height: 280 }}>
+                <PriceChart />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-0">
+              <div
+                className="flex items-center gap-0"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                {TABS.map((t) => (
                   <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    className="px-2 py-1 text-[10px] font-medium transition-all"
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    className="px-4 py-2.5 text-[12px] font-medium transition-all relative"
                     style={{
-                      color: range === r ? "white" : "rgba(255,255,255,0.3)",
-                      background:
-                        range === r ? "rgba(255,255,255,0.07)" : "transparent",
+                      color: tab === t ? "white" : "rgba(255,255,255,0.3)",
                     }}
                   >
-                    {r}
+                    {t}
+                    {tab === t && (
+                      <span
+                        className="absolute bottom-0 left-0 right-0 h-px"
+                        style={{ background: "#7B6EF4" }}
+                      />
+                    )}
                   </button>
                 ))}
               </div>
-            </div>
-            <div style={{ height: 280 }}>
-              <PriceChart />
-            </div>
-          </div>
 
-          {/* Tabs */}
-          <div className="flex flex-col gap-0">
-            <div
-              className="flex items-center gap-0"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              {TABS.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className="px-4 py-2.5 text-[12px] font-medium transition-all relative"
-                  style={{
-                    color: tab === t ? "white" : "rgba(255,255,255,0.3)",
-                  }}
-                >
-                  {t}
-                  {tab === t && (
-                    <span
-                      className="absolute bottom-0 left-0 right-0 h-px"
-                      style={{ background: "#7B6EF4" }}
-                    />
+              {tab === "Summary" && (
+                <div className="flex flex-col gap-4 py-4">
+                  {detail && (
+                    <>
+                      <p
+                        className="text-[13px] leading-relaxed"
+                        style={{ color: "rgba(255,255,255,0.5)" }}
+                      >
+                        Resolution sources are committed on-chain as a hash.
+                        Off-chain metadata and oracle reasoning can be shown here
+                        once 0G Storage is wired.
+                      </p>
+                      <dl className="grid gap-2 text-[12px]">
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-white/35">Contract</dt>
+                          <dd>
+                            <a
+                              href={`${explorer}/address/${detail.address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#7B6EF4] hover:underline font-mono text-[11px]"
+                            >
+                              {shortHash(detail.address, 8, 6)}
+                            </a>
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-white/35">Creator</dt>
+                          <dd>
+                            <a
+                              href={`${explorer}/address/${detail.creator}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#7B6EF4] hover:underline font-mono text-[11px]"
+                            >
+                              {shortHash(detail.creator, 8, 6)}
+                            </a>
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-white/35">Sources hash</dt>
+                          <dd
+                            className="font-mono text-[11px] text-white/50 truncate max-w-[60%] text-right"
+                            title={detail.verdictReasoningHash}
+                          >
+                            {shortHash(detail.verdictReasoningHash, 10, 8)}
+                          </dd>
+                        </div>
+                        {detail.status >= 4 && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-white/35">Outcome</dt>
+                            <dd className="text-white/80">
+                              {detail.outcome ? "YES" : "NO"}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </>
                   )}
-                </button>
-              ))}
-            </div>
-
-            {tab === "Summary" && (
-              <div className="flex flex-col gap-4 py-4">
-                {isLoading ? (
-                  <div className="flex flex-col gap-2">
-                    {[90, 75, 60].map((w) => (
+                  <div
+                    className="grid grid-cols-2 gap-px"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      background: "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    {[
+                      {
+                        label: "Pool (collateral)",
+                        value: isLoading ? "…" : liquidityFormatted || "—",
+                      },
+                      {
+                        label: "Volume",
+                        value: isLoading ? "…" : volumeFormatted || "—",
+                      },
+                    ].map(({ label, value }) => (
                       <div
-                        key={w}
-                        style={{
-                          width: `${w}%`,
-                          height: 10,
-                          background: "rgba(255,255,255,0.06)",
-                          borderRadius: 2,
-                          animation: "skeleton-pulse 1.5s ease-in-out infinite",
-                        }}
-                      />
+                        key={label}
+                        className="flex flex-col gap-1 px-4 py-3"
+                        style={{ background: "rgba(255,255,255,0.015)" }}
+                      >
+                        <span
+                          className="text-[10px] uppercase tracking-widest"
+                          style={{ color: "rgba(255,255,255,0.25)" }}
+                        >
+                          {label}
+                        </span>
+                        <span className="text-[15px] font-semibold text-white">
+                          {value}
+                        </span>
+                      </div>
                     ))}
                   </div>
-                ) : description ? (
-                  <p
-                    className="text-[13px] leading-relaxed"
-                    style={{ color: "rgba(255,255,255,0.5)" }}
-                  >
-                    {description}
-                  </p>
-                ) : null}
-
-                {/* AI brief, when available */}
-                {brief && (
-                  <div className="mt-2">
-                    <AIBriefContent
-                      slug={brief.eventSlug}
-                      fallbackSummary={brief.opportunitySummary}
-                    />
-                  </div>
-                )}
-
-                <div
-                  className="grid grid-cols-2 gap-px"
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    background: "rgba(255,255,255,0.06)",
-                  }}
-                >
-                  {[
-                    {
-                      label: "Liquidity",
-                      value: isLoading ? "…" : liquidityFormatted || "—",
-                    },
-                    {
-                      label: "Volume",
-                      value: isLoading ? "…" : volumeFormatted || "—",
-                    },
-                  ].map(({ label, value }) => (
-                    <div
-                      key={label}
-                      className="flex flex-col gap-1 px-4 py-3"
-                      style={{ background: "rgba(255,255,255,0.015)" }}
-                    >
-                      <span
-                        className="text-[10px] uppercase tracking-widest"
-                        style={{ color: "rgba(255,255,255,0.25)" }}
-                      >
-                        {label}
-                      </span>
-                      <span className="text-[15px] font-semibold text-white">
-                        {value}
-                      </span>
-                    </div>
-                  ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {tab === "Recent Trades" && (
-              <div className="flex flex-col">
-                <div
-                  className="grid grid-cols-5 px-4 py-2"
-                  style={{
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    background: "rgba(255,255,255,0.02)",
-                  }}
-                >
-                  {["Side", "Price", "Shares", "Value", "Time"].map((h) => (
-                    <span
-                      key={h}
-                      className="text-[10px] uppercase tracking-widest"
-                      style={{ color: "rgba(255,255,255,0.2)" }}
-                    >
-                      {h}
-                    </span>
-                  ))}
+              {tab === "Recent Trades" && (
+                <div className="py-10 px-4 text-center text-sm text-white/35 border border-dashed border-white/10 rounded-lg">
+                  On-chain fills are not indexed in this MVP. Use the explorer
+                  for transaction history, or add an indexer later.
                 </div>
-                {RECENT_TRADES.map((trade, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-5 px-4 py-2.5 transition-colors"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
-                    onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLElement).style.background =
-                        "rgba(255,255,255,0.02)")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLElement).style.background =
-                        "transparent")
-                    }
-                  >
-                    <span
-                      className="text-[11px] font-semibold uppercase"
-                      style={{
-                        color: trade.side === "yes" ? "#34d399" : "#f87171",
-                      }}
-                    >
-                      {trade.side}
-                    </span>
-                    <span className="text-[11px] text-white">
-                      {trade.price}¢
-                    </span>
-                    <span
-                      className="text-[11px]"
-                      style={{ color: "rgba(255,255,255,0.5)" }}
-                    >
-                      {trade.shares}
-                    </span>
-                    <span className="text-[11px] text-white">
-                      ${trade.value}
-                    </span>
-                    <span
-                      className="text-[11px]"
-                      style={{ color: "rgba(255,255,255,0.3)" }}
-                    >
-                      {trade.time}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          <div
+            className="w-[30%] shrink-0 sticky top-0 self-start pt-6 pb-6 px-5 max-lg:w-full max-lg:border-l-0 max-lg:border-t max-lg:border-white/5"
+            style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}
+          >
+            <TradePanel
+              marketAddress={address}
+              marketYesPct={impliedYesPct}
+              tradeEnabled={!isLoading && canTrade}
+            />
           </div>
         </div>
-
-        {/* Right: trade panel */}
-        <div
-          className="w-[30%] shrink-0 sticky top-0 self-start pt-6 pb-6 px-5"
-          style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}
-        >
-          <TradePanel
-            marketAddress={
-              (event as { conditionId?: string } | undefined)?.conditionId as
-                | `0x${string}`
-                | undefined
-            }
-            marketYesPct={probability || 50}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

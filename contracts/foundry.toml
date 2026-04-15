@@ -19,4 +19,7 @@ og_mainnet = "${OG_CHAIN_RPC_MAINNET}"
 [etherscan]
 og_testnet = { key = "no-key-needed", url = "https://chainscan-galileo.0g.ai" }
 
+# 0G Galileo testnet (16602) often rejects default EIP-1559 tips; use legacy gas:
+# forge script script/Deploy.s.sol:DeployProphet --rpc-url og_testnet --broadcast --legacy --gas-price 3000000000
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

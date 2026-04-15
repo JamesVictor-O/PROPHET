@@ -337,6 +337,24 @@ contract ProphetFactoryTest is Test {
         assertEq(uint8(MarketContract(m).status()), uint8(IMarketContract.MarketStatus.Archived));
     }
 
+    function test_CreationBond_InsufficientBalance_Reverts() public {
+        factory.updateCreationBond(10e6);
+        // No mint — creator cannot pay bond
+        usdt.approve(address(factory), 10e6);
+        vm.expectRevert(); // ERC20InsufficientBalance
+        factory.createMarket("Q?", block.timestamp + 2 hours, "crypto", SOURCES_HASH);
+    }
+
+    function test_CreationBond_ZeroAmount_NoUSDTMoved() public {
+        // Explicit 0 bond (setUp default) — createMarket succeeds with no USDT on caller
+        assertEq(factory.creationBondAmount(), 0);
+        uint256 selfBefore = usdt.balanceOf(address(this));
+        address m = factory.createMarket("Free?", block.timestamp + 2 hours, "crypto", SOURCES_HASH);
+        assertEq(usdt.balanceOf(address(this)), selfBefore);
+        assertEq(usdt.balanceOf(m), 0);
+        assertEq(MarketContract(m).creatorBond(), 0);
+    }
+
     function test_updateCreationBond_OnlyOwner() public {
         vm.prank(ALICE);
         vm.expectRevert();

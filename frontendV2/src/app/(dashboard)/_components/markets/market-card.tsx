@@ -9,16 +9,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import TradeModal from "./trade-modal";
+import type { ProphetMarket } from "@/lib/prophet-market";
 
-export interface ProphetMarket {
-  id: string;
-  title: string;
-  category: string;
-  price: number;
-  change: number;
-  volume: string;
-  closeDate: string;
-}
+export type { ProphetMarket };
 
 export default function MarketCard({ market }: { market: ProphetMarket }) {
   const [isTradeOpen, setIsTradeOpen] = useState(false);
@@ -60,7 +53,9 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
               className="text-[10px] shrink-0 font-bold"
               style={{ color: "rgba(123,110,244,0.8)" }}
             >
-              {market.category}
+              {market.chainStatus
+                ? `${market.category} · ${market.chainStatus}`
+                : market.category}
             </span>
           </div>
           <p className="text-[13px] font-semibold text-white leading-snug line-clamp-2">
@@ -83,29 +78,38 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
               / YES
             </span>
           </div>
-          <div
-            className="flex items-center gap-1 px-2 py-0.5"
-            style={{
-              background: up
-                ? "rgba(52,211,153,0.08)"
-                : "rgba(248,113,113,0.08)",
-              border: `1px solid ${up ? "rgba(52,211,153,0.18)" : "rgba(248,113,113,0.18)"}`,
-            }}
-          >
-            <HugeiconsIcon
-              icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
-              size={10}
-              color={up ? "#34d399" : "#f87171"}
-              strokeWidth={2}
-            />
-            <span
-              className="text-[10px] font-semibold"
-              style={{ color: up ? "#34d399" : "#f87171" }}
+          {market.change !== 0 ? (
+            <div
+              className="flex items-center gap-1 px-2 py-0.5"
+              style={{
+                background: up
+                  ? "rgba(52,211,153,0.08)"
+                  : "rgba(248,113,113,0.08)",
+                border: `1px solid ${up ? "rgba(52,211,153,0.18)" : "rgba(248,113,113,0.18)"}`,
+              }}
             >
-              {up ? "+" : ""}
-              {market.change}%
+              <HugeiconsIcon
+                icon={up ? ArrowUpRight01Icon : ArrowDownRight01Icon}
+                size={10}
+                color={up ? "#34d399" : "#f87171"}
+                strokeWidth={2}
+              />
+              <span
+                className="text-[10px] font-semibold"
+                style={{ color: up ? "#34d399" : "#f87171" }}
+              >
+                {up ? "+" : ""}
+                {market.change}%
+              </span>
+            </div>
+          ) : (
+            <span
+              className="text-[10px] text-white/25 px-2 py-0.5"
+              title="No on-chain price feed yet"
+            >
+              —
             </span>
-          </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

@@ -1,11 +1,39 @@
 "use client";
 
-import { useState } from "react";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useEffect, useRef, useState } from "react";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { erc20Abi, maxUint256, parseUnits } from "viem";
 import {
   PROPHET_FACTORY_ADDRESS,
   PROPHET_FACTORY_ABI,
+  MOCK_USDT_ADDRESS,
 } from "../../../lib/contracts";
+
+/** View ABI fragment — full JSON artifact may lag behind the contract */
+const PROPHET_FACTORY_READ_ABI = [
+  {
+    type: "function",
+    name: "creationBondAmount",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+/** Must match MarketLib.MIN_DEADLINE_BUFFER (1 hours) */
+const MIN_DEADLINE_AHEAD_SEC = BigInt(3600);
+
+type PendingCreatePayload = {
+  question: string;
+  deadlineTimestamp: bigint;
+  category: string;
+  mockedHash: `0x${string}`;
+};
 
 export default function CreateMarketModal({
   isOpen,
@@ -17,6 +45,58 @@ export default function CreateMarketModal({
   const [question, setQuestion] = useState("");
   const [category, setCategory] = useState("crypto");
   const [deadlineDate, setDeadlineDate] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  /** Set when user clicks Create Market but USDT allowance is insufficient — create runs after approve confirms */
+  const pendingCreateAfterApproveRef = useRef<PendingCreatePayload | null>(
+    null,
+  );
+  /** Prevents duplicate createMarket if the approval effect runs twice (e.g. React Strict Mode) */
+  const createChainedForApproveHashRef = useRef<string | null>(null);
+
+  const { address: userAddress } = useAccount();
+
+  const { data: bondData } = useReadContract({
+    address: PROPHET_FACTORY_ADDRESS as `0x${string}`,
+    abi: PROPHET_FACTORY_READ_ABI,
+    functionName: "creationBondAmount",
+  });
+  const bondAmount =
+    bondData !== undefined ? (bondData as bigint) : parseUnits("10", 6);
+
+  const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
+    address: MOCK_USDT_ADDRESS as `0x${string}`,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args:
+      userAddress && bondAmount > BigInt(0)
+        ? [userAddress, PROPHET_FACTORY_ADDRESS as `0x${string}`]
+        : undefined,
+    query: {
+      enabled: !!userAddress && !!isOpen && bondAmount > BigInt(0),
+    },
+  });
+
+  const { data: balanceData } = useReadContract({
+    address: MOCK_USDT_ADDRESS as `0x${string}`,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: userAddress ? [userAddress] : undefined,
+    query: { enabled: !!userAddress && !!isOpen },
+  });
+
+  const allowance = (allowanceData as bigint | undefined) ?? BigInt(0);
+  const balance = (balanceData as bigint | undefined) ?? BigInt(0);
+  const needsApproval =
+    bondAmount > BigInt(0) && userAddress && allowance < bondAmount;
+
+  const {
+    writeContract: writeApprove,
+    data: approveHash,
+    error: approveError,
+    isPending: isApprovePending,
+  } = useWriteContract();
+  const { isLoading: isApproveConfirming, isSuccess: isApproveSuccess } =
+    useWaitForTransactionReceipt({ hash: approveHash });
 
   const {
     writeContract,
@@ -28,25 +108,103 @@ export default function CreateMarketModal({
     hash,
   });
 
+  useEffect(() => {
+    if (isApproveSuccess) void refetchAllowance();
+  }, [isApproveSuccess, refetchAllowance]);
+
+  /** After approval tx confirms, submit createMarket in one flow (no second button click) */
+  useEffect(() => {
+    if (!isApproveSuccess || !approveHash) return;
+    if (createChainedForApproveHashRef.current === approveHash) return;
+    const payload = pendingCreateAfterApproveRef.current;
+    if (!payload) return;
+
+    createChainedForApproveHashRef.current = approveHash;
+    pendingCreateAfterApproveRef.current = null;
+
+    void (async () => {
+      await refetchAllowance();
+      writeContract({
+        address: PROPHET_FACTORY_ADDRESS,
+        abi: PROPHET_FACTORY_ABI,
+        functionName: "createMarket",
+        args: [
+          payload.question,
+          payload.deadlineTimestamp,
+          payload.category,
+          payload.mockedHash,
+        ],
+      });
+    })();
+  }, [isApproveSuccess, approveHash, refetchAllowance, writeContract]);
+
+  useEffect(() => {
+    if (approveError) {
+      pendingCreateAfterApproveRef.current = null;
+      createChainedForApproveHashRef.current = null;
+    }
+  }, [approveError]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      pendingCreateAfterApproveRef.current = null;
+      createChainedForApproveHashRef.current = null;
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!question || !deadlineDate) return;
+    setValidationError(null);
+    if (!question.trim() || !deadlineDate) return;
+    if (!userAddress) {
+      setValidationError("Connect your wallet first.");
+      return;
+    }
 
-    // Convert local date string to unix timestamp
-    const deadlineTimestamp = Math.floor(
-      new Date(deadlineDate).getTime() / 1000,
+    const deadlineTimestamp = BigInt(
+      Math.floor(new Date(deadlineDate).getTime() / 1000),
     );
-    // Mock resolution sources hash (bytes32) needed by ABI
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    if (deadlineTimestamp < now + MIN_DEADLINE_AHEAD_SEC) {
+      setValidationError(
+        "Deadline must be at least 1 hour from now (on-chain rule).",
+      );
+      return;
+    }
+
+    if (bondAmount > BigInt(0) && balance < bondAmount) {
+      setValidationError(
+        "Not enough mock USDT. Mint from the contract or use the faucet flow your team configured.",
+      );
+      return;
+    }
+
     const mockedHash =
-      "0x0000000000000000000000000000000000000000000000000000000000000000";
+      "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+
+    if (needsApproval) {
+      pendingCreateAfterApproveRef.current = {
+        question: question.trim(),
+        deadlineTimestamp,
+        category,
+        mockedHash,
+      };
+      writeApprove({
+        address: MOCK_USDT_ADDRESS as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [PROPHET_FACTORY_ADDRESS as `0x${string}`, maxUint256],
+      });
+      return;
+    }
 
     writeContract({
       address: PROPHET_FACTORY_ADDRESS,
       abi: PROPHET_FACTORY_ABI,
       functionName: "createMarket",
-      args: [question, BigInt(deadlineTimestamp), category, mockedHash],
+      args: [question.trim(), deadlineTimestamp, category, mockedHash],
     });
   };
 
@@ -144,23 +302,56 @@ export default function CreateMarketModal({
               </div>
             </div>
 
-            {writeError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 break-words">
-                {writeError.message.split("\n")[0]}
+            {bondAmount > BigInt(0) && (
+              <p className="text-xs text-white/45">
+                Creation bond: {(Number(bondAmount) / 1e6).toFixed(2)} USDT
+                (approved for ProphetFactory, then sent with createMarket).
+              </p>
+            )}
+
+            {validationError && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-200/90">
+                {validationError}
               </div>
+            )}
+
+            {(approveError || writeError) && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 break-words">
+                {(approveError ?? writeError)?.message.split("\n")[0]}
+              </div>
+            )}
+
+            {(isApprovePending ||
+              isApproveConfirming ||
+              isWriting ||
+              isConfirming) && (
+              <p className="text-xs text-center text-white/50">
+                {isApprovePending
+                  ? "Sign USDT approval in your wallet…"
+                  : isApproveConfirming && !isWriting
+                    ? "Approval confirmed — creating market…"
+                    : isConfirming
+                      ? "Confirming on chain…"
+                      : isWriting
+                        ? "Sign market creation in your wallet…"
+                        : ""}
+              </p>
             )}
 
             <button
               type="submit"
-              disabled={isWriting || isConfirming}
+              disabled={
+                isWriting ||
+                isConfirming ||
+                isApprovePending ||
+                isApproveConfirming
+              }
               className="mt-2 w-full py-3.5 rounded-lg flex items-center justify-center font-bold text-[15px] transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
               style={{ background: "#7B6EF4", color: "#0a0a0a" }}
             >
-              {isWriting
-                ? "Confirm in Wallet..."
-                : isConfirming
-                  ? "Deploying Market..."
-                  : "Create Market"}
+              {isApprovePending || isApproveConfirming || isWriting || isConfirming
+                ? "Working…"
+                : "Create Market"}
             </button>
           </form>
         )}
