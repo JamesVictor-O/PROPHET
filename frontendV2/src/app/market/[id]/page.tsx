@@ -17,6 +17,7 @@ import {
   formatUsdtUsd,
   formatDeadlineTs,
 } from "@/lib/hooks/use-market-detail";
+import { useOracleReasoning } from "@/lib/hooks/use-oracle-reasoning";
 import { zeroGGalileo } from "@/lib/web3-config";
 
 const PriceChart = dynamic(() => import("../../_components/price-chart"), {
@@ -59,6 +60,12 @@ export default function MarketDetailPage() {
   const liquidityFormatted = detail
     ? formatUsdtUsd(detail.totalCollateral)
     : "";
+  const {
+    data: oracleReasoning,
+    isLoading: loadingReasoning,
+    error: reasoningError,
+    hasHash: hasReasoningHash,
+  } = useOracleReasoning(detail?.verdictReasoningHash);
 
   return (
     <div
@@ -349,9 +356,8 @@ export default function MarketDetailPage() {
                         className="text-[13px] leading-relaxed"
                         style={{ color: "rgba(255,255,255,0.5)" }}
                       >
-                        Resolution sources are committed on-chain as a hash.
-                        Off-chain metadata and oracle reasoning can be shown here
-                        once 0G Storage is wired.
+                        Resolution sources are committed on-chain as a hash. The
+                        oracle reasoning below is now fetched from 0G Storage.
                       </p>
                       <dl className="grid gap-2 text-[12px]">
                         <div className="flex justify-between gap-4">
@@ -398,6 +404,67 @@ export default function MarketDetailPage() {
                           </div>
                         )}
                       </dl>
+
+                      <div
+                        className="mt-2 p-3 rounded-lg"
+                        style={{
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          background: "rgba(255,255,255,0.02)",
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <h3 className="text-[12px] font-semibold text-white/85">
+                            Oracle reasoning (0G Storage)
+                          </h3>
+                          {oracleReasoning?.confidence !== undefined && (
+                            <span className="text-[11px] text-white/50">
+                              Confidence {oracleReasoning.confidence}%
+                            </span>
+                          )}
+                        </div>
+
+                        {!hasReasoningHash && (
+                          <p className="text-[12px] text-white/45">
+                            Reasoning hash not set for this market yet.
+                          </p>
+                        )}
+
+                        {hasReasoningHash && loadingReasoning && (
+                          <p className="text-[12px] text-white/45">
+                            Loading reasoning from 0G Storage...
+                          </p>
+                        )}
+
+                        {hasReasoningHash && reasoningError && (
+                          <p className="text-[12px] text-red-300/90">
+                            Could not load reasoning: {reasoningError}
+                          </p>
+                        )}
+
+                        {hasReasoningHash &&
+                          !loadingReasoning &&
+                          !reasoningError &&
+                          oracleReasoning && (
+                            <div className="flex flex-col gap-2 text-[12px]">
+                              {oracleReasoning.evidenceSummary && (
+                                <p className="text-white/65">
+                                  {oracleReasoning.evidenceSummary}
+                                </p>
+                              )}
+                              <p className="text-white/75 whitespace-pre-wrap leading-relaxed">
+                                {oracleReasoning.reasoning ??
+                                  oracleReasoning.raw ??
+                                  "No reasoning text available."}
+                              </p>
+                              {!!oracleReasoning.sourcesChecked?.length && (
+                                <p className="text-white/45">
+                                  Sources:{" "}
+                                  {oracleReasoning.sourcesChecked.join(", ")}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                      </div>
                     </>
                   )}
                   <div

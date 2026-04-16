@@ -1,0 +1,283 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 0G Chain interaction — ethers.js v6 contract helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { ethers, type Wallet } from "ethers";
+import type {
+  MarketCreatedEvent,
+  ResolutionTriggeredEvent,
+  ResolutionChallengedEvent,
+  ResolutionFinalizedEvent,
+  MarketStatusString,
+} from "./types.js";
+import { createLogger } from "./logger.js";
+
+const logger = createLogger("chain");
+
+// ── Minimal ABIs (only the functions/events agents actually call) ─────────────
+
+const FACTORY_ABI = [
+  "event MarketCreated(address indexed marketAddress, address indexed creator, string question, uint256 deadline, string category, bytes32 resolutionSourcesHash, uint256 indexed marketIndex)",
+  "function getMarkets(uint256 offset, uint256 limit) view returns (address[])",
+  "function totalMarkets() view returns (uint256)",
+  "function isValidMarket(address market) view returns (bool)",
+] as const;
+
+const MARKET_ABI = [
+  "event ResolutionTriggered(address indexed market, uint256 timestamp)",
+  "event ResolutionPosted(address indexed market, bool verdict, bytes32 reasoningHash, uint256 challengeDeadline)",
+  "event ResolutionChallenged(address indexed market, address indexed challenger, uint256 challengeStake)",
+  "event ResolutionFinalized(address indexed market, bool outcome, uint256 timestamp)",
+  "event MarketActivated(address indexed market, uint256 interestCount, uint256 timestamp)",
+
+  "function getMarketInfo() view returns (string question, uint256 deadline, uint8 status, bool outcome, uint256 totalCollateral, uint256 challengeDeadline, bytes32 verdictReasoningHash, string category, address creator)",
+  "function getPendingInfo() view returns (uint256 pendingDeadline, uint256 interestCount, uint256 creatorBond, bool isPendingOver)",
+  "function liquidityTier() view returns (uint8)",
+  "function status() view returns (uint8)",
+  "function deadline() view returns (uint256)",
+  "function totalCollateral() view returns (uint256)",
+  "function resolutionSourcesHash() view returns (bytes32)",
+  "function question() view returns (string)",
+  "function category() view returns (string)",
+  "function creator() view returns (address)",
+  "function challenger() view returns (address)",
+  "function challengeDeadline() view returns (uint256)",
+  "function hasBet(address bettor) view returns (bool)",
+
+  "function triggerResolution()",
+  "function postResolution(bool verdict, bytes32 reasoningHash, bytes teeAttestation)",
+  "function processChallengeOutcome(bool challengeUpheld)",
+  "function finalizeResolution()",
+  "function cancelMarket(string reason)",
+] as const;
+
+const VAULT_ABI = [
+  "event PositionsRevealed(address indexed market, uint256 totalPositions, uint256 timestamp)",
+  "function getRevealedPositions(address market) view returns (tuple(address bettor, bool direction, uint256 collateralAmount)[])",
+  "function positionCount(address market) view returns (uint256)",
+  "function hasRevealed(address market) view returns (bool)",
+  "function revealPositions(address market, tuple(address bettor, bool direction, uint256 collateralAmount)[] positions, bytes teeDecryptionProof)",
+] as const;
+
+// ── Status enum mapping ───────────────────────────────────────────────────────
+
+const STATUS_MAP: Record<number, MarketStatusString> = {
+  0: "Pending",
+  1: "Open",
+  2: "PendingResolution",
+  3: "Challenged",
+  4: "Resolved",
+  5: "Cancelled",
+  6: "Archived",
+};
+
+export function statusToString(n: number): MarketStatusString {
+  return STATUS_MAP[n] ?? "Pending";
+}
+
+// ── Provider + wallet setup ───────────────────────────────────────────────────
+
+export function createProvider(): ethers.JsonRpcProvider {
+  const rpc = process.env.OG_CHAIN_RPC;
+  if (!rpc) throw new Error("OG_CHAIN_RPC not set");
+  return new ethers.JsonRpcProvider(rpc);
+}
+
+export function createWallet(privateKey: string, provider: ethers.JsonRpcProvider): Wallet {
+  const key = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+  return new ethers.Wallet(key, provider);
+}
+
+// ── Contract factories ────────────────────────────────────────────────────────
+
+export function getFactory(
+  provider: ethers.JsonRpcProvider | Wallet
+): ethers.Contract {
+  const address = process.env.PROPHET_FACTORY_ADDRESS;
+  if (!address) throw new Error("PROPHET_FACTORY_ADDRESS not set");
+  return new ethers.Contract(address, FACTORY_ABI, provider);
+}
+
+export function getMarket(
+  marketAddress: string,
+  signerOrProvider: ethers.JsonRpcProvider | Wallet
+): ethers.Contract {
+  return new ethers.Contract(marketAddress, MARKET_ABI, signerOrProvider);
+}
+
+export function getVault(
+  signerOrProvider: ethers.JsonRpcProvider | Wallet
+): ethers.Contract {
+  const address = process.env.POSITION_VAULT_ADDRESS;
+  if (!address) throw new Error("POSITION_VAULT_ADDRESS not set");
+  return new ethers.Contract(address, VAULT_ABI, signerOrProvider);
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+
+/**
+ * Subscribe to a contract event and call the handler on every fire.
+ * Never crashes the listener on handler error — logs and continues.
+ */
+export function listenForEvent<T extends unknown[]>(
+  contract: ethers.Contract,
+  eventName: string,
+  handler: (...args: T) => Promise<void>
+): void {
+  contract.on(eventName, async (...args: unknown[]) => {
+    const event = args[args.length - 1] as { blockNumber: number };
+    logger.info(`Event: ${eventName}`, { block: event.blockNumber });
+    try {
+      await handler(...(args as T));
+    } catch (err) {
+      logger.error(`Handler for ${eventName} failed`, err);
+      // Never crash the listener — log and continue
+    }
+  });
+  logger.info(`Listening for ${eventName}`);
+}
+
+// ── Market info helpers ───────────────────────────────────────────────────────
+
+export interface MarketInfo {
+  question:             string;
+  deadline:             number;
+  status:               MarketStatusString;
+  outcome:              boolean;
+  totalCollateral:      bigint;
+  challengeDeadline:    number;
+  verdictReasoningHash: string;
+  category:             string;
+  creator:              string;
+  challenger:           string;
+}
+
+export async function getMarketInfo(
+  marketAddress: string,
+  provider: ethers.JsonRpcProvider
+): Promise<MarketInfo> {
+  const market      = getMarket(marketAddress, provider);
+  const info        = await market.getMarketInfo() as [
+    string, bigint, number, boolean, bigint, bigint, string, string, string
+  ];
+  const challenger  = await market.challenger() as string;
+  return {
+    question:             info[0],
+    deadline:             Number(info[1]),
+    status:               statusToString(info[2]),
+    outcome:              info[3],
+    totalCollateral:      info[4],
+    challengeDeadline:    Number(info[5]),
+    verdictReasoningHash: info[6],
+    category:             info[7],
+    creator:              info[8],
+    challenger,
+  };
+}
+
+export async function getAllActiveMarkets(
+  provider: ethers.JsonRpcProvider
+): Promise<string[]> {
+  const factory = getFactory(provider);
+  const total   = Number(await factory.totalMarkets()) as number;
+  if (total === 0) return [];
+
+  const markets: string[] = [];
+  const pageSize           = 50;
+  for (let offset = 0; offset < total; offset += pageSize) {
+    const limit = Math.min(pageSize, total - offset);
+    const page  = await factory.getMarkets(offset, limit) as string[];
+    markets.push(...page);
+  }
+  return markets;
+}
+
+// ── On-chain writes ───────────────────────────────────────────────────────────
+
+/**
+ * Post the oracle verdict on-chain after 0G Compute inference.
+ * The reasoningHash links to the reasoning stored in 0G Storage.
+ */
+export async function postResolutionOnChain(
+  marketAddress: string,
+  verdict:        boolean,
+  reasoningHash:  string,
+  oracleSigner:   Wallet
+): Promise<ethers.TransactionReceipt> {
+  const market      = getMarket(marketAddress, oracleSigner);
+  const bytes32Hash = ethers.zeroPadValue(ethers.hexlify(ethers.toUtf8Bytes(reasoningHash)), 32);
+
+  // MVP stub attestation — TODO: replace with real 0G TEE attestation proof
+  const stubAttestation = ethers.hexlify(ethers.toUtf8Bytes("0g-tee-attestation-stub"));
+
+  logger.info("Posting resolution on-chain...", {
+    market:  marketAddress,
+    verdict,
+  });
+
+  const tx      = await market.postResolution(verdict, bytes32Hash, stubAttestation);
+  const receipt = await tx.wait();
+
+  logger.info("Resolution posted", { txHash: receipt.hash, block: receipt.blockNumber });
+  return receipt;
+}
+
+/**
+ * Cancel a market when the oracle returns INCONCLUSIVE twice.
+ * Bond is forfeited to treasury; all bettors are fully refunded.
+ */
+export async function cancelMarketOnChain(
+  marketAddress: string,
+  reason:        string,
+  oracleSigner:  Wallet
+): Promise<ethers.TransactionReceipt> {
+  const market = getMarket(marketAddress, oracleSigner);
+  logger.warn("Cancelling market (INCONCLUSIVE)", { market: marketAddress, reason });
+  const tx      = await market.cancelMarket(reason);
+  const receipt = await tx.wait();
+  logger.info("Market cancelled", { txHash: receipt.hash });
+  return receipt;
+}
+
+/**
+ * Process a challenge outcome after the second oracle inference.
+ */
+export async function processChallengeOnChain(
+  marketAddress:  string,
+  upheld:         boolean,
+  oracleSigner:   Wallet
+): Promise<ethers.TransactionReceipt> {
+  const market  = getMarket(marketAddress, oracleSigner);
+  logger.info("Processing challenge outcome", { market: marketAddress, upheld });
+  const tx      = await market.processChallengeOutcome(upheld);
+  const receipt = await tx.wait();
+  logger.info("Challenge processed", { txHash: receipt.hash });
+  return receipt;
+}
+
+/**
+ * Reveal all positions after market resolution.
+ * In the MVP, the "decryption" is a pass-through since TEE is stubbed.
+ * The oracle agent submits the revealed positions it observed in the commit events.
+ */
+export async function revealPositionsOnChain(
+  marketAddress: string,
+  positions:     Array<{ bettor: string; direction: boolean; collateralAmount: bigint }>,
+  oracleSigner:  Wallet
+): Promise<ethers.TransactionReceipt> {
+  const vault  = getVault(oracleSigner);
+  const proof  = ethers.hexlify(ethers.toUtf8Bytes("0g-tee-decryption-proof-stub"));
+
+  logger.info("Revealing positions on-chain...", {
+    market:    marketAddress,
+    positions: positions.length,
+  });
+
+  const tx      = await vault.revealPositions(marketAddress, positions, proof);
+  const receipt = await tx.wait();
+  logger.info("Positions revealed", { txHash: receipt.hash });
+  return receipt;
+}
+
+// Re-export event types
+export type { MarketCreatedEvent, ResolutionTriggeredEvent, ResolutionChallengedEvent, ResolutionFinalizedEvent };

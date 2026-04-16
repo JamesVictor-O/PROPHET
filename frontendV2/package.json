@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@0glabs/0g-ts-sdk": "^0.3.3",
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
     "@rainbow-me/rainbowkit": "^2.2.10",

@@ -5,7 +5,7 @@
 html,
 body,
 #__next {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
@@ -19,6 +19,8 @@ body {
     Roboto,
     "Helvetica Neue",
     Arial;
+  background-color: #161616;
+  color: white;
 }
 
 @keyframes gradient-spin {

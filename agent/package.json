@@ -1,0 +1,27 @@
+{
+  "name": "prophet-agent",
+  "version": "1.0.0",
+  "description": "Prophet oracle + market-maker agents — powered by 0G Compute, 0G Storage, 0G Chain",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "oracle":       "tsx watch src/oracle/index.ts",
+    "market-maker": "tsx watch src/market-maker/index.ts",
+    "start":        "concurrently \"npm run oracle\" \"npm run market-maker\"",
+    "build":        "tsc --noEmit",
+    "typecheck":    "tsc --noEmit"
+  },
+  "dependencies": {
+    "@0glabs/0g-serving-broker": "^0.7.5",
+    "@0glabs/0g-ts-sdk":         "^0.3.3",
+    "ethers":                    "^6.13.0",
+    "openai":                    "^4.47.0",
+    "dotenv":                    "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx":         "^4.15.7",
+    "typescript":  "^5.4.5",
+    "concurrently": "^8.2.2",
+    "@types/node": "^20.14.0"
+  }
+}
