@@ -17,10 +17,9 @@ import "dotenv/config";
 import { ethers }             from "ethers";
 import { createLogger }       from "../shared/logger.js";
 import { createProvider, createWallet, getFactory, getMarket,
-         listenForEvent, getMarketInfo, getAllActiveMarkets,
-         statusToString }     from "../shared/chain.js";
+         listenForEvent, getMarketInfo, getAllActiveMarkets } from "../shared/chain.js";
 import { callPricingInference }  from "../shared/compute.js";
-import { writeMarketPrices, writeMMState, StorageKeys } from "../shared/storage.js";
+import { writeMarketPrices, writeMMState } from "../shared/storage.js";
 import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types.js";
 
 const TIER_NAMES: LiquidityTierString[] = ["Seed", "Low", "Medium", "High"];
@@ -305,7 +304,6 @@ async function main() {
     "OG_CHAIN_RPC",
     "OG_INDEXER_RPC",
     "COMPUTE_PROVIDER_ADDRESS",
-    "INFERENCE_CONTRACT_ADDRESS",
     "PROPHET_FACTORY_ADDRESS",
   ];
   for (const key of requiredEnv) {

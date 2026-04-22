@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// 0G Chain interaction — ethers.js v6 contract helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { ethers, type Wallet } from "ethers";
 import type {
@@ -13,8 +10,6 @@ import type {
 import { createLogger } from "./logger.js";
 
 const logger = createLogger("chain");
-
-// ── Minimal ABIs (only the functions/events agents actually call) ─────────────
 
 const FACTORY_ABI = [
   "event MarketCreated(address indexed marketAddress, address indexed creator, string question, uint256 deadline, string category, bytes32 resolutionSourcesHash, uint256 indexed marketIndex)",
@@ -59,7 +54,6 @@ const VAULT_ABI = [
   "function revealPositions(address market, tuple(address bettor, bool direction, uint256 collateralAmount)[] positions, bytes teeDecryptionProof)",
 ] as const;
 
-// ── Status enum mapping ───────────────────────────────────────────────────────
 
 const STATUS_MAP: Record<number, MarketStatusString> = {
   0: "Pending",
@@ -75,7 +69,6 @@ export function statusToString(n: number): MarketStatusString {
   return STATUS_MAP[n] ?? "Pending";
 }
 
-// ── Provider + wallet setup ───────────────────────────────────────────────────
 
 export function createProvider(): ethers.JsonRpcProvider {
   const rpc = process.env.OG_CHAIN_RPC;
@@ -87,8 +80,6 @@ export function createWallet(privateKey: string, provider: ethers.JsonRpcProvide
   const key = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
   return new ethers.Wallet(key, provider);
 }
-
-// ── Contract factories ────────────────────────────────────────────────────────
 
 export function getFactory(
   provider: ethers.JsonRpcProvider | Wallet
@@ -115,10 +106,6 @@ export function getVault(
 
 // ── Event listeners ───────────────────────────────────────────────────────────
 
-/**
- * Subscribe to a contract event and call the handler on every fire.
- * Never crashes the listener on handler error — logs and continues.
- */
 export function listenForEvent<T extends unknown[]>(
   contract: ethers.Contract,
   eventName: string,
@@ -131,7 +118,6 @@ export function listenForEvent<T extends unknown[]>(
       await handler(...(args as T));
     } catch (err) {
       logger.error(`Handler for ${eventName} failed`, err);
-      // Never crash the listener — log and continue
     }
   });
   logger.info(`Listening for ${eventName}`);
@@ -194,10 +180,7 @@ export async function getAllActiveMarkets(
 
 // ── On-chain writes ───────────────────────────────────────────────────────────
 
-/**
- * Post the oracle verdict on-chain after 0G Compute inference.
- * The reasoningHash links to the reasoning stored in 0G Storage.
- */
+
 export async function postResolutionOnChain(
   marketAddress: string,
   verdict:        boolean,
@@ -222,10 +205,7 @@ export async function postResolutionOnChain(
   return receipt;
 }
 
-/**
- * Cancel a market when the oracle returns INCONCLUSIVE twice.
- * Bond is forfeited to treasury; all bettors are fully refunded.
- */
+
 export async function cancelMarketOnChain(
   marketAddress: string,
   reason:        string,
@@ -239,9 +219,7 @@ export async function cancelMarketOnChain(
   return receipt;
 }
 
-/**
- * Process a challenge outcome after the second oracle inference.
- */
+
 export async function processChallengeOnChain(
   marketAddress:  string,
   upheld:         boolean,
@@ -255,11 +233,7 @@ export async function processChallengeOnChain(
   return receipt;
 }
 
-/**
- * Reveal all positions after market resolution.
- * In the MVP, the "decryption" is a pass-through since TEE is stubbed.
- * The oracle agent submits the revealed positions it observed in the commit events.
- */
+
 export async function revealPositionsOnChain(
   marketAddress: string,
   positions:     Array<{ bettor: string; direction: boolean; collateralAmount: bigint }>,

@@ -20,8 +20,7 @@ import { createLogger }        from "../shared/logger.js";
 import { createProvider, createWallet, getFactory, getMarket, getVault,
          listenForEvent, getMarketInfo, getAllActiveMarkets,
          postResolutionOnChain, cancelMarketOnChain,
-         processChallengeOnChain, revealPositionsOnChain,
-         statusToString }       from "../shared/chain.js";
+         processChallengeOnChain, revealPositionsOnChain } from "../shared/chain.js";
 import { callOracleInference }  from "../shared/compute.js";
 import { writeResolutionRecord, writeOracleWorkingState } from "../shared/storage.js";
 import type { OracleResponse }  from "../shared/types.js";
@@ -275,7 +274,6 @@ async function main() {
     "OG_CHAIN_RPC",
     "OG_INDEXER_RPC",
     "COMPUTE_PROVIDER_ADDRESS",
-    "INFERENCE_CONTRACT_ADDRESS",
     "PROPHET_FACTORY_ADDRESS",
     "POSITION_VAULT_ADDRESS",
   ];
@@ -325,7 +323,7 @@ async function main() {
     listenForEvent<[string, bigint, unknown]>(
       marketContract,
       "ResolutionTriggered",
-      async (market, timestamp) => {
+      async (market, _timestamp) => {
         logger.info("ResolutionTriggered (existing market)", { market });
         await resolveMarket(market, oracleWallet, provider, false);
       }

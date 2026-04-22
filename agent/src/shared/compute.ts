@@ -2,22 +2,133 @@
 // 0G Compute integration — AI inference for oracle resolution + market pricing
 //
 // Uses @0glabs/0g-serving-broker to:
-//   1. Connect to the 0G Compute marketplace
-//   2. Verify the TEE attestation of the chosen provider
-//   3. Call the AI model through the provider's OpenAI-compatible endpoint
-//   4. Return structured JSON parsed into typed response objects
+//   1. Auto-detect testnet/mainnet from the signer's chain ID
+//   2. Create/fund a ledger account for paying compute fees
+//   3. Verify the TEE attestation of the chosen provider
+//   4. Call the AI model through the provider's OpenAI-compatible endpoint
+//   5. Return structured JSON parsed into typed response objects
+//
+// Contract addresses are built into the SDK — no manual config needed:
+//   Testnet (16602): ledger 0xE708..., inference 0xa79F...
+//   Mainnet (16661): ledger 0x2dE5..., inference 0x4734...
 //
 // Docs: https://docs.0g.ai/developer-hub/building-on-0g/compute-network/overview
-// Marketplace: https://compute-marketplace.0g.ai/inference
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { createInferenceBroker } from "@0glabs/0g-serving-broker";
+import { createZGComputeNetworkBroker } from "@0glabs/0g-serving-broker";
 import OpenAI from "openai";
 import type { Wallet } from "ethers";
 import type { OracleResponse, PricingResponse } from "./types.js";
 import { createLogger } from "./logger.js";
 
 const logger = createLogger("compute");
+
+// ── Broker singleton — one per wallet, recreated if wallet changes ────────────
+
+let _brokerCache: {
+  walletAddress: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  broker: any;
+} | null = null;
+
+/**
+ * Returns a cached ZGComputeNetworkBroker for the given wallet.
+ * Creates a new broker if none exists or the wallet address changed.
+ * Auto-detects testnet vs mainnet from the chain ID on the provider.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getBroker(signer: Wallet): Promise<any> {
+  const address = await signer.getAddress();
+
+  if (_brokerCache && _brokerCache.walletAddress === address) {
+    return _brokerCache.broker;
+  }
+
+  logger.info("Initializing 0G Compute broker...", { wallet: address });
+
+  // createZGComputeNetworkBroker auto-detects testnet/mainnet from signer.provider.getNetwork()
+  // No contract addresses needed — they are built into the SDK per chain ID
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const broker = await createZGComputeNetworkBroker(signer as any);
+
+  _brokerCache = { walletAddress: address, broker };
+  logger.info("0G Compute broker initialized");
+  return broker;
+}
+
+// ── Account bootstrap ─────────────────────────────────────────────────────────
+
+/**
+ * Ensures the signer has a funded ledger account on the 0G Compute network.
+ * Safe to call repeatedly — skips each step if already done.
+ *
+ * Steps:
+ *   1. Check if ledger exists → create with MIN_LEDGER_BALANCE if not
+ *   2. Check balance → top up if below MIN_BALANCE threshold
+ *   3. Acknowledge provider signer (TEE trust) if not already done
+ */
+async function ensureAccountReady(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  broker: any,
+  providerAddress: string
+): Promise<void> {
+  const MIN_LEDGER_BALANCE = Number(process.env.COMPUTE_MIN_BALANCE ?? 10);    // 0G tokens
+  const TOP_UP_AMOUNT      = Number(process.env.COMPUTE_TOPUP_AMOUNT ?? 50);   // 0G tokens
+
+  // ── Step 1: Ensure ledger exists ─────────────────────────────────────────
+  let ledgerExists = false;
+  try {
+    await broker.ledger.getLedger();
+    ledgerExists = true;
+    logger.info("0G Compute ledger account found");
+  } catch {
+    ledgerExists = false;
+  }
+
+  if (!ledgerExists) {
+    logger.info("Creating 0G Compute ledger account...", {
+      initialBalance: MIN_LEDGER_BALANCE,
+    });
+    await broker.ledger.addLedger(MIN_LEDGER_BALANCE);
+    logger.info("Ledger account created");
+  }
+
+  // ── Step 2: Check balance and top up if needed ────────────────────────────
+  try {
+    const ledger  = await broker.ledger.getLedger();
+    const balance = Number(ledger.balance ?? 0);
+
+    logger.info("0G Compute ledger balance", { balance });
+
+    if (balance < MIN_LEDGER_BALANCE) {
+      logger.warn("Ledger balance low — topping up", {
+        current: balance,
+        topUp:   TOP_UP_AMOUNT,
+      });
+      await broker.ledger.depositFund(TOP_UP_AMOUNT);
+      logger.info("Ledger topped up");
+    }
+  } catch (err) {
+    logger.warn("Could not check/top up balance (non-fatal)", err);
+  }
+
+  // ── Step 3: Check provider signer status (TEE acknowledgement) ───────────
+  try {
+    const status = await broker.inference.checkProviderSignerStatus(providerAddress);
+    if (!status.isAcknowledged) {
+      logger.info("Acknowledging provider TEE signer...", {
+        teeAddress: status.teeSignerAddress,
+      });
+      await broker.inference.acknowledgeProviderSigner(providerAddress);
+      logger.info("Provider TEE signer acknowledged");
+    } else {
+      logger.info("Provider TEE signer already acknowledged");
+    }
+  } catch (err) {
+    // Non-fatal — some testnet providers skip the acknowledgement requirement
+    logger.warn("Provider signer check/acknowledge failed (non-fatal on testnet)", err);
+  }
+}
 
 // ── System prompts ────────────────────────────────────────────────────────────
 
@@ -46,65 +157,56 @@ Rules:
 /**
  * Call 0G Compute to resolve a prediction market question.
  *
- * Flow:
- *   1. Connect to 0G Serving Network broker (handles payment + routing)
- *   2. Get the provider's OpenAI-compatible endpoint + model name
- *   3. Verify TEE attestation (proves the inference is private + unmanipulated)
- *   4. Call the model with structured oracle prompt
- *   5. Parse and return the JSON verdict
+ * Full flow:
+ *   1. Get/cache the ZGComputeNetworkBroker for this signer
+ *   2. Ensure the ledger account exists and is funded
+ *   3. Get the provider's OpenAI-compatible endpoint + model name
+ *   4. Verify TEE attestation
+ *   5. Call the model with structured oracle prompt
+ *   6. Parse, validate, and return the JSON verdict
  *
  * @param question  - The prediction market question
  * @param deadline  - Unix timestamp of market deadline
  * @param sources   - Approved resolution sources from market metadata
- * @param signer    - Oracle agent wallet (pays for compute)
+ * @param signer    - Oracle agent wallet (pays for compute in 0G tokens)
  */
 export async function callOracleInference(
   question: string,
   deadline: number,
-  sources: string[],
-  signer: Wallet
+  sources:  string[],
+  signer:   Wallet
 ): Promise<OracleResponse> {
-  const providerAddress  = process.env.COMPUTE_PROVIDER_ADDRESS;
-  const contractAddress  = process.env.INFERENCE_CONTRACT_ADDRESS;
-
+  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
   if (!providerAddress) {
     throw new Error("COMPUTE_PROVIDER_ADDRESS not set in environment");
   }
-  if (!contractAddress) {
-    throw new Error("INFERENCE_CONTRACT_ADDRESS not set in environment");
-  }
 
-  logger.info("Connecting to 0G Compute broker...", { provider: providerAddress });
+  // 1. Get broker (cached after first call)
+  const broker = await getBroker(signer);
 
-  // Step 1: Create the 0G Serving Network broker
-  // This handles fee settlement, provider selection, and request routing
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const broker = await createInferenceBroker(signer as any, contractAddress, undefined as any);
+  // 2. Ensure account is funded and provider is acknowledged
+  await ensureAccountReady(broker, providerAddress);
 
-  // Step 2: Get the provider's inference endpoint and model name
-  const { endpoint, model } = await broker.getServiceMetadata(providerAddress);
-  logger.info("Retrieved provider metadata", { endpoint, model });
+  // 3. Get the provider's inference endpoint and model
+  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+  logger.info("Provider metadata retrieved", { endpoint, model });
 
-  // Step 3: Verify the TEE attestation of the provider
-  // This confirms the inference runs inside a Trusted Execution Environment —
-  // the compute provider cannot see the prompt or manipulate the output
+  // 4. Verify TEE attestation — proves inference runs in a secure enclave
   logger.info("Verifying TEE attestation...");
   try {
-    await broker.verifyService(providerAddress);
+    await broker.inference.verifyService(providerAddress);
     logger.info("TEE attestation verified");
   } catch (err) {
-    // Non-fatal in testnet — log warning and continue
     logger.warn("TEE attestation verification failed (non-fatal on testnet)", err);
   }
 
-  // Step 4: Build the oracle user prompt
+  // 5. Build prompt and call the model
   const deadlineDate = new Date(deadline * 1000).toISOString();
   const userPrompt   = buildOraclePrompt(question, deadlineDate, sources);
 
-  // Step 5: Call the model via the OpenAI-compatible endpoint
   const client = new OpenAI({
     baseURL: endpoint,
-    apiKey:  "",          // 0G Compute uses the broker for auth, not API keys
+    apiKey:  "",   // auth handled by broker billing headers at the HTTP layer
   });
 
   logger.info("Calling 0G Compute for oracle inference...", { model, question });
@@ -115,7 +217,7 @@ export async function callOracleInference(
       { role: "system", content: ORACLE_SYSTEM_PROMPT },
       { role: "user",   content: userPrompt },
     ],
-    temperature: 0.1,     // Low temperature for deterministic oracle decisions
+    temperature: 0.1,   // Low temperature = deterministic oracle decisions
     max_tokens:  1500,
   });
 
@@ -124,7 +226,7 @@ export async function callOracleInference(
 
   logger.info("Received oracle response from 0G Compute");
 
-  // Step 6: Parse and validate JSON
+  // 6. Parse and validate
   let parsed: OracleResponse;
   try {
     parsed = JSON.parse(raw) as OracleResponse;
@@ -132,7 +234,6 @@ export async function callOracleInference(
     throw new Error(`Oracle returned invalid JSON:\n${raw}`);
   }
 
-  // Validate required fields
   if (
     parsed.confidence === undefined ||
     parsed.reasoning  === undefined ||
@@ -157,32 +258,27 @@ export async function callOracleInference(
  *
  * @param question - The prediction market question
  * @param deadline - Unix timestamp of market deadline
- * @param signer   - Market maker wallet (pays for compute)
+ * @param signer   - Market maker wallet (pays for compute in 0G tokens)
  */
 export async function callPricingInference(
   question: string,
   deadline: number,
-  signer: Wallet
+  signer:   Wallet
 ): Promise<PricingResponse> {
   const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
-  const contractAddress = process.env.INFERENCE_CONTRACT_ADDRESS;
-
   if (!providerAddress) {
     throw new Error("COMPUTE_PROVIDER_ADDRESS not set in environment");
-  }
-  if (!contractAddress) {
-    throw new Error("INFERENCE_CONTRACT_ADDRESS not set in environment");
   }
 
   logger.info("Calling 0G Compute for market pricing...", { question });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const broker           = await createInferenceBroker(signer as any, contractAddress, undefined as any);
-  const { endpoint, model } = await broker.getServiceMetadata(providerAddress);
+  const broker = await getBroker(signer);
+  await ensureAccountReady(broker, providerAddress);
 
-  // Verify TEE for pricing too — prevents provider from manipulating prices
+  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+
   try {
-    await broker.verifyService(providerAddress);
+    await broker.inference.verifyService(providerAddress);
   } catch (err) {
     logger.warn("TEE verification failed for pricing (non-fatal on testnet)", err);
   }
@@ -212,7 +308,6 @@ export async function callPricingInference(
     throw new Error(`Pricing returned invalid JSON:\n${raw}`);
   }
 
-  // Clamp to valid range
   parsed.yesProbability = Math.max(1, Math.min(99, Math.round(parsed.yesProbability)));
 
   logger.info("Pricing inference complete", { yesProbability: parsed.yesProbability });
@@ -223,9 +318,9 @@ export async function callPricingInference(
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
 function buildOraclePrompt(
-  question: string,
+  question:    string,
   deadlineIso: string,
-  sources: string[]
+  sources:     string[]
 ): string {
   const minConfidence = process.env.ORACLE_MIN_CONFIDENCE ?? "70";
   const sourceList    = sources.length > 0
