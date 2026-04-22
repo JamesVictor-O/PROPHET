@@ -5,11 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "oracle":       "tsx watch src/oracle/index.ts",
-    "market-maker": "tsx watch src/market-maker/index.ts",
-    "start":        "concurrently \"npm run oracle\" \"npm run market-maker\"",
-    "build":        "tsc --noEmit",
-    "typecheck":    "tsc --noEmit"
+    "oracle":        "tsx watch src/oracle/index.ts",
+    "market-maker":  "tsx watch src/market-maker/index.ts",
+    "start":         "concurrently \"npm run oracle\" \"npm run market-maker\"",
+    "test:compute":  "tsx src/scripts/test-compute.ts",
+    "build":         "tsc --noEmit",
+    "typecheck":     "tsc --noEmit"
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.7.5",
