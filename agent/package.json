@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Prophet oracle + market-maker agents — powered by 0G Compute, 0G Storage, 0G Chain",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "oracle":        "tsx watch src/oracle/index.ts",
     "market-maker":  "tsx watch src/market-maker/index.ts",

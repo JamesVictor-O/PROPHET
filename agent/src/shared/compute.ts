@@ -18,8 +18,8 @@
 import { createZGComputeNetworkBroker } from "@0glabs/0g-serving-broker";
 import OpenAI from "openai";
 import type { Wallet } from "ethers";
-import type { OracleResponse, PricingResponse } from "./types.js";
-import { createLogger } from "./logger.js";
+import type { OracleResponse, PricingResponse } from "./types";
+import { createLogger } from "./logger";
 
 const logger = createLogger("compute");
 
@@ -204,9 +204,13 @@ export async function callOracleInference(
   const deadlineDate = new Date(deadline * 1000).toISOString();
   const userPrompt   = buildOraclePrompt(question, deadlineDate, sources);
 
+  // Billing headers — signed token required by the 0G provider proxy
+  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+
   const client = new OpenAI({
-    baseURL: endpoint,
-    apiKey:  "",   // auth handled by broker billing headers at the HTTP layer
+    baseURL:        endpoint,
+    apiKey:         "",
+    defaultHeaders: billingHeaders,
   });
 
   logger.info("Calling 0G Compute for oracle inference...", { model, question });
@@ -286,7 +290,13 @@ export async function callPricingInference(
   const deadlineDate = new Date(deadline * 1000).toISOString();
   const userPrompt   = buildPricingPrompt(question, deadlineDate);
 
-  const client = new OpenAI({ baseURL: endpoint, apiKey: "" });
+  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+
+  const client = new OpenAI({
+    baseURL:        endpoint,
+    apiKey:         "",
+    defaultHeaders: billingHeaders,
+  });
 
   const response = await client.chat.completions.create({
     model,

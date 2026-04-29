@@ -15,12 +15,12 @@
 
 import "dotenv/config";
 import { ethers }             from "ethers";
-import { createLogger }       from "../shared/logger.js";
+import { createLogger }       from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket,
-         listenForEvent, getMarketInfo, getAllActiveMarkets } from "../shared/chain.js";
-import { callPricingInference }  from "../shared/compute.js";
-import { writeMarketPrices, writeMMState } from "../shared/storage.js";
-import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types.js";
+         listenForEvent, getMarketInfo, getAllActiveMarkets } from "../shared/chain";
+import { callPricingInference }  from "../shared/compute";
+import { writeMarketPrices, writeMMState } from "../shared/storage";
+import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types";
 
 const TIER_NAMES: LiquidityTierString[] = ["Seed", "Low", "Medium", "High"];
 

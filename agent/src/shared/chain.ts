@@ -6,8 +6,8 @@ import type {
   ResolutionChallengedEvent,
   ResolutionFinalizedEvent,
   MarketStatusString,
-} from "./types.js";
-import { createLogger } from "./logger.js";
+} from "./types";
+import { createLogger } from "./logger";
 
 const logger = createLogger("chain");
 

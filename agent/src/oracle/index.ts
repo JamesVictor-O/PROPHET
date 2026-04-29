@@ -16,14 +16,14 @@
 
 import "dotenv/config";
 import { ethers }              from "ethers";
-import { createLogger }        from "../shared/logger.js";
+import { createLogger }        from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket, getVault,
          listenForEvent, getMarketInfo, getAllActiveMarkets,
          postResolutionOnChain, cancelMarketOnChain,
-         processChallengeOnChain, revealPositionsOnChain } from "../shared/chain.js";
-import { callOracleInference }  from "../shared/compute.js";
-import { writeResolutionRecord, writeOracleWorkingState } from "../shared/storage.js";
-import type { OracleResponse }  from "../shared/types.js";
+         processChallengeOnChain, revealPositionsOnChain } from "../shared/chain";
+import { callOracleInference }  from "../shared/compute";
+import { writeResolutionRecord, writeOracleWorkingState } from "../shared/storage";
+import type { OracleResponse }  from "../shared/types";
 
 const logger = createLogger("oracle");
 

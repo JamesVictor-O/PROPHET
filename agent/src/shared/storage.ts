@@ -25,8 +25,8 @@ import type {
   OracleWorkingState,
   ResolutionRecord,
   MarketMakerState,
-} from "./types.js";
-import { createLogger } from "./logger.js";
+} from "./types";
+import { createLogger } from "./logger";
 
 const logger = createLogger("storage");
 

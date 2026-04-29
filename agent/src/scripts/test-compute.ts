@@ -187,16 +187,52 @@ async function main() {
     warn("TEE verification failed (non-fatal on testnet)", String(err));
   }
 
-  // ── Step 7: Live inference call ───────────────────────────────────────────
-  section("7. Live inference call (oracle test question)");
+  // ── Step 7: Fund ledger if empty ─────────────────────────────────────────
+  section("7. Fund ledger");
+
+  try {
+    const ledger        = await broker.ledger.getLedger();
+    const balance       = Number(ledger.balance ?? 0);
+    if (balance < 1) {
+      const walletBal   = await provider.getBalance(wallet.address);
+      const walletFloat = parseFloat(ethers.formatEther(walletBal));
+      const deposit     = Math.min(5, Math.floor(walletFloat * 0.8));
+      if (deposit < 1) {
+        warn("Not enough 0G to fund ledger — get more from https://faucet.0g.ai");
+      } else {
+        console.log(`  Depositing ${deposit} 0G (wallet has ${walletFloat.toFixed(2)} 0G)...`);
+        await broker.ledger.depositFund(deposit);
+        pass(`Ledger funded with ${deposit} 0G`);
+      }
+    } else {
+      pass("Ledger already funded", `${balance} 0G`);
+    }
+  } catch (err) {
+    fail("Ledger deposit failed", err);
+  }
+
+  // ── Step 8: Live inference call ───────────────────────────────────────────
+  section("8. Live inference call (oracle test question)");
 
   const testQuestion = "Did the sun rise today?";
+  const userContent  = `Market Question: "${testQuestion}"
+Respond with: { "verdict": true or false or null, "confidence": 0-100, "reasoning": "brief explanation", "evidenceSummary": "one sentence", "sourcesChecked": [] }`;
+
   console.log(`  Question: "${testQuestion}"`);
 
   try {
+    // Get broker billing headers — the 0G provider requires a signed
+    // Authorization: Bearer app-sk-<base64(rawMessage:signature)> token
+    const billingHeaders = await broker.inference.getRequestHeaders(
+      providerAddress,
+      userContent
+    );
+    pass("Billing headers generated", Object.keys(billingHeaders).join(", "));
+
     const client = new OpenAI({
-      baseURL: serviceMetadata.endpoint,
-      apiKey:  "",
+      baseURL:        serviceMetadata.endpoint,
+      apiKey:         "",
+      defaultHeaders: billingHeaders,
     });
 
     const response = await client.chat.completions.create({
@@ -208,8 +244,7 @@ async function main() {
         },
         {
           role:    "user",
-          content: `Market Question: "${testQuestion}"
-Respond with: { "verdict": true or false or null, "confidence": 0-100, "reasoning": "brief explanation", "evidenceSummary": "one sentence", "sourcesChecked": [] }`,
+          content: userContent,
         },
       ],
       temperature: 0.1,
