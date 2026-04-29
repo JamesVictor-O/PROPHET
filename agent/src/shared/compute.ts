@@ -325,6 +325,65 @@ export async function callPricingInference(
   return parsed;
 }
 
+// ── Question validation ───────────────────────────────────────────────────────
+
+export interface ValidationResponse {
+  valid:             boolean;
+  detectedCategory:  string;
+  error?:            string;
+  suggestedSources:  string[];
+}
+
+/**
+ * Use 0G Compute to validate a question before market creation.
+ * Returns valid=true and suggested resolution sources if the question is clear
+ * and objectively resolvable. Returns valid=false with an error message if not.
+ */
+export async function callQuestionValidation(
+  question: string,
+  category: string,
+  signer:   Wallet
+): Promise<ValidationResponse> {
+  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
+  if (!providerAddress) throw new Error("COMPUTE_PROVIDER_ADDRESS not set");
+
+  const broker = await getBroker(signer);
+  await ensureAccountReady(broker, providerAddress);
+
+  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+
+  const userPrompt = `Validate this prediction market question: "${question}"
+Category hint: ${category}
+
+A valid question must have a clear YES/NO outcome verifiable by a deadline.
+
+Respond with this exact JSON:
+{
+  "valid": true or false,
+  "detectedCategory": "crypto" | "sports" | "politics" | "finance" | "custom",
+  "error": "Only if invalid — one sentence why",
+  "suggestedSources": ["source1", "source2"]
+}`;
+
+  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+  const client = new OpenAI({ baseURL: endpoint, apiKey: "", defaultHeaders: billingHeaders });
+
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: "system", content: "You are a prediction market question validator. Respond ONLY in valid JSON. No markdown." },
+      { role: "user",   content: userPrompt },
+    ],
+    temperature: 0.1,
+    max_tokens:  300,
+  });
+
+  const raw = response.choices[0]?.message?.content;
+  if (!raw) throw new Error("Empty validation response from 0G Compute");
+
+  return JSON.parse(raw) as ValidationResponse;
+}
+
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
 function buildOraclePrompt(

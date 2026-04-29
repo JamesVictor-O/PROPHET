@@ -46,6 +46,7 @@ export default function CreateMarketModal({
   const [category, setCategory] = useState("crypto");
   const [deadlineDate, setDeadlineDate] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
   /** Set when user clicks Create Market but USDT allowance is insufficient — create runs after approve confirms */
   const pendingCreateAfterApproveRef = useRef<PendingCreatePayload | null>(
     null,
@@ -154,7 +155,7 @@ export default function CreateMarketModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
     if (!question.trim() || !deadlineDate) return;
@@ -180,6 +181,26 @@ export default function CreateMarketModal({
       );
       return;
     }
+
+    // ── 0G Compute: validate question before wallet tx ────────────────────
+    setIsValidating(true);
+    try {
+      const res  = await fetch("/api/validate-question", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ question: question.trim(), category }),
+      });
+      const data = await res.json() as { valid: boolean; error?: string; detectedCategory?: string };
+      if (!data.valid && data.error) {
+        setValidationError(`AI rejected question: ${data.error}`);
+        return;
+      }
+    } catch {
+      // 0G Compute unavailable — proceed anyway, validation is best-effort
+    } finally {
+      setIsValidating(false);
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     const mockedHash =
       "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
@@ -341,6 +362,7 @@ export default function CreateMarketModal({
             <button
               type="submit"
               disabled={
+                isValidating ||
                 isWriting ||
                 isConfirming ||
                 isApprovePending ||
@@ -349,9 +371,11 @@ export default function CreateMarketModal({
               className="mt-2 w-full py-3.5 rounded-lg flex items-center justify-center font-bold text-[15px] transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
               style={{ background: "#7B6EF4", color: "#0a0a0a" }}
             >
-              {isApprovePending || isApproveConfirming || isWriting || isConfirming
-                ? "Working…"
-                : "Create Market"}
+              {isValidating
+                ? "Validating via 0G Compute…"
+                : isApprovePending || isApproveConfirming || isWriting || isConfirming
+                  ? "Working…"
+                  : "Create Market"}
             </button>
           </form>
         )}
