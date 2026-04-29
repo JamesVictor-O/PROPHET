@@ -1,17 +1,15 @@
 // POST /api/validate-question
 //
-// Server-side only — uses @0glabs/0g-serving-broker (Node.js SDK) to run the
-// question through 0G Compute before the user signs a wallet transaction.
+// Server-side only — uses @0glabs/0g-serving-broker to run the question through
+// 0G Compute before the user signs a wallet transaction.
 //
-// Returns:
-//   { valid: true,  detectedCategory, suggestedSources }
-//   { valid: false, error }
+// Returns one of:
+//   { valid: true,  detectedCategory, suggestedQuestion?, suggestedSources }
+//   { valid: false, error }   ← only for truly unresolvable questions
 
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";   // must be Node.js — broker uses native crypto
-
-// ── Lazy imports (Node.js only, not bundled by webpack) ──────────────────────
+export const runtime = "nodejs";
 
 async function getBrokerModule() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -25,51 +23,109 @@ async function getEthers() {
   return require("ethers") as typeof import("ethers");
 }
 
-// ── Prompt ───────────────────────────────────────────────────────────────────
+// ── Prompts ───────────────────────────────────────────────────────────────────
 
-const VALIDATION_SYSTEM = `You are a prediction market question validator.
-A valid prediction market question must:
-1. Have a clear YES or NO outcome that can be verified objectively
-2. Resolve by a specific deadline
-3. Not be ambiguous or open to interpretation
+const VALIDATION_SYSTEM = `You are a prediction market question assistant.
+Your job is to help users create well-formed prediction market questions.
+
+IMPORTANT: Sports events, crypto prices, election results, and financial data are ALL publicly
+verifiable from free sources (ESPN, BBC Sport, UEFA, CoinGecko, Reuters, etc.).
+Never reject a question on those topics for "no verifiable outcome" — they always have one.
+
+HARD REJECT (valid: false) ONLY for these narrow cases:
+- Pure opinion with no factual answer: "Will Arsenal play well?", "Is Bitcoin a good investment?"
+- Private events that cannot be verified publicly: "Will my friend get a promotion?"
+- Completely undefined scope with no way to determine YES/NO even in principle
+
+ACCEPT and IMPROVE everything else — including any question about:
+- Sports: match winners, championship results, tournament outcomes
+- Crypto: price targets, protocol events, listings
+- Politics: election winners, policy outcomes
+- Finance: market levels, company events
+
+For all valid questions, suggest improvements where useful:
+- suggestedQuestion: use official names, add season/year, standard market phrasing
+- suggestedCategory: correct the category if wrong
+- suggestedDeadline: ISO 8601 — the real-world event deadline, MUST be in the future relative to today.
+  (Champions League final ≈ late May; World Cup final ≈ mid July; election day = exact date)
+  If the most recent occurrence has already passed, use the NEXT upcoming one
+  (e.g. if today is 2026, suggest the 2025/26 final, not the 2024/25 one).
+  Override the user's deadline if it falls before the event actually concludes.
+  Return null only if no specific future event date can be inferred.
+- suggestedDeadlineReason: one short sentence
 
 Respond ONLY in valid JSON. No markdown, no preamble.`;
 
-function buildValidationPrompt(question: string, category: string): string {
-  return `Validate this prediction market question: "${question}"
-Category hint: ${category}
+function buildValidationPrompt(question: string, category: string, deadlineIso: string): string {
+  return `User question: "${question}"
+User category: ${category}
+User deadline: ${deadlineIso}
+Today's date: ${new Date().toISOString().split("T")[0]}
 
-Respond with this exact JSON:
+Respond with this exact JSON (all fields required):
 {
   "valid": true or false,
   "detectedCategory": "crypto" | "sports" | "politics" | "finance" | "custom",
-  "error": "Only if valid is false — one sentence explaining why",
+  "suggestedQuestion": "Improved question, or null if fine as-is",
+  "suggestedDeadline": "2025-05-31T22:00:00.000Z or null if unknown",
+  "suggestedDeadlineReason": "One sentence, or null",
+  "error": "Only if valid is false — one sentence why",
   "suggestedSources": ["source1", "source2"]
 }
 
-If valid is true, suggestedSources should list 1-3 reputable sources that could verify the outcome.
-If valid is false, suggestedSources should be an empty array.`;
+Examples of VALID questions (always accept, suggest improvements):
+- "Will Arsenal win the champions league?" (asked in 2026) →
+  valid: true, detectedCategory: "sports",
+  suggestedQuestion: "Will Arsenal win the UEFA Champions League 2025/26?",
+  suggestedDeadline: "2026-05-30T22:00:00.000Z",
+  suggestedDeadlineReason: "UEFA Champions League 2025/26 final is approximately late May 2026"
+
+- "Will BTC hit 100k?" →
+  valid: true, detectedCategory: "crypto",
+  suggestedQuestion: "Will Bitcoin (BTC) reach $100,000 before the deadline?",
+  suggestedDeadline: null, suggestedDeadlineReason: null
+
+- "Will Man City win the Premier League?" →
+  valid: true, detectedCategory: "sports",
+  suggestedQuestion: "Will Manchester City win the Premier League 2024/25?",
+  suggestedDeadline: "2025-05-25T17:00:00.000Z",
+  suggestedDeadlineReason: "Premier League 2024/25 final day is May 25, 2025"
+
+Examples of INVALID questions (reject only these):
+- "Will Arsenal play well?" → valid: false, error: "Opinion-based — 'playing well' has no objective YES/NO outcome."
+- "Will my friend get a raise?" → valid: false, error: "Private event with no publicly verifiable outcome."`;
 }
 
-// ── Handler ──────────────────────────────────────────────────────────────────
+// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  let question: string, category: string;
+  let question: string, category: string, deadlineIso: string;
   try {
-    ({ question, category } = await req.json() as { question: string; category: string });
+    ({ question, category, deadlineIso } = await req.json() as {
+      question: string;
+      category: string;
+      deadlineIso: string;
+    });
     if (!question?.trim()) throw new Error("question is required");
   } catch {
     return NextResponse.json({ valid: false, error: "Invalid request body" }, { status: 400 });
   }
 
-  const privateKey         = process.env.PRIVATE_KEY_ORACLE;
-  const rpc                = process.env.OG_CHAIN_RPC ?? "https://evmrpc-testnet.0g.ai";
-  const providerAddress    = process.env.COMPUTE_PROVIDER_ADDRESS;
+  const privateKey      = process.env.PRIVATE_KEY_ORACLE;
+  const rpc             = process.env.OG_CHAIN_RPC ?? "https://evmrpc-testnet.0g.ai";
+  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
 
-  if (!privateKey || !providerAddress) {
-    // Validation env not configured — skip gracefully so market creation still works
-    console.warn("[validate-question] PRIVATE_KEY_ORACLE or COMPUTE_PROVIDER_ADDRESS not set — skipping AI validation");
-    return NextResponse.json({ valid: true, detectedCategory: category, suggestedSources: [] });
+  if (!privateKey) {
+    return NextResponse.json(
+      { valid: false, error: "PRIVATE_KEY_ORACLE is not set on the server — 0G Compute validation is unavailable" },
+      { status: 503 }
+    );
+  }
+  if (!providerAddress) {
+    return NextResponse.json(
+      { valid: false, error: "COMPUTE_PROVIDER_ADDRESS is not set on the server — 0G Compute validation is unavailable" },
+      { status: 503 }
+    );
   }
 
   try {
@@ -79,19 +135,15 @@ export async function POST(req: NextRequest) {
     const provider = new ethers.JsonRpcProvider(rpc);
     const key      = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
     const wallet   = new ethers.Wallet(key, provider);
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const broker   = await createZGComputeNetworkBroker(wallet as any) as any;
 
-    // Ensure ledger exists (non-fatal if it fails)
-    try {
-      await broker.ledger.getLedger();
-    } catch {
+    try { await broker.ledger.getLedger(); } catch {
       try { await broker.ledger.addLedger(5); } catch { /* no funds */ }
     }
 
     const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
-    const userPrompt          = buildValidationPrompt(question.trim(), category);
+    const userPrompt          = buildValidationPrompt(question.trim(), category, deadlineIso ?? "not specified");
     const billingHeaders      = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
 
     const { default: OpenAI } = await import("openai");
@@ -103,22 +155,33 @@ export async function POST(req: NextRequest) {
         { role: "system", content: VALIDATION_SYSTEM },
         { role: "user",   content: userPrompt },
       ],
-      temperature: 0.1,
-      max_tokens:  300,
+      temperature: 0.2,
+      max_tokens:  400,
     });
 
     const raw = response.choices[0]?.message?.content ?? "";
     const parsed = JSON.parse(raw) as {
-      valid: boolean;
-      detectedCategory: string;
-      error?: string;
-      suggestedSources: string[];
+      valid:                    boolean;
+      detectedCategory:         string;
+      suggestedQuestion?:       string | null;
+      suggestedDeadline?:       string | null;
+      suggestedDeadlineReason?: string | null;
+      error?:                   string;
+      suggestedSources:         string[];
     };
+
+    // Normalize null fields to undefined so the client can use truthiness checks
+    if (!parsed.suggestedQuestion)       delete parsed.suggestedQuestion;
+    if (!parsed.suggestedDeadline)       delete parsed.suggestedDeadline;
+    if (!parsed.suggestedDeadlineReason) delete parsed.suggestedDeadlineReason;
 
     return NextResponse.json(parsed);
   } catch (err) {
-    // If 0G Compute is unavailable, let market creation proceed — don't block the user
-    console.error("[validate-question] 0G Compute validation failed (non-fatal):", err);
-    return NextResponse.json({ valid: true, detectedCategory: category, suggestedSources: [] });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[validate-question] 0G Compute validation failed:", err);
+    return NextResponse.json(
+      { valid: false, error: `0G Compute validation failed: ${msg}` },
+      { status: 502 }
+    );
   }
 }

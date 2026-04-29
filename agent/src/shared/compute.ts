@@ -328,10 +328,13 @@ export async function callPricingInference(
 // ── Question validation ───────────────────────────────────────────────────────
 
 export interface ValidationResponse {
-  valid:             boolean;
-  detectedCategory:  string;
-  error?:            string;
-  suggestedSources:  string[];
+  valid:                    boolean;
+  detectedCategory:         string;
+  suggestedQuestion?:       string;
+  suggestedDeadline?:       string;   // ISO 8601 — real-world deadline for the event
+  suggestedDeadlineReason?: string;
+  error?:                   string;
+  suggestedSources:         string[];
 }
 
 /**

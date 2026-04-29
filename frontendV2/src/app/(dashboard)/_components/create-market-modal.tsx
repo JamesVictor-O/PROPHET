@@ -47,6 +47,14 @@ export default function CreateMarketModal({
   const [deadlineDate, setDeadlineDate] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [suggestions, setSuggestions] = useState<{
+    question?:       string;
+    category?:       string;
+    deadline?:       string;  // ISO string from AI
+    deadlineReason?: string;
+  } | null>(null);
+  /** True after user accepts or dismisses suggestions — skips re-validation on next submit */
+  const validationDoneRef = useRef(false);
   /** Set when user clicks Create Market but USDT allowance is insufficient — create runs after approve confirms */
   const pendingCreateAfterApproveRef = useRef<PendingCreatePayload | null>(
     null,
@@ -150,6 +158,9 @@ export default function CreateMarketModal({
     if (!isOpen) {
       pendingCreateAfterApproveRef.current = null;
       createChainedForApproveHashRef.current = null;
+      validationDoneRef.current = false;
+      setSuggestions(null);
+      setValidationError(null);
     }
   }, [isOpen]);
 
@@ -182,24 +193,57 @@ export default function CreateMarketModal({
       return;
     }
 
-    // ── 0G Compute: validate question before wallet tx ────────────────────
+    // ── 0G Compute: validate + improve question before wallet tx ─────────
+    // Skip if user already reviewed suggestions this submission cycle
+    if (validationDoneRef.current) {
+      validationDoneRef.current = false;
+      // fall through to wallet tx below
+    } else {
     setIsValidating(true);
+    setSuggestions(null);
     try {
+      const deadlineIso = deadlineDate ? new Date(deadlineDate).toISOString() : "not specified";
       const res  = await fetch("/api/validate-question", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ question: question.trim(), category }),
+        body:    JSON.stringify({ question: question.trim(), category, deadlineIso }),
       });
-      const data = await res.json() as { valid: boolean; error?: string; detectedCategory?: string };
-      if (!data.valid && data.error) {
-        setValidationError(`AI rejected question: ${data.error}`);
+      const data = await res.json() as {
+        valid:                    boolean;
+        error?:                   string;
+        detectedCategory?:        string;
+        suggestedQuestion?:       string;
+        suggestedDeadline?:       string;
+        suggestedDeadlineReason?: string;
+      };
+
+      if (!data.valid) {
+        setValidationError(data.error ?? "0G Compute rejected this question.");
         return;
       }
-    } catch {
-      // 0G Compute unavailable — proceed anyway, validation is best-effort
+
+      // Collect all suggestions the model offered
+      const hasBetterQuestion = data.suggestedQuestion && data.suggestedQuestion !== question.trim();
+      const hasBetterCategory = data.detectedCategory  && data.detectedCategory  !== category;
+      const hasBetterDeadline = data.suggestedDeadline;
+
+      if (hasBetterQuestion || hasBetterCategory || hasBetterDeadline) {
+        setSuggestions({
+          question:       hasBetterQuestion ? data.suggestedQuestion : undefined,
+          category:       hasBetterCategory ? data.detectedCategory  : undefined,
+          deadline:       data.suggestedDeadline,
+          deadlineReason: data.suggestedDeadlineReason,
+        });
+        return;   // user must review suggestions before we proceed
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setValidationError(`Could not reach 0G Compute for validation: ${msg}`);
+      return;
     } finally {
       setIsValidating(false);
     }
+    } // end else (validation block)
     // ─────────────────────────────────────────────────────────────────────
 
     const mockedHash =
@@ -277,7 +321,7 @@ export default function CreateMarketModal({
               <textarea
                 required
                 value={question}
-                onChange={(e) => setQuestion(e.target.value)}
+                onChange={(e) => { validationDoneRef.current = false; setQuestion(e.target.value); }}
                 placeholder="e.g. Will BTC exceed $150k by Dec 2026?"
                 className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#7B6EF4] transition-colors resize-none"
                 rows={3}
@@ -292,7 +336,7 @@ export default function CreateMarketModal({
                 </label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => { validationDoneRef.current = false; setCategory(e.target.value); }}
                   className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white outline-none focus:border-[#7B6EF4] transition-colors"
                 >
                   {["crypto", "sports", "politics", "finance", "custom"].map(
@@ -317,7 +361,7 @@ export default function CreateMarketModal({
                   type="datetime-local"
                   required
                   value={deadlineDate}
-                  onChange={(e) => setDeadlineDate(e.target.value)}
+                  onChange={(e) => { validationDoneRef.current = false; setDeadlineDate(e.target.value); }}
                   className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-white outline-none focus:border-[#7B6EF4] transition-colors [color-scheme:dark]"
                 />
               </div>
@@ -328,6 +372,82 @@ export default function CreateMarketModal({
                 Creation bond: {(Number(bondAmount) / 1e6).toFixed(2)} USDT
                 (approved for ProphetFactory, then sent with createMarket).
               </p>
+            )}
+
+            {suggestions && (
+              <div className="p-3 rounded-lg flex flex-col gap-3" style={{ background: "rgba(123,110,244,0.12)", border: "1px solid rgba(123,110,244,0.3)" }}>
+                <p className="text-xs font-semibold text-[#7B6EF4] uppercase tracking-wider">
+                  0G Compute suggested improvements
+                </p>
+                <div className="flex flex-col gap-2 text-sm">
+                  {suggestions.question && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-white/40 uppercase tracking-wider">Question</span>
+                      <span className="text-white/90">"{suggestions.question}"</span>
+                    </div>
+                  )}
+                  {suggestions.category && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-white/40 uppercase tracking-wider">Category</span>
+                      <span className="text-white/90 capitalize">{suggestions.category}</span>
+                    </div>
+                  )}
+                  {suggestions.deadline && (() => {
+                    const isPast = new Date(suggestions.deadline).getTime() < Date.now() + 3600_000;
+                    return (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs text-white/40 uppercase tracking-wider">Deadline</span>
+                        {isPast ? (
+                          <span className="text-amber-400/80 text-xs">
+                            AI suggested {new Date(suggestions.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} — but that date has passed. Please set a new deadline manually.
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-white/90">
+                              {new Date(suggestions.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                            </span>
+                            {suggestions.deadlineReason && (
+                              <span className="text-xs text-white/40">{suggestions.deadlineReason}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (suggestions.question) setQuestion(suggestions.question);
+                      if (suggestions.category) setCategory(suggestions.category);
+                      if (suggestions.deadline) {
+                        const isFuture = new Date(suggestions.deadline).getTime() > Date.now() + 3600_000;
+                        if (isFuture) {
+                          const d = new Date(suggestions.deadline);
+                          const pad = (n: number) => String(n).padStart(2, "0");
+                          setDeadlineDate(
+                            `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+                          );
+                        }
+                      }
+                      validationDoneRef.current = true;
+                      setSuggestions(null);
+                    }}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold transition-all hover:opacity-90"
+                    style={{ background: "#7B6EF4", color: "#0a0a0a" }}
+                  >
+                    Apply All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { validationDoneRef.current = true; setSuggestions(null); }}
+                    className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
+                  >
+                    Keep Original
+                  </button>
+                </div>
+              </div>
             )}
 
             {validationError && (
@@ -350,11 +470,11 @@ export default function CreateMarketModal({
                 {isApprovePending
                   ? "Sign USDT approval in your wallet…"
                   : isApproveConfirming && !isWriting
-                    ? "Approval confirmed — creating market…"
+                    ? "Approval confirmed — Predicting"
                     : isConfirming
                       ? "Confirming on chain…"
                       : isWriting
-                        ? "Sign market creation in your wallet…"
+                        ? "Sign Prediction in your wallet…"
                         : ""}
               </p>
             )}
@@ -374,8 +494,8 @@ export default function CreateMarketModal({
               {isValidating
                 ? "Validating via 0G Compute…"
                 : isApprovePending || isApproveConfirming || isWriting || isConfirming
-                  ? "Working…"
-                  : "Create Market"}
+                  ? "Predicting"
+                  : "Predict"}
             </button>
           </form>
         )}
