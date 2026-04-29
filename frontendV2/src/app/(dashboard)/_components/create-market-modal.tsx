@@ -47,10 +47,12 @@ export default function CreateMarketModal({
   const [deadlineDate, setDeadlineDate] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [isStoringMetadata, setIsStoringMetadata] = useState(false);
+  const [validatedSources, setValidatedSources] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<{
     question?:       string;
     category?:       string;
-    deadline?:       string;  // ISO string from AI
+    deadline?:       string;
     deadlineReason?: string;
   } | null>(null);
   /** True after user accepts or dismisses suggestions — skips re-validation on next submit */
@@ -161,6 +163,8 @@ export default function CreateMarketModal({
       validationDoneRef.current = false;
       setSuggestions(null);
       setValidationError(null);
+      setIsStoringMetadata(false);
+      setValidatedSources([]);
     }
   }, [isOpen]);
 
@@ -215,12 +219,16 @@ export default function CreateMarketModal({
         suggestedQuestion?:       string;
         suggestedDeadline?:       string;
         suggestedDeadlineReason?: string;
+        suggestedSources?:        string[];
       };
 
       if (!data.valid) {
         setValidationError(data.error ?? "0G Compute rejected this question.");
         return;
       }
+
+      // Capture sources for 0G Storage write
+      if (data.suggestedSources?.length) setValidatedSources(data.suggestedSources);
 
       // Collect all suggestions the model offered
       const hasBetterQuestion = data.suggestedQuestion && data.suggestedQuestion !== question.trim();
@@ -246,15 +254,42 @@ export default function CreateMarketModal({
     } // end else (validation block)
     // ─────────────────────────────────────────────────────────────────────
 
-    const mockedHash =
-      "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+    // ── 0G Storage: write market metadata, get root hash for on-chain ─────
+    setIsStoringMetadata(true);
+    let resolutionSourcesHash: `0x${string}` =
+      "0x0000000000000000000000000000000000000000000000000000000000000000";
+    try {
+      const storeRes = await fetch("/api/store-metadata", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          question:  question.trim(),
+          category,
+          deadline:  new Date(deadlineDate).toISOString(),
+          sources:   validatedSources,
+        }),
+      });
+      const storeData = await storeRes.json() as { rootHash?: string; error?: string };
+      if (storeData.rootHash) {
+        resolutionSourcesHash = storeData.rootHash as `0x${string}`;
+      } else {
+        throw new Error(storeData.error ?? "No root hash returned");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setValidationError(`Failed to write to 0G Storage: ${msg}`);
+      setIsStoringMetadata(false);
+      return;
+    }
+    setIsStoringMetadata(false);
+    // ─────────────────────────────────────────────────────────────────────
 
     if (needsApproval) {
       pendingCreateAfterApproveRef.current = {
         question: question.trim(),
         deadlineTimestamp,
         category,
-        mockedHash,
+        mockedHash: resolutionSourcesHash,
       };
       writeApprove({
         address: MOCK_USDT_ADDRESS as `0x${string}`,
@@ -269,7 +304,7 @@ export default function CreateMarketModal({
       address: PROPHET_FACTORY_ADDRESS,
       abi: PROPHET_FACTORY_ABI,
       functionName: "createMarket",
-      args: [question.trim(), deadlineTimestamp, category, mockedHash],
+      args: [question.trim(), deadlineTimestamp, category, resolutionSourcesHash],
     });
   };
 
@@ -483,6 +518,7 @@ export default function CreateMarketModal({
               type="submit"
               disabled={
                 isValidating ||
+                isStoringMetadata ||
                 isWriting ||
                 isConfirming ||
                 isApprovePending ||
@@ -493,9 +529,11 @@ export default function CreateMarketModal({
             >
               {isValidating
                 ? "Validating via 0G Compute…"
-                : isApprovePending || isApproveConfirming || isWriting || isConfirming
-                  ? "Predicting"
-                  : "Predict"}
+                : isStoringMetadata
+                  ? "Writing to 0G Storage…"
+                  : isApprovePending || isApproveConfirming || isWriting || isConfirming
+                    ? "Predicting"
+                    : "Predict"}
             </button>
           </form>
         )}

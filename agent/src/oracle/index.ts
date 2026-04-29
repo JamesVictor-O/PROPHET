@@ -22,7 +22,7 @@ import { createProvider, createWallet, getFactory, getMarket, getVault,
          postResolutionOnChain, cancelMarketOnChain,
          processChallengeOnChain, revealPositionsOnChain } from "../shared/chain";
 import { callOracleInference }  from "../shared/compute";
-import { writeResolutionRecord, writeOracleWorkingState } from "../shared/storage";
+import { writeResolutionRecord, writeOracleWorkingState, readFromStorage } from "../shared/storage";
 import type { OracleResponse }  from "../shared/types";
 
 const logger = createLogger("oracle");
@@ -65,9 +65,24 @@ async function resolveMarket(
     startedAt:        Date.now(),
   }, oracleWallet).catch((e) => logger.warn("Storage write failed (non-fatal)", e));
 
-  // 3. Call 0G Compute — this is the core AI oracle inference
-  //    The question + deadline + approved sources go into the structured prompt
-  //    The model returns a JSON verdict with confidence + full reasoning chain
+  // 3. Read approved sources from 0G Storage using resolutionSourcesHash
+  //    This hash was written by the frontend at market creation and stored on-chain
+  let sources: string[] = [];
+  const zeroHash = `0x${"0".repeat(64)}`;
+  if (info.resolutionSourcesHash && info.resolutionSourcesHash !== zeroHash) {
+    try {
+      const metadata = await readFromStorage<{ sources?: string[] }>(info.resolutionSourcesHash);
+      sources = metadata.sources ?? [];
+      logger.info("Loaded resolution sources from 0G Storage", {
+        count: sources.length,
+        hash:  info.resolutionSourcesHash,
+      });
+    } catch (err) {
+      logger.warn("Could not read sources from 0G Storage (continuing without)", err);
+    }
+  }
+
+  // 4. Call 0G Compute — question + deadline + approved sources → verdict
   const minConfidence = Number(process.env.ORACLE_MIN_CONFIDENCE ?? 70);
 
   let oracleResponse: OracleResponse;
@@ -75,7 +90,7 @@ async function resolveMarket(
     oracleResponse = await callOracleInference(
       info.question,
       info.deadline,
-      [],     // TODO: decode resolutionSourcesHash from 0G Storage KV metadata
+      sources,
       oracleWallet
     );
   } catch (err) {

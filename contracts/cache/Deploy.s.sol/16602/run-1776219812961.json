@@ -1,0 +1,16 @@
+{
+  "transactions": [
+    {
+      "rpc": "https://evmrpc-testnet.0g.ai"
+    },
+    {
+      "rpc": "https://evmrpc-testnet.0g.ai"
+    },
+    {
+      "rpc": "https://evmrpc-testnet.0g.ai"
+    },
+    {
+      "rpc": "https://evmrpc-testnet.0g.ai"
+    }
+  ]
+}

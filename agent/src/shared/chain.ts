@@ -126,16 +126,17 @@ export function listenForEvent<T extends unknown[]>(
 // ── Market info helpers ───────────────────────────────────────────────────────
 
 export interface MarketInfo {
-  question:             string;
-  deadline:             number;
-  status:               MarketStatusString;
-  outcome:              boolean;
-  totalCollateral:      bigint;
-  challengeDeadline:    number;
-  verdictReasoningHash: string;
-  category:             string;
-  creator:              string;
-  challenger:           string;
+  question:              string;
+  deadline:              number;
+  status:                MarketStatusString;
+  outcome:               boolean;
+  totalCollateral:       bigint;
+  challengeDeadline:     number;
+  verdictReasoningHash:  string;
+  category:              string;
+  creator:               string;
+  challenger:            string;
+  resolutionSourcesHash: string;
 }
 
 export async function getMarketInfo(
@@ -146,18 +147,22 @@ export async function getMarketInfo(
   const info        = await market.getMarketInfo() as [
     string, bigint, number, boolean, bigint, bigint, string, string, string
   ];
-  const challenger  = await market.challenger() as string;
+  const [challenger, resolutionSourcesHash] = await Promise.all([
+    market.challenger() as Promise<string>,
+    market.resolutionSourcesHash() as Promise<string>,
+  ]);
   return {
-    question:             info[0],
-    deadline:             Number(info[1]),
-    status:               statusToString(info[2]),
-    outcome:              info[3],
-    totalCollateral:      info[4],
-    challengeDeadline:    Number(info[5]),
-    verdictReasoningHash: info[6],
-    category:             info[7],
-    creator:              info[8],
+    question:              info[0],
+    deadline:              Number(info[1]),
+    status:                statusToString(info[2]),
+    outcome:               info[3],
+    totalCollateral:       info[4],
+    challengeDeadline:     Number(info[5]),
+    verdictReasoningHash:  info[6],
+    category:              info[7],
+    creator:               info[8],
     challenger,
+    resolutionSourcesHash,
   };
 }
 
