@@ -8,6 +8,8 @@ export interface ProphetMarket {
   price: number;
   change: number;
   volume: string;
+  /** Raw USDT collateral in 6-decimal bigint — used for aggregate volume math */
+  rawCollateral: bigint;
   closeDate: string;
   /** From MarketStatus when loaded from chain */
   chainStatus?: string;

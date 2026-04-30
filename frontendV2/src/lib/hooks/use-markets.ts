@@ -145,6 +145,7 @@ export function useMarkets() {
         price: 50,
         change: 0,
         volume: `${formatVolume(totalCollateral_)} Vol`,
+        rawCollateral: totalCollateral_,
         closeDate: formatCloseDate(deadline_),
         chainStatus: statusLabel,
       });

@@ -48,7 +48,7 @@ export default function MarketsPage() {
           </span>
         </div>
         <div className="p-4" style={{ height: 280 }}>
-          <PriceChart />
+          <PriceChart markets={markets} />
         </div>
       </div>
 

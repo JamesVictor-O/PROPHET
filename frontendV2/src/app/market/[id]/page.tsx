@@ -318,7 +318,7 @@ export default function MarketDetailPage() {
                 </div>
               </div>
               <div style={{ height: 280 }}>
-                <PriceChart />
+                <PriceChart yesPct={impliedYesPct} />
               </div>
             </div>
 
