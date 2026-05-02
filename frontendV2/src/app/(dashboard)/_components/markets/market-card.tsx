@@ -3,19 +3,93 @@
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ArrowUpRight01Icon,
   ArrowDownRight01Icon,
+  ArrowUpRight01Icon,
   ArrowRight01Icon,
+  ThumbsUpIcon,
 } from "@hugeicons/core-free-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import TradeModal from "./trade-modal";
 import type { ProphetMarket } from "@/lib/prophet-market";
+import { MARKET_CONTRACT_ABI } from "@/lib/contracts";
 
 export type { ProphetMarket };
+
+function InterestedButton({ marketAddress }: { marketAddress: string }) {
+  const [txDone, setTxDone] = useState(false);
+
+  const { writeContract, data: txHash, isPending: isSigning, error } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+    query: { enabled: !!txHash },
+  });
+
+  useEffect(() => {
+    if (isSuccess) setTxDone(true);
+  }, [isSuccess]);
+
+  const busy = isSigning || isConfirming;
+
+  if (txDone) {
+    return (
+      <div
+        className="flex-1 flex items-center justify-center gap-1 px-4 py-2 text-[12px] font-semibold"
+        style={{
+          background: "rgba(52,211,153,0.08)",
+          color: "#34d399",
+          clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+        }}
+      >
+        <HugeiconsIcon icon={ThumbsUpIcon} size={11} color="#34d399" strokeWidth={1.5} />
+        Interested!
+      </div>
+    );
+  }
+
+  return (
+    <button
+      disabled={busy}
+      onClick={() =>
+        writeContract({
+          address: marketAddress as `0x${string}`,
+          abi: MARKET_CONTRACT_ABI,
+          functionName: "signalInterest",
+        })
+      }
+      className="flex-1 flex items-center justify-center gap-1 px-4 py-2 text-[12px] font-semibold transition-all hover:opacity-80 disabled:opacity-50"
+      style={{
+        background: busy ? "rgba(251,191,36,0.15)" : "rgba(251,191,36,0.12)",
+        color: "#fbbf24",
+        border: "1px solid rgba(251,191,36,0.2)",
+        clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+      }}
+      title={error ? String(error.message) : "Signal interest to help activate this market"}
+    >
+      {busy ? (
+        <>
+          <span
+            className="inline-block w-2.5 h-2.5 rounded-full border border-t-transparent animate-spin"
+            style={{ borderColor: "#fbbf24", borderTopColor: "transparent" }}
+          />
+          {isSigning ? "Confirm…" : "Pending…"}
+        </>
+      ) : (
+        <>
+          <HugeiconsIcon icon={ThumbsUpIcon} size={11} color="#fbbf24" strokeWidth={1.5} />
+          Interested
+        </>
+      )}
+    </button>
+  );
+}
 
 export default function MarketCard({ market }: { market: ProphetMarket }) {
   const [isTradeOpen, setIsTradeOpen] = useState(false);
   const up = market.change >= 0;
+  const isOpen    = market.chainStatus === "Open";
+  const isPending = market.chainStatus === "Pending";
 
   return (
     <div
@@ -128,18 +202,23 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={() => setIsTradeOpen(true)}
-            className="flex-1 w-full justify-center px-4 py-2 text-[12px] font-semibold transition-all hover:opacity-80"
-            style={{
-              background: "#7B6EF4",
-              color: "#0a0a0a",
-              clipPath:
-                "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
-            }}
-          >
-            Trade
-          </button>
+          {isOpen && (
+            <button
+              onClick={() => setIsTradeOpen(true)}
+              className="flex-1 w-full justify-center px-4 py-2 text-[12px] font-semibold transition-all hover:opacity-80"
+              style={{
+                background: "#7B6EF4",
+                color: "#0a0a0a",
+                clipPath:
+                  "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+              }}
+            >
+              Trade
+            </button>
+          )}
+
+          {isPending && <InterestedButton marketAddress={market.id} />}
+
           <Link href={`/market/${market.id}`} className="flex-1 text-center">
             <button
               className="w-full flex items-center justify-center gap-1 px-4 py-2 text-[12px] font-semibold transition-all hover:bg-white/10"
