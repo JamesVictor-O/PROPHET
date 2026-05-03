@@ -13,4 +13,10 @@ export interface ProphetMarket {
   closeDate: string;
   /** From MarketStatus when loaded from chain */
   chainStatus?: string;
+  /** Oracle verdict (true = YES, false = NO) — set on Resolved markets */
+  outcome?: boolean;
+  /** 0G Storage root hash linking to oracle reasoning JSON */
+  verdictReasoningHash?: `0x${string}`;
+  /** Unix timestamp (seconds) when the challenge window expires */
+  challengeDeadline?: bigint;
 }

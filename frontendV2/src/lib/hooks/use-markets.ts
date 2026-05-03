@@ -116,7 +116,7 @@ export function useMarkets() {
         `0x${string}`,
       ];
 
-      const [question, deadline_, statusRaw, , totalCollateral_, , , categoryRaw] =
+      const [question, deadline_, statusRaw, outcome_, totalCollateral_, challengeDeadline_, verdictReasoningHash_, categoryRaw] =
         r;
 
       const statusIdx = Number(statusRaw);
@@ -148,6 +148,9 @@ export function useMarkets() {
         rawCollateral: totalCollateral_,
         closeDate: formatCloseDate(deadline_),
         chainStatus: statusLabel,
+        outcome: outcome_ as boolean,
+        verdictReasoningHash: verdictReasoningHash_ as `0x${string}`,
+        challengeDeadline: challengeDeadline_ as bigint,
       });
     }
 
