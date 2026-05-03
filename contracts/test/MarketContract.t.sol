@@ -64,21 +64,15 @@ contract MarketContractTest is Test {
         );
         factory.setVaultAndDistributor(address(vault), address(distributor));
 
-        // No bond and minimal pending period so tests reach Open state easily
+        // No bond — markets open immediately on creation
         factory.updateCreationBond(0);
-        factory.updatePendingPeriod(1); // 1 second
 
-        MARKET_DEADLINE = block.timestamp + 48 hours; // > pendingPeriod + buffer
+        MARKET_DEADLINE = block.timestamp + 48 hours;
         market = MarketContract(
             factory.createMarket("Will ETH reach $10k by end of 2025?", MARKET_DEADLINE, "crypto", SOURCES_HASH)
         );
 
-        // Pass the pending filter: BOB signals interest, warp 2s, activate
         usdt.mint(BOB, INITIAL_BALANCE);
-        vm.prank(BOB);
-        market.signalInterest();
-        vm.warp(block.timestamp + 2);
-        market.activateMarket();
 
         usdt.mint(ALICE,   INITIAL_BALANCE);
         // BOB already minted above
@@ -115,7 +109,7 @@ contract MarketContractTest is Test {
         _finalizeResolution();
     }
 
-    /// @dev Sets factory bond to `bond`, deploys a new market, and activates it (BOB signals).
+    /// @dev Sets factory bond to `bond`, deploys a new market (opens immediately).
     function _createOpenMarketWithBond(uint256 bond) internal returns (MarketContract m) {
         factory.updateCreationBond(bond);
         if (bond > 0) {
@@ -124,10 +118,6 @@ contract MarketContractTest is Test {
         }
         uint256 dl = block.timestamp + 48 hours;
         m = MarketContract(factory.createMarket("Bond market?", dl, "crypto", SOURCES_HASH));
-        vm.prank(BOB);
-        m.signalInterest();
-        vm.warp(block.timestamp + 2);
-        m.activateMarket();
     }
 
     // ─────────────────────────────────────────────────────────────

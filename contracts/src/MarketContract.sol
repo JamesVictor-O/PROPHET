@@ -13,8 +13,6 @@ import { MarketLib } from "./libraries/MarketLib.sol";
 /// @notice Core contract for a single Prophet prediction market
 /// @dev One instance deployed per market by ProphetFactory
 /// @dev Lifecycle:
-///      Pending  -> Open (interest threshold met after 24h social filter)
-///      Pending  -> Archived (zero interest after 24h)
 ///      Open     -> PendingResolution (deadline passed)
 ///      PendingResolution -> Challenged (oracle posts verdict, 24h challenge window)
 ///      Challenged -> Resolved (no challenge filed, window expires)
@@ -67,15 +65,8 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     uint256 public override challengeStake;
     bool public override challengeResolved;
 
-    // Pending-period social filter state
-    uint256 public override pendingDeadline;
-    uint256 public override interestCount;
-
     // Bettor tracking
     mapping(address => bool) private _hasBet;
-
-    // Interest signal tracking
-    mapping(address => bool) private _hasSignaled;
 
     // ─────────────────────────────────────────────────────────────
     // Constants
@@ -108,7 +99,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         uint256 _deadline,
         string memory category_,
         bytes32 _resolutionSourcesHash,
-        uint256 _pendingPeriod,
         uint256 _creatorBond
     ) {
         factory               = _factory;
@@ -125,9 +115,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         _question             = question_;
         _category             = category_;
 
-        // Market starts in Pending — community filter runs for pendingPeriod
-        status          = MarketStatus.Pending;
-        pendingDeadline = block.timestamp + _pendingPeriod;
+        status = MarketStatus.Open;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -141,11 +129,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
     modifier onlyPayoutDistributor() {
         if (msg.sender != payoutDistributor) revert MarketContract__NotPayoutDistributor();
-        _;
-    }
-
-    modifier onlyWhenPending() {
-        if (status != MarketStatus.Pending) revert MarketContract__NotPending();
         _;
     }
 
@@ -169,56 +152,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     modifier onlyWhenResolved() {
         if (status != MarketStatus.Resolved) revert MarketContract__NotResolved();
         _;
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Pending-Period Social Filter
-    // ─────────────────────────────────────────────────────────────
-
-    /// @inheritdoc IMarketContract
-    function signalInterest() external override onlyWhenPending {
-        // Pending period must still be active
-        if (block.timestamp > pendingDeadline) revert MarketContract__PendingPeriodNotOver();
-
-        // Creator signaling their own market doesn't count
-        if (msg.sender == creator) revert MarketContract__CreatorCannotSignal();
-
-        // Each address can only signal once
-        if (_hasSignaled[msg.sender]) revert MarketContract__AlreadySignaled();
-
-        _hasSignaled[msg.sender] = true;
-        interestCount++;
-
-        emit InterestSignaled(address(this), msg.sender, interestCount);
-    }
-
-    /// @inheritdoc IMarketContract
-    function activateMarket() external override onlyWhenPending {
-        // Pending period must have elapsed
-        if (block.timestamp <= pendingDeadline) revert MarketContract__PendingPeriodStillActive();
-
-        // Must have at least one signal from the community
-        if (interestCount == 0) revert MarketContract__HasInterest();
-
-        status = MarketStatus.Open;
-
-        emit MarketActivated(address(this), interestCount, block.timestamp);
-    }
-
-    /// @inheritdoc IMarketContract
-    function archiveMarket() external override onlyWhenPending {
-        // Pending period must have elapsed
-        if (block.timestamp <= pendingDeadline) revert MarketContract__PendingPeriodStillActive();
-
-        // Can only archive if no one signaled interest
-        if (interestCount > 0) revert MarketContract__HasInterest();
-
-        status = MarketStatus.Archived;
-
-        emit MarketArchived(address(this), creator, creatorBond);
-
-        // Refund the creation bond to creator immediately
-        _refundBondToCreator();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -478,19 +411,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     }
 
     /// @inheritdoc IMarketContract
-    function getPendingInfo() external view override returns (
-        uint256 pendingDeadline_,
-        uint256 interestCount_,
-        uint256 creatorBond_,
-        bool isPendingOver_
-    ) {
-        pendingDeadline_ = pendingDeadline;
-        interestCount_   = interestCount;
-        creatorBond_     = creatorBond;
-        isPendingOver_   = block.timestamp > pendingDeadline;
-    }
-
-    /// @inheritdoc IMarketContract
     function liquidityTier() external view override returns (LiquidityTier) {
         if (totalCollateral >= TIER_HIGH_THRESHOLD)   return LiquidityTier.High;
         if (totalCollateral >= TIER_MEDIUM_THRESHOLD) return LiquidityTier.Medium;
@@ -525,11 +445,6 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     /// @inheritdoc IMarketContract
     function hasBet(address bettor) external view override returns (bool) {
         return _hasBet[bettor];
-    }
-
-    /// @inheritdoc IMarketContract
-    function hasSignaled(address user) external view override returns (bool) {
-        return _hasSignaled[user];
     }
 
     // ─────────────────────────────────────────────────────────────

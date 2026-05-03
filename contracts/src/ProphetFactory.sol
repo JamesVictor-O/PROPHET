@@ -63,10 +63,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     /// @dev Default: 10 USDT. Enough to deter throwaway markets, low enough to be accessible.
     uint256 public creationBondAmount = 10e6;
 
-    /// @notice Duration of the pending-period community filter in seconds
-    /// @dev Default: 24 hours. After this window, market activates or archives.
-    uint256 public pendingPeriod = 24 hours;
-
     // ─────────────────────────────────────────────────────────────
     // Market Registry
     // ─────────────────────────────────────────────────────────────
@@ -108,7 +104,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     );
 
     event CreationBondAmountUpdated(uint256 oldAmount, uint256 newAmount);
-    event PendingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
     event FactoryPaused(address by);
     event FactoryUnpaused(address by);
@@ -207,7 +202,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
             IERC20(USDT).safeTransferFrom(msg.sender, address(this), bond);
         }
 
-        // Deploy new MarketContract — pass bond amount and pending period
         MarketContract market = new MarketContract(
             address(this),
             oracleAgent,
@@ -221,7 +215,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
             deadline,
             category,
             resolutionSourcesHash,
-            pendingPeriod,
             bond
         );
 
@@ -310,13 +303,6 @@ contract ProphetFactory is Ownable, ReentrancyGuard {
     function updateCreationBond(uint256 newAmount) external onlyOwner {
         emit CreationBondAmountUpdated(creationBondAmount, newAmount);
         creationBondAmount = newAmount;
-    }
-
-    /// @notice Update the duration of the pending-period community filter
-    /// @param newPeriod Duration in seconds (e.g. 24 hours = 86400)
-    function updatePendingPeriod(uint256 newPeriod) external onlyOwner {
-        emit PendingPeriodUpdated(pendingPeriod, newPeriod);
-        pendingPeriod = newPeriod;
     }
 
     /// @notice Pause market creation — emergency use only

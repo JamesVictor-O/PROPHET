@@ -57,7 +57,6 @@ contract PositionVaultTest is Test {
         factory.setVaultAndDistributor(address(vault), address(distributor));
 
         factory.updateCreationBond(0);
-        factory.updatePendingPeriod(1);
 
         MARKET_DEADLINE = block.timestamp + 48 hours;
         market = MarketContract(
@@ -66,12 +65,6 @@ contract PositionVaultTest is Test {
 
         usdt.mint(ALICE, INITIAL_BALANCE);
         usdt.mint(BOB,   INITIAL_BALANCE);
-
-        // Activate market through the pending filter
-        vm.prank(ALICE);
-        market.signalInterest();
-        vm.warp(block.timestamp + 2);
-        market.activateMarket();
     }
 
     // ── Internal helpers ───────────────────────────────────────────

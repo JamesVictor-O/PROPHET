@@ -39,7 +39,6 @@ contract ProphetFactoryTest is Test {
     event VaultAndDistributorSet(address positionVault, address payoutDistributor);
     event TreasuryUpdated(address oldTreasury, address newTreasury);
     event CreationBondAmountUpdated(uint256 oldAmount, uint256 newAmount);
-    event PendingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
     event FactoryPaused(address by);
     event FactoryUnpaused(address by);
 
@@ -72,15 +71,9 @@ contract ProphetFactoryTest is Test {
         usdt.mint(BOB,   100e6);
     }
 
-    // Helper: create a market, pass the pending filter, and return it Open
+    // Helper: create a market (opens immediately — no pending period)
     function _createAndActivateMarket(string memory q) internal returns (address m) {
         m = factory.createMarket(q, block.timestamp + 2 hours, "crypto", SOURCES_HASH);
-        // BOB signals interest
-        vm.prank(BOB);
-        MarketContract(m).signalInterest();
-        // Warp past pending period (default 24h)
-        vm.warp(block.timestamp + 25 hours);
-        MarketContract(m).activateMarket();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -321,20 +314,14 @@ contract ProphetFactoryTest is Test {
         assertEq(usdt.balanceOf(address(this)), 0);
     }
 
-    function test_CreationBond_RefundedOnArchive() public {
+    function test_CreationBond_HeldByMarket() public {
         factory.updateCreationBond(10e6);
         usdt.mint(address(this), 10e6);
         usdt.approve(address(factory), 10e6);
 
         address m = factory.createMarket("Q?", block.timestamp + 2 hours, "crypto", SOURCES_HASH);
-        uint256 balanceBefore = usdt.balanceOf(address(this));
-
-        // No one signals — warp past pending, archive
-        vm.warp(block.timestamp + 25 hours);
-        MarketContract(m).archiveMarket();
-
-        assertEq(usdt.balanceOf(address(this)), balanceBefore + 10e6);
-        assertEq(uint8(MarketContract(m).status()), uint8(IMarketContract.MarketStatus.Archived));
+        assertEq(usdt.balanceOf(m), 10e6);
+        assertEq(MarketContract(m).creatorBond(), 10e6);
     }
 
     function test_CreationBond_InsufficientBalance_Reverts() public {
@@ -366,62 +353,6 @@ contract ProphetFactoryTest is Test {
         emit CreationBondAmountUpdated(0, 25e6);
         factory.updateCreationBond(25e6);
         assertEq(factory.creationBondAmount(), 25e6);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Pending Period + Activation
-    // ─────────────────────────────────────────────────────────────
-
-    function test_PendingPeriod_MarketStartsPending() public {
-        address m = factory.createMarket("Q?", block.timestamp + 2 hours, "crypto", SOURCES_HASH);
-        assertEq(uint8(MarketContract(m).status()), uint8(IMarketContract.MarketStatus.Pending));
-    }
-
-    function test_PendingPeriod_ActivatesAfterInterestAndTime() public {
-        address m = factory.createMarket("Q?", block.timestamp + 48 hours, "crypto", SOURCES_HASH);
-        vm.prank(ALICE);
-        MarketContract(m).signalInterest();
-        vm.warp(block.timestamp + 25 hours);
-        MarketContract(m).activateMarket();
-        assertEq(uint8(MarketContract(m).status()), uint8(IMarketContract.MarketStatus.Open));
-    }
-
-    function test_PendingPeriod_ArchivesWithZeroInterest() public {
-        address m = factory.createMarket("Q?", block.timestamp + 48 hours, "crypto", SOURCES_HASH);
-        vm.warp(block.timestamp + 25 hours);
-        MarketContract(m).archiveMarket();
-        assertEq(uint8(MarketContract(m).status()), uint8(IMarketContract.MarketStatus.Archived));
-    }
-
-    function test_PendingPeriod_CannotActivateBeforeExpiry() public {
-        address m = factory.createMarket("Q?", block.timestamp + 48 hours, "crypto", SOURCES_HASH);
-        vm.prank(ALICE);
-        MarketContract(m).signalInterest();
-        // pending period not over
-        vm.expectRevert(IMarketContract.MarketContract__PendingPeriodStillActive.selector);
-        MarketContract(m).activateMarket();
-    }
-
-    function test_PendingPeriod_CannotArchiveWithInterest() public {
-        address m = factory.createMarket("Q?", block.timestamp + 48 hours, "crypto", SOURCES_HASH);
-        vm.prank(ALICE);
-        MarketContract(m).signalInterest();
-        vm.warp(block.timestamp + 25 hours);
-        vm.expectRevert(IMarketContract.MarketContract__HasInterest.selector);
-        MarketContract(m).archiveMarket();
-    }
-
-    function test_updatePendingPeriod_OnlyOwner() public {
-        vm.prank(ALICE);
-        vm.expectRevert();
-        factory.updatePendingPeriod(48 hours);
-    }
-
-    function test_updatePendingPeriod_EmitsEvent() public {
-        vm.expectEmit(false, false, false, true);
-        emit PendingPeriodUpdated(24 hours, 48 hours);
-        factory.updatePendingPeriod(48 hours);
-        assertEq(factory.pendingPeriod(), 48 hours);
     }
 
     // ─────────────────────────────────────────────────────────────
