@@ -184,9 +184,11 @@ async function resolveMarket(
 // ── Reveal positions ──────────────────────────────────────────────────────────
 
 /**
- * After ResolutionFinalized: read sealed positions from PositionVault events
- * and submit the reveal. In the MVP the "TEE decryption" uses the plaintext
- * direction stored in the encrypted commitment (abi.encode(direction, amount)).
+ * After ResolutionFinalized: read sealed positions from PositionVault and
+ * submit the reveal.
+ *
+ * MVP encoding: frontend sends toHex("YES") or toHex("NO") as the commitment.
+ * Real TEE implementation would decrypt here using the 0G TEE SDK.
  */
 async function revealPositions(
   marketAddress: string,
@@ -204,35 +206,39 @@ async function revealPositions(
 
   logger.info("Collecting sealed positions for reveal...", { market: marketAddress, count });
 
-  // Read PositionCommitted events to get the original commitment data
-  const marketContract = getMarket(marketAddress, provider);
-  const filter         = marketContract.filters["BetPlaced"](marketAddress);
-  const events         = await marketContract.queryFilter(filter);
+  // Read each position directly from PositionVault — this is the source of truth.
+  // BetPlaced events on MarketContract do NOT include the encryptedCommitment.
+  const positions: Array<{ bettor: string; direction: boolean; collateralAmount: bigint }> = [];
 
-  const positions = events.map((e) => {
-    const args = e as unknown as { args: [string, string, bigint, bigint] };
-    const [, bettor, collateralAmount] = args.args;
+  for (let i = 0; i < count; i++) {
+    const pos = await vault.getEncryptedPosition(marketAddress, i) as {
+      bettor:               string;
+      encryptedCommitment:  string;   // hex-encoded bytes
+      collateralAmount:     bigint;
+      revealed:             boolean;
+    };
 
-    // MVP: encrypted commitment is abi.encode(direction, amount)
-    // Real TEE implementation would decrypt here using 0G TEE SDK
-    // For now decode the commitment directly
-    let direction = true; // default YES
+    if (pos.revealed) continue;
+
+    // Decode commitment: frontend sends toHex("YES") or toHex("NO")
+    // TODO: replace with real 0G TEE decryption when TEE SDK is integrated
+    let direction = true;
     try {
-      const txData = (e as { transactionHash: string }).transactionHash;
-      void txData; // placeholder — in real impl, decode from tx input
+      const text = ethers.toUtf8String(pos.encryptedCommitment);
+      direction  = text.trim().toUpperCase() === "YES";
     } catch {
-      // Keep default
+      logger.warn("Could not decode commitment for position — defaulting to YES", { market: marketAddress, index: i });
     }
 
-    return {
-      bettor,
+    positions.push({
+      bettor:           pos.bettor,
       direction,
-      collateralAmount,
-    };
-  });
+      collateralAmount: pos.collateralAmount,
+    });
+  }
 
   if (positions.length === 0) {
-    logger.warn("No BetPlaced events found for market", { market: marketAddress });
+    logger.warn("No positions to reveal after decoding", { market: marketAddress });
     return;
   }
 

@@ -48,6 +48,7 @@ const MARKET_ABI = [
 
 const VAULT_ABI = [
   "event PositionsRevealed(address indexed market, uint256 totalPositions, uint256 timestamp)",
+  "function getEncryptedPosition(address market, uint256 index) view returns (tuple(address bettor, bytes encryptedCommitment, uint256 collateralAmount, uint256 timestamp, bool revealed))",
   "function getRevealedPositions(address market) view returns (tuple(address bettor, bool direction, uint256 collateralAmount)[])",
   "function positionCount(address market) view returns (uint256)",
   "function hasRevealed(address market) view returns (bool)",
