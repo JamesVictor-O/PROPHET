@@ -7,7 +7,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { erc20Abi, maxUint256, parseUnits } from "viem";
+import { erc20Abi, maxUint256, parseUnits, keccak256, toBytes } from "viem";
 import {
   PROPHET_FACTORY_ADDRESS,
   PROPHET_FACTORY_ABI,
@@ -255,31 +255,34 @@ export default function CreateMarketModal({
     // ─────────────────────────────────────────────────────────────────────
 
     // ── 0G Storage: write market metadata, get root hash for on-chain ─────
+    // If the storage network is unavailable we fall back to a local keccak256
+    // of the metadata so market creation can still proceed. The oracle will
+    // resolve using general knowledge rather than stored sources.
     setIsStoringMetadata(true);
-    let resolutionSourcesHash: `0x${string}` =
-      "0x0000000000000000000000000000000000000000000000000000000000000000";
+    const metadataJson = JSON.stringify({
+      question:  question.trim(),
+      category,
+      deadline:  new Date(deadlineDate).toISOString(),
+      sources:   validatedSources,
+    });
+    // Local fallback hash — used when 0G Storage is unreachable
+    const localFallbackHash = keccak256(toBytes(metadataJson));
+    let resolutionSourcesHash: `0x${string}` = localFallbackHash;
+
     try {
       const storeRes = await fetch("/api/store-metadata", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          question:  question.trim(),
-          category,
-          deadline:  new Date(deadlineDate).toISOString(),
-          sources:   validatedSources,
-        }),
+        body:    metadataJson,
       });
       const storeData = await storeRes.json() as { rootHash?: string; error?: string };
       if (storeData.rootHash) {
         resolutionSourcesHash = storeData.rootHash as `0x${string}`;
-      } else {
-        throw new Error(storeData.error ?? "No root hash returned");
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setValidationError(`Failed to write to 0G Storage: ${msg}`);
-      setIsStoringMetadata(false);
-      return;
+      // If no rootHash but also no hard error, just use the fallback silently
+    } catch {
+      // 0G Storage unreachable — proceed with local hash, market still creates
+      console.warn("[create-market] 0G Storage write failed — using local fallback hash");
     }
     setIsStoringMetadata(false);
     // ─────────────────────────────────────────────────────────────────────
