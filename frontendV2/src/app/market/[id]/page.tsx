@@ -20,9 +20,10 @@ import {
 import { useOracleReasoning } from "@/lib/hooks/use-oracle-reasoning";
 import { zeroGGalileo } from "@/lib/web3-config";
 
-const PriceChart = dynamic(() => import("../../_components/price-chart"), {
-  ssr: false,
-});
+const CandlestickChart = dynamic(
+  () => import("../../_components/candlestick-chart"),
+  { ssr: false }
+);
 
 const TABS = ["Summary", "Recent Trades"] as const;
 type Tab = (typeof TABS)[number];
@@ -286,30 +287,38 @@ export default function MarketDetailPage() {
               className="flex flex-col"
               style={{
                 border: "1px solid rgba(255,255,255,0.06)",
-                background: "rgba(255,255,255,0.015)",
+                background: "#161616",
               }}
             >
               <div
                 className="flex items-center justify-between px-4 py-2.5"
                 style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
               >
-                <span
-                  className="text-[10px] uppercase tracking-widest"
-                  style={{ color: "rgba(255,255,255,0.2)" }}
-                >
-                  YES probability (placeholder chart)
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-[11px] font-semibold"
+                    style={{ color: "rgba(255,255,255,0.5)" }}
+                  >
+                    YES probability
+                  </span>
+                  <span
+                    className="text-[11px] font-mono"
+                    style={{ color: "#34d399" }}
+                  >
+                    {impliedYesPct}¢
+                  </span>
+                </div>
                 <div className="flex items-center gap-0.5">
                   {["1W", "1M", "3M", "All"].map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => setRange(r)}
-                      className="px-2 py-1 text-[10px] font-medium transition-all"
+                      className="px-2 py-1 text-[10px] font-medium transition-all rounded"
                       style={{
                         color: range === r ? "white" : "rgba(255,255,255,0.3)",
                         background:
-                          range === r ? "rgba(255,255,255,0.07)" : "transparent",
+                          range === r ? "rgba(255,255,255,0.08)" : "transparent",
                       }}
                     >
                       {r}
@@ -318,7 +327,17 @@ export default function MarketDetailPage() {
                 </div>
               </div>
               <div style={{ height: 280 }}>
-                <PriceChart yesPct={impliedYesPct} />
+                {detail ? (
+                  <CandlestickChart
+                    yesPct={impliedYesPct}
+                    deadlineTs={Number(detail.deadline)}
+                    height={280}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-white/20 text-xs">
+                    Loading chart…
+                  </div>
+                )}
               </div>
             </div>
 
