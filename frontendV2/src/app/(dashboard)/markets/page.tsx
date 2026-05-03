@@ -6,9 +6,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { GridViewIcon } from "@hugeicons/core-free-icons";
 import { useMarkets } from "@/lib/hooks/use-markets";
 
-const PriceChart = dynamic(() => import("../../_components/price-chart"), {
-  ssr: false,
-});
+const ProtocolVolumeChart = dynamic(
+  () => import("../../_components/protocol-volume-chart"),
+  { ssr: false }
+);
 
 export default function MarketsPage() {
   const { markets, totalCount, isLoading, isError, error, refetch } =
@@ -34,21 +35,27 @@ export default function MarketsPage() {
         </button>
       </div>
 
-      {/* Aggregate Volume Graph */}
+      {/* Protocol Volume Chart */}
       <div
         className="flex flex-col rounded-xl overflow-hidden"
         style={{
           border: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(255,255,255,0.015)",
+          background: "#161616",
         }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/5">
-          <span className="text-[12px] font-semibold text-[#7B6EF4] uppercase tracking-widest">
+        <div
+          className="flex items-center justify-between px-6 py-3 border-b border-white/5"
+          style={{ background: "rgba(255,255,255,0.02)" }}
+        >
+          <span className="text-[11px] font-semibold text-[#7B6EF4] uppercase tracking-widest">
             Protocol Volume (30D)
           </span>
+          <span className="text-[10px] text-white/25">
+            Cumulative USDT · Daily bars
+          </span>
         </div>
-        <div className="p-4" style={{ height: 280 }}>
-          <PriceChart markets={markets} />
+        <div className="px-5 pt-4 pb-2" style={{ height: 310 }}>
+          <ProtocolVolumeChart markets={markets} height={270} />
         </div>
       </div>
 
