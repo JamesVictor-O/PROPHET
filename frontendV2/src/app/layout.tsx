@@ -1,10 +1,11 @@
 import React from "react";
 import "./globals.css";
 import { Web3Provider } from "./_components/web3-provider";
+import FloatingCreateButton from "./_components/floating-create-button";
 
 export const metadata = {
-  title: "frontendV2",
-  description: "A fresh Next.js/React scaffold for frontendV2",
+  title: "Prophet — AI Prediction Markets",
+  description: "Autonomous, private, verifiable prediction markets powered by 0G",
 };
 
 export default function RootLayout({
@@ -15,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          {children}
+          <FloatingCreateButton />
+        </Web3Provider>
       </body>
     </html>
   );

@@ -9,7 +9,6 @@ import {
   BarChartIcon,
   PieChart01Icon,
   Robot01Icon,
-  Settings01Icon,
   Tick01Icon,
   Copy01Icon,
   Analytics01Icon,
@@ -21,7 +20,6 @@ const NAV = [
   { label: "Portfolio", href: "/portfolio", icon: PieChart01Icon },
   { label: "Oracle Agent", href: "/oracle", icon: Robot01Icon },
   { label: "Liquidity", href: "/liquidity", icon: Analytics01Icon },
-  { label: "Settings", href: "/settings", icon: Settings01Icon },
 ];
 
 const ACCENT = "#7B6EF4";

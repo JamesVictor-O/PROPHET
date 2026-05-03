@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { formatUnits } from "viem";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -10,7 +9,6 @@ import {
   SafeIcon,
   ArrowUpRight01Icon,
 } from "@hugeicons/core-free-icons";
-import CreateMarketModal from "../_components/create-market-modal";
 import { useMarkets } from "@/lib/hooks/use-markets";
 
 function formatUsdt(raw: bigint): string {
@@ -31,7 +29,6 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const { markets, totalCount, isLoading } = useMarkets();
 
   const openCount     = markets.filter((m) => m.chainStatus === "Open").length;
@@ -71,13 +68,6 @@ export default function DashboardPage() {
             Live on-chain overview of the Prophet prediction market protocol.
           </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all hover:opacity-90"
-          style={{ background: "#7B6EF4", color: "#0a0a0a" }}
-        >
-          Create Market
-        </button>
       </div>
 
       {/* Metrics Row */}
@@ -169,10 +159,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <CreateMarketModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
     </div>
   );
 }
