@@ -238,8 +238,8 @@ contract ProphetFactoryTest is Test {
         assertEq(mc.positionVault(),          address(vault));
         assertEq(mc.payoutDistributor(),      address(distributor));
         assertEq(mc.USDT(),                   address(usdt));
-        // Market starts in Pending — must pass the social filter before going Open
-        assertEq(uint8(mc.status()), uint8(IMarketContract.MarketStatus.Pending));
+        // Market opens immediately on creation (no pending period)
+        assertEq(uint8(mc.status()), uint8(IMarketContract.MarketStatus.Open));
     }
 
     function test_createMarket_Success_TracksCreator() public {

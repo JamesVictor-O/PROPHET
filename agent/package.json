@@ -5,24 +5,26 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "oracle":        "tsx watch src/oracle/index.ts",
-    "market-maker":  "tsx watch src/market-maker/index.ts",
-    "start":         "concurrently \"npm run oracle\" \"npm run market-maker\"",
-    "test:compute":  "tsx src/scripts/test-compute.ts",
-    "build":         "tsc --noEmit",
-    "typecheck":     "tsc --noEmit"
+    "oracle": "tsx watch src/oracle/index.ts",
+    "market-maker": "tsx watch src/market-maker/index.ts",
+    "start": "concurrently \"npm run oracle\" \"npm run market-maker\"",
+    "test:compute": "tsx src/scripts/test-compute.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.7.5",
-    "@0glabs/0g-ts-sdk":         "^0.3.3",
-    "ethers":                    "^6.13.0",
-    "openai":                    "^4.47.0",
-    "dotenv":                    "^16.4.5"
+    "@0glabs/0g-ts-sdk": "^0.3.3",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0",
+    "openai": "^4.47.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
-    "tsx":         "^4.15.7",
-    "typescript":  "^5.4.5",
+    "@types/node": "^20.14.0",
     "concurrently": "^8.2.2",
-    "@types/node": "^20.14.0"
+    "tsx": "^4.15.7",
+    "typescript": "^5.4.5"
   }
 }

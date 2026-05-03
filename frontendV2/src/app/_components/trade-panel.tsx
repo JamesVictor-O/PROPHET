@@ -7,8 +7,9 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { erc20Abi, parseUnits, toHex } from "viem";
+import { erc20Abi, parseUnits } from "viem";
 import { MARKET_CONTRACT_ABI, MOCK_USDT_ADDRESS } from "../../lib/contracts";
+import { encryptBetDirection } from "@/lib/bet-encryption";
 
 export default function TradePanel({
   marketAddress,
@@ -77,8 +78,10 @@ export default function TradePanel({
         args: [marketAddress as `0x${string}`, amountUnits],
       });
     } else {
-      // Encode plaintext choice into bytes payload fulfilling `bytes encryptedCommitment` strict params
-      const encryptedCommitment = toHex(side);
+      // Encrypt bet direction with oracle's NaCl public key (ECDH + XSalsa20-Poly1305).
+      // Only the oracle agent can decrypt — direction is never revealed on-chain.
+      const oraclePublicKey = process.env.NEXT_PUBLIC_ORACLE_NACL_PUBLIC_KEY ?? "";
+      const encryptedCommitment = encryptBetDirection(side, oraclePublicKey);
 
       writeBet({
         address: marketAddress as `0x${string}`,

@@ -15,6 +15,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "dotenv/config";
+import nacl                    from "tweetnacl";
+import { decodeBase64, decodeUTF8 } from "tweetnacl-util";
 import { ethers }              from "ethers";
 import { createLogger }        from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket, getVault,
@@ -220,14 +222,32 @@ async function revealPositions(
 
     if (pos.revealed) continue;
 
-    // Decode commitment: frontend sends toHex("YES") or toHex("NO")
-    // TODO: replace with real 0G TEE decryption when TEE SDK is integrated
+    // Decrypt commitment: NaCl box (ECDH + XSalsa20-Poly1305)
+    // Wire format: ephemeralPub(32) + nonce(24) + ciphertext
     let direction = true;
     try {
-      const text = ethers.toUtf8String(pos.encryptedCommitment);
-      direction  = text.trim().toUpperCase() === "YES";
+      const secretKeyB64 = process.env.ORACLE_NACL_SECRET_KEY ?? "";
+      const secretKey    = decodeBase64(secretKeyB64);
+      const packed       = ethers.getBytes(pos.encryptedCommitment);
+
+      if (packed.length > 56) {
+        const ephemeralPub = packed.slice(0, 32);
+        const nonce        = packed.slice(32, 56);
+        const ciphertext   = packed.slice(56);
+        const decrypted    = nacl.box.open(ciphertext, nonce, ephemeralPub, secretKey);
+        if (decrypted) {
+          const text = new TextDecoder().decode(decrypted);
+          direction  = text.trim().toUpperCase() === "YES";
+        } else {
+          logger.warn("NaCl decryption failed for position — defaulting to YES", { index: i });
+        }
+      } else {
+        // Fallback: legacy plaintext UTF-8 commitment (pre-encryption bets)
+        const text = ethers.toUtf8String(pos.encryptedCommitment);
+        direction  = text.trim().toUpperCase() === "YES";
+      }
     } catch {
-      logger.warn("Could not decode commitment for position — defaulting to YES", { market: marketAddress, index: i });
+      logger.warn("Could not decrypt commitment for position — defaulting to YES", { market: marketAddress, index: i });
     }
 
     positions.push({

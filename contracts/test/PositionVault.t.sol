@@ -18,7 +18,8 @@ contract PositionVaultTest is Test {
     PayoutDistributor distributor;
     MarketContract    market;
 
-    address constant ORACLE       = address(0xA11CE);
+    uint256 constant ORACLE_PK     = 0xA11CE_BEEF;
+    address          ORACLE;
     address constant MARKET_MAKER = address(0xB0B);
     address constant TREASURY     = address(0x7EA50);
     address constant ALICE        = address(0xA11CE2);
@@ -29,7 +30,7 @@ contract PositionVaultTest is Test {
     uint256 constant BOB_BET         = 200e6;
 
     bytes32 constant SOURCES_HASH   = keccak256("ipfs://sources.json");
-    bytes   constant VALID_ATTEST   = hex"deadbeef";
+    bytes   constant VALID_ATTEST   = hex"deadbeef"; // used for revealPositions stub only
     bytes32 constant REASONING_HASH = keccak256("reasoning");
 
     uint256 MARKET_DEADLINE;
@@ -42,7 +43,15 @@ contract PositionVaultTest is Test {
 
     // ── Setup ──────────────────────────────────────────────────────
 
+    function _oracleAttest(address mkt, bool verdict, bytes32 hash) internal view returns (bytes memory) {
+        bytes32 msgHash = keccak256(abi.encodePacked(mkt, verdict, hash));
+        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ORACLE_PK, ethHash);
+        return abi.encodePacked(r, s, v);
+    }
+
     function setUp() public {
+        ORACLE  = vm.addr(ORACLE_PK);
         usdt    = new MockUSDT();
         factory = new ProphetFactory(address(usdt), ORACLE, MARKET_MAKER, TREASURY);
 
@@ -80,7 +89,7 @@ contract PositionVaultTest is Test {
         vm.warp(MARKET_DEADLINE + 1);
         market.triggerResolution();
         vm.prank(ORACLE);
-        market.postResolution(verdict, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(verdict, REASONING_HASH, _oracleAttest(address(market), verdict, REASONING_HASH));
         vm.warp(block.timestamp + 25 hours);
         market.finalizeResolution();
     }

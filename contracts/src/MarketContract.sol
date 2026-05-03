@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { IMarketContract } from "./interfaces/IMarketContract.sol";
 import { IPositionVault } from "./interfaces/IPositionVault.sol";
 import { FeeLib } from "./libraries/FeeLib.sol";
@@ -213,10 +214,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         bytes32 reasoningHash,
         bytes calldata teeAttestation
     ) external override onlyOracle onlyWhenPendingResolution {
-        // Validate TEE attestation
-        // TODO: integrate 0G TEE verification SDK
-        // For hackathon MVP: stub returns true — replace with real verification
-        if (!_verifyTeeAttestation(teeAttestation)) {
+        if (!_verifyTeeAttestation(verdict, reasoningHash, teeAttestation)) {
             revert MarketContract__InvalidTeeAttestation();
         }
 
@@ -459,15 +457,26 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         }
     }
 
-    /// @notice Verify a TEE attestation proof
-    /// @dev TODO: integrate 0G TEE verification SDK before mainnet
-    /// @dev For hackathon MVP this is a stub — always returns true for non-empty bytes
+    /// @notice Verify oracle's ECDSA signature over (market, verdict, reasoningHash).
+    /// @dev The oracle agent signs keccak256(market ++ verdict ++ reasoningHash) with
+    ///      its wallet private key before calling postResolution. This proves the verdict
+    ///      was produced by the authorised oracle key, not an impersonator.
+    ///      Full 0G TEE hardware attestation would replace this once the SDK is stable.
     function _verifyTeeAttestation(
+        bool    verdict,
+        bytes32 reasoningHash,
         bytes calldata attestation
-    ) internal pure returns (bool valid) {
-        // TODO: Replace with real 0G TEE attestation verification
-        // Reference: https://docs.0g.ai — TEE verification SDK
-        valid = attestation.length > 0;
+    ) internal view returns (bool valid) {
+        if (attestation.length == 0) return false;
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(address(this), verdict, reasoningHash)
+        );
+        // Inline eth_sign prefix — equivalent to MessageHashUtils.toEthSignedMessageHash
+        bytes32 ethHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
+        );
+        address signer  = ECDSA.recover(ethHash, attestation);
+        valid = (signer == oracleAgent);
     }
 
     // ─────────────────────────────────────────────────────────────

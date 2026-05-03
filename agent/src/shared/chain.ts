@@ -196,15 +196,20 @@ export async function postResolutionOnChain(
   const market      = getMarket(marketAddress, oracleSigner);
   const bytes32Hash = ethers.zeroPadValue(ethers.hexlify(ethers.toUtf8Bytes(reasoningHash)), 32);
 
-  // MVP stub attestation — TODO: replace with real 0G TEE attestation proof
-  const stubAttestation = ethers.hexlify(ethers.toUtf8Bytes("0g-tee-attestation-stub"));
+  // Sign keccak256(market ++ verdict ++ reasoningHash) with the oracle private key.
+  // The contract's _verifyTeeAttestation recovers the signer and checks it equals oracleAgent.
+  const msgHash     = ethers.solidityPackedKeccak256(
+    ["address", "bool", "bytes32"],
+    [marketAddress, verdict, bytes32Hash]
+  );
+  const attestation = await oracleSigner.signMessage(ethers.getBytes(msgHash));
 
   logger.info("Posting resolution on-chain...", {
     market:  marketAddress,
     verdict,
   });
 
-  const tx      = await market.postResolution(verdict, bytes32Hash, stubAttestation);
+  const tx      = await market.postResolution(verdict, bytes32Hash, attestation);
   const receipt = await tx.wait();
 
   logger.info("Resolution posted", { txHash: receipt.hash, block: receipt.blockNumber });

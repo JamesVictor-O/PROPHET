@@ -18,7 +18,8 @@ contract MarketContractTest is Test {
     PayoutDistributor distributor;
     MarketContract    market;
 
-    address constant ORACLE       = address(0xA11CE);
+    uint256 constant ORACLE_PK     = 0xA11CE_BEEF;  // private key for oracle in tests
+    address          ORACLE;                          // derived from ORACLE_PK in setUp
     address constant MARKET_MAKER = address(0xB0B);
     address constant TREASURY     = address(0x7EA50);
     address constant ALICE        = address(0xA11CE2);
@@ -31,7 +32,7 @@ contract MarketContractTest is Test {
     uint256 constant MIN_BET         = 1e6;      //     1 USDT
 
     bytes32 constant SOURCES_HASH    = keccak256("ipfs://sources.json");
-    bytes   constant VALID_ATTEST    = hex"deadbeef";
+    bytes   constant VALID_ATTEST    = hex"deadbeef"; // used for revealPositions stub only
     bytes32 constant REASONING_HASH  = keccak256("oracle reasoning json");
 
     uint256 MARKET_DEADLINE;
@@ -51,6 +52,7 @@ contract MarketContractTest is Test {
     // ── Setup ──────────────────────────────────────────────────────
 
     function setUp() public {
+        ORACLE  = vm.addr(ORACLE_PK);
         usdt    = new MockUSDT();
         factory = new ProphetFactory(address(usdt), ORACLE, MARKET_MAKER, TREASURY);
 
@@ -93,9 +95,17 @@ contract MarketContractTest is Test {
         market.triggerResolution();
     }
 
+    // Sign (market, verdict, reasoningHash) with oracle private key — matches _verifyTeeAttestation
+    function _oracleAttest(address mkt, bool verdict, bytes32 hash) internal view returns (bytes memory) {
+        bytes32 msgHash = keccak256(abi.encodePacked(mkt, verdict, hash));
+        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ORACLE_PK, ethHash);
+        return abi.encodePacked(r, s, v);
+    }
+
     function _postResolution(bool verdict) internal {
         vm.prank(ORACLE);
-        market.postResolution(verdict, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(verdict, REASONING_HASH, _oracleAttest(address(market), verdict, REASONING_HASH));
     }
 
     function _finalizeResolution() internal {
@@ -281,7 +291,7 @@ contract MarketContractTest is Test {
     function test_postResolution_YES_SetsState() public {
         _triggerResolution();
         vm.prank(ORACLE);
-        market.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(true, REASONING_HASH, _oracleAttest(address(market), true, REASONING_HASH));
 
         assertEq(uint8(market.status()),          uint8(IMarketContract.MarketStatus.Challenged));
         assertTrue(market.outcome());
@@ -293,7 +303,7 @@ contract MarketContractTest is Test {
     function test_postResolution_NO_SetsState() public {
         _triggerResolution();
         vm.prank(ORACLE);
-        market.postResolution(false, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(false, REASONING_HASH, _oracleAttest(address(market), false, REASONING_HASH));
 
         assertFalse(market.outcome());
         assertEq(uint8(market.status()), uint8(IMarketContract.MarketStatus.Challenged));
@@ -305,21 +315,21 @@ contract MarketContractTest is Test {
         vm.prank(ORACLE);
         vm.expectEmit(true, false, false, true);
         emit ResolutionPosted(address(market), true, REASONING_HASH, expectedChallengeDl);
-        market.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(true, REASONING_HASH, _oracleAttest(address(market), true, REASONING_HASH));
     }
 
     function test_postResolution_RevertsNotOracle() public {
         _triggerResolution();
         vm.prank(ALICE);
         vm.expectRevert(IMarketContract.MarketContract__NotOracleAgent.selector);
-        market.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(true, REASONING_HASH, _oracleAttest(address(market), true, REASONING_HASH));
     }
 
     function test_postResolution_RevertsNotPendingResolution() public {
         // Market is Open
         vm.prank(ORACLE);
         vm.expectRevert(IMarketContract.MarketContract__NotPendingResolution.selector);
-        market.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        market.postResolution(true, REASONING_HASH, _oracleAttest(address(market), true, REASONING_HASH));
     }
 
     function test_postResolution_RevertsEmptyAttestation() public {
@@ -658,7 +668,7 @@ contract MarketContractTest is Test {
         vm.warp(mBond.deadline() + 1);
         mBond.triggerResolution();
         vm.prank(ORACLE);
-        mBond.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        mBond.postResolution(true, REASONING_HASH, _oracleAttest(address(mBond), true, REASONING_HASH));
         vm.warp(block.timestamp + 25 hours);
 
         vm.expectEmit(true, true, false, true);
@@ -678,7 +688,7 @@ contract MarketContractTest is Test {
         vm.warp(mBond.deadline() + 1);
         mBond.triggerResolution();
         vm.prank(ORACLE);
-        mBond.postResolution(true, REASONING_HASH, VALID_ATTEST);
+        mBond.postResolution(true, REASONING_HASH, _oracleAttest(address(mBond), true, REASONING_HASH));
 
         uint256 stake = mBond.requiredChallengeStake();
         vm.startPrank(BOB);
