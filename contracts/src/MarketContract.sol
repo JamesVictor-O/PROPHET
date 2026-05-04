@@ -7,6 +7,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { IMarketContract } from "./interfaces/IMarketContract.sol";
 import { IPositionVault } from "./interfaces/IPositionVault.sol";
+import { ILiquidityPool } from "./interfaces/ILiquidityPool.sol";
 import { FeeLib } from "./libraries/FeeLib.sol";
 import { MarketLib } from "./libraries/MarketLib.sol";
 
@@ -61,6 +62,9 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     uint256 public override challengeDeadline;
     uint256 public override resolutionTimestamp;
 
+    // ─── Pool integration ───
+    bool private _poolFundsReturned;
+
     // Challenge state
     address public override challenger;
     uint256 public override challengeStake;
@@ -72,6 +76,10 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     // ─────────────────────────────────────────────────────────────
     // Constants
     // ─────────────────────────────────────────────────────────────
+
+    // Errors added for pool integration (not in interface — new additions)
+    error MarketContract__NotSettled();
+    error MarketContract__PoolAlreadyReturned();
 
     uint256 private constant CHALLENGE_WINDOW    = 24 hours;
     uint256 private constant CHALLENGE_STAKE_BPS = 500;   // 5% of total collateral
@@ -341,6 +349,34 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         }
 
         emit PayoutsDistributed(address(this), totalPaid, winners.length);
+    }
+
+    /// @notice Return the liquidity pool's allocated capital after market settlement.
+    /// @dev    When the market maker agent allocates via LiquidityPool.allocateToMarket,
+    ///         that USDT is transferred directly to this contract but NOT tracked in
+    ///         totalCollateral — it sits as extra balance. After distributePayout drains
+    ///         bettor collateral, the pool allocation remains and can be returned here.
+    ///         Fees are 0 for MVP — full fee-routing via mm fee will be added in V2.
+    function returnLiquidityToPool(address pool) external nonReentrant {
+        if (status != MarketStatus.Resolved && status != MarketStatus.Cancelled) {
+            revert MarketContract__NotSettled();
+        }
+        if (_poolFundsReturned) revert MarketContract__PoolAlreadyReturned();
+
+        uint256 allocation = ILiquidityPool(pool).marketAllocation(address(this));
+        if (allocation == 0) return; // market never received pool liquidity
+
+        uint256 bal = IERC20(USDT).balanceOf(address(this));
+        uint256 returnAmt = allocation > bal ? bal : allocation; // cap at actual balance
+
+        // Effects before external calls
+        _poolFundsReturned = true;
+
+        // Transfer principal to pool, then notify for accounting
+        if (returnAmt > 0) {
+            IERC20(USDT).safeTransfer(pool, returnAmt);
+        }
+        ILiquidityPool(pool).returnFromMarket(returnAmt, 0);
     }
 
     /// @inheritdoc IMarketContract

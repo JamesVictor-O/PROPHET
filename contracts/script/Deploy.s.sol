@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import "../src/ProphetFactory.sol";
 import "../src/PositionVault.sol";
 import "../src/PayoutDistributor.sol";
+import "../src/LiquidityPool.sol";
 import "../test/helpers/MockUSDT.sol";
 
 /**
@@ -145,7 +146,21 @@ contract DeployProphet is Script {
 
         // Step F: Wire vault + distributor into factory (can only be called once)
         factory.setVaultAndDistributor(address(vault), address(distributor));
-        console.log("[5/5] Factory initialised - vault and distributor linked");
+        console.log("[5/6] Factory initialised - vault and distributor linked");
+
+        // Step G: LiquidityPool — market maker agent is the allocation agent
+        LiquidityPool pool = new LiquidityPool(
+            usdtAddress,
+            address(factory),
+            marketMaker,   // market maker agent controls allocations
+            deployer       // owner
+        );
+        console.log("[6/6] LiquidityPool        :", address(pool));
+
+        // Seed pool with 10 000 USDT from deployer for demo markets
+        MockUSDT(usdtAddress).approve(address(pool), 10_000e6);
+        pool.addLiquidity(10_000e6);
+        console.log("      Seeded pool with 10 000 USDT");
 
         vm.stopBroadcast();
 
@@ -160,11 +175,13 @@ contract DeployProphet is Script {
         console.log("PROPHET_FACTORY_ADDRESS    =", address(factory));
         console.log("POSITION_VAULT_ADDRESS     =", address(vault));
         console.log("PAYOUT_DISTRIBUTOR_ADDRESS =", address(distributor));
+        console.log("LIQUIDITY_POOL_ADDRESS     =", address(pool));
         console.log("-------------------------------------------------");
         console.log("Explorer links (0G Galileo):");
         console.log("  Factory     https://chainscan-galileo.0g.ai/address/", address(factory));
         console.log("  Vault       https://chainscan-galileo.0g.ai/address/", address(vault));
         console.log("  Distributor https://chainscan-galileo.0g.ai/address/", address(distributor));
+        console.log("  Pool        https://chainscan-galileo.0g.ai/address/", address(pool));
         console.log("-------------------------------------------------");
         console.log("Next steps - add these addresses to:");
         console.log("  contracts/.env          PROPHET_FACTORY_ADDRESS, POSITION_VAULT_ADDRESS");
