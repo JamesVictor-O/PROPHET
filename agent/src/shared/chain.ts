@@ -46,6 +46,15 @@ const MARKET_ABI = [
   "function cancelMarket(string reason)",
 ] as const;
 
+const LIQUIDITY_POOL_ABI = [
+  "function availableLiquidity() view returns (uint256)",
+  "function totalPoolValue() view returns (uint256)",
+  "function marketAllocation(address market) view returns (uint256)",
+  "function maxAllocationBps() view returns (uint256)",
+  "function minAllocationBps() view returns (uint256)",
+  "function allocateToMarket(address market, uint256 amount)",
+] as const;
+
 const VAULT_ABI = [
   "event PositionsRevealed(address indexed market, uint256 totalPositions, uint256 timestamp)",
   "function getEncryptedPosition(address market, uint256 index) view returns (tuple(address bettor, bytes encryptedCommitment, uint256 collateralAmount, uint256 timestamp, bool revealed))",
@@ -103,6 +112,14 @@ export function getVault(
   const address = process.env.POSITION_VAULT_ADDRESS;
   if (!address) throw new Error("POSITION_VAULT_ADDRESS not set");
   return new ethers.Contract(address, VAULT_ABI, signerOrProvider);
+}
+
+export function getLiquidityPool(
+  signerOrProvider: ethers.JsonRpcProvider | Wallet
+): ethers.Contract | null {
+  const address = process.env.LIQUIDITY_POOL_ADDRESS;
+  if (!address) return null;
+  return new ethers.Contract(address, LIQUIDITY_POOL_ABI, signerOrProvider);
 }
 
 // ── Event listeners ───────────────────────────────────────────────────────────

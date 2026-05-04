@@ -17,7 +17,7 @@ import "dotenv/config";
 import { ethers }             from "ethers";
 import { createLogger }       from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket,
-         listenForEvent, getMarketInfo, getAllActiveMarkets } from "../shared/chain";
+         listenForEvent, getMarketInfo, getAllActiveMarkets, getLiquidityPool } from "../shared/chain";
 import { callPricingInference }  from "../shared/compute";
 import { writeMarketPrices, writeMMState } from "../shared/storage";
 import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types";
@@ -140,6 +140,93 @@ async function persistMMState(mmWallet: ReturnType<typeof createWallet>): Promis
   }
 }
 
+// ── Allocate pool liquidity to a new market ───────────────────────────────────
+
+/**
+ * Reads the pool's available liquidity and BPS limits, picks an allocation
+ * amount (clamped between min and max), then calls allocateToMarket().
+ *
+ * Strategy: allocate at the midpoint between minAllocationBps and maxAllocationBps
+ * so we neither under-seed nor over-concentrate in a single market.
+ *
+ * Silently skips if:
+ *   - LIQUIDITY_POOL_ADDRESS is not set
+ *   - Pool has no available liquidity
+ *   - Market already has an allocation
+ */
+async function allocateLiquidityToMarket(
+  marketAddress: string,
+  mmWallet:      ReturnType<typeof createWallet>
+): Promise<void> {
+  const pool = getLiquidityPool(mmWallet);
+  if (!pool) {
+    logger.info("LIQUIDITY_POOL_ADDRESS not set — skipping allocation", { market: marketAddress });
+    return;
+  }
+
+  try {
+    // Check if already allocated
+    const existing = await pool.marketAllocation(marketAddress) as bigint;
+    if (existing > BigInt(0)) {
+      logger.info("Market already has pool allocation — skipping", {
+        market: marketAddress,
+        existing: existing.toString(),
+      });
+      return;
+    }
+
+    const [available, poolValue, maxBps, minBps] = await Promise.all([
+      pool.availableLiquidity() as Promise<bigint>,
+      pool.totalPoolValue()     as Promise<bigint>,
+      pool.maxAllocationBps()   as Promise<bigint>,
+      pool.minAllocationBps()   as Promise<bigint>,
+    ]);
+
+    if (available === BigInt(0) || poolValue === BigInt(0)) {
+      logger.warn("Pool has no available liquidity — skipping allocation", {
+        market: marketAddress,
+        available: available.toString(),
+      });
+      return;
+    }
+
+    // Pick midpoint BPS between min and max
+    const targetBps = (minBps + maxBps) / BigInt(2);
+    const amount    = (poolValue * targetBps) / BigInt(10_000);
+
+    // Clamp to what's actually available
+    const finalAmount = amount > available ? available : amount;
+
+    if (finalAmount === BigInt(0)) {
+      logger.warn("Calculated allocation is zero — skipping", { market: marketAddress });
+      return;
+    }
+
+    logger.info("Allocating pool liquidity to market", {
+      market:    marketAddress,
+      amount:    finalAmount.toString(),
+      targetBps: targetBps.toString(),
+      available: available.toString(),
+    });
+
+    const tx      = await pool.allocateToMarket(marketAddress, finalAmount);
+    const receipt = await tx.wait();
+
+    logger.info("Pool liquidity allocated", {
+      market: marketAddress,
+      amount: finalAmount.toString(),
+      txHash: receipt.hash,
+      block:  receipt.blockNumber,
+    });
+  } catch (err) {
+    // Non-fatal — market still works without pool liquidity
+    logger.error("Failed to allocate pool liquidity to market", {
+      market: marketAddress,
+      err,
+    });
+  }
+}
+
 // ── Handle new market created ─────────────────────────────────────────────────
 
 async function handleMarketCreated(
@@ -166,6 +253,10 @@ async function handleMarketCreated(
     const tier   = Number(await market.liquidityTier()) as number;
 
     await priceMarket(marketAddress, info.question, info.deadline, tier, mmWallet);
+
+    // Allocate protocol liquidity from the pool to this market
+    await allocateLiquidityToMarket(marketAddress, mmWallet);
+
     await persistMMState(mmWallet);
   } catch (err) {
     logger.error("Failed to handle MarketCreated", { market: marketAddress, err });
