@@ -20,6 +20,7 @@ import OpenAI from "openai";
 import type { Wallet } from "ethers";
 import type { OracleResponse, PricingResponse } from "./types";
 import { createLogger } from "./logger";
+import { cfg, cfgNum } from "./config";
 
 const logger = createLogger("compute");
 
@@ -72,8 +73,8 @@ async function ensureAccountReady(
   broker: any,
   providerAddress: string
 ): Promise<void> {
-  const MIN_LEDGER_BALANCE = Number(process.env.COMPUTE_MIN_BALANCE ?? 10);    // 0G tokens
-  const TOP_UP_AMOUNT      = Number(process.env.COMPUTE_TOPUP_AMOUNT ?? 50);   // 0G tokens
+  const MIN_LEDGER_BALANCE = cfgNum("COMPUTE_MIN_BALANCE");
+  const TOP_UP_AMOUNT      = cfgNum("COMPUTE_TOPUP_AMOUNT");
 
   // ── Step 1: Ensure ledger exists ─────────────────────────────────────────
   let ledgerExists = false;
@@ -139,7 +140,7 @@ Your job is to determine the outcome of prediction market questions based on pub
 Rules:
 - Be objective and evidence-based. Do not speculate.
 - Only use the approved data sources provided. Do not invent sources.
-- If you cannot determine the outcome with >${process.env.ORACLE_MIN_CONFIDENCE ?? 70}% confidence, return verdict: null.
+- If you cannot determine the outcome with >${cfgNum("ORACLE_MIN_CONFIDENCE")}% confidence, return verdict: null.
 - Your reasoning is stored permanently on 0G Storage — it will be publicly auditable forever.
 - Respond ONLY in valid JSON. No preamble, no markdown, no explanation outside the JSON object.`;
 
@@ -176,10 +177,7 @@ export async function callOracleInference(
   sources:  string[],
   signer:   Wallet
 ): Promise<OracleResponse> {
-  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
-  if (!providerAddress) {
-    throw new Error("COMPUTE_PROVIDER_ADDRESS not set in environment");
-  }
+  const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
 
   // 1. Get broker (cached after first call)
   const broker = await getBroker(signer);
@@ -269,10 +267,7 @@ export async function callPricingInference(
   deadline: number,
   signer:   Wallet
 ): Promise<PricingResponse> {
-  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
-  if (!providerAddress) {
-    throw new Error("COMPUTE_PROVIDER_ADDRESS not set in environment");
-  }
+  const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
 
   logger.info("Calling 0G Compute for market pricing...", { question });
 
@@ -347,8 +342,7 @@ export async function callQuestionValidation(
   category: string,
   signer:   Wallet
 ): Promise<ValidationResponse> {
-  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
-  if (!providerAddress) throw new Error("COMPUTE_PROVIDER_ADDRESS not set");
+  const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
 
   const broker = await getBroker(signer);
   await ensureAccountReady(broker, providerAddress);
@@ -394,7 +388,7 @@ function buildOraclePrompt(
   deadlineIso: string,
   sources:     string[]
 ): string {
-  const minConfidence = process.env.ORACLE_MIN_CONFIDENCE ?? "70";
+  const minConfidence = cfgNum("ORACLE_MIN_CONFIDENCE");
   const sourceList    = sources.length > 0
     ? sources.map((s, i) => `${i + 1}. ${s}`).join("\n")
     : "General web search and knowledge";

@@ -20,6 +20,7 @@ import { createProvider, createWallet, getFactory, getMarket,
          listenForEvent, getMarketInfo, getAllActiveMarkets, getLiquidityPool } from "../shared/chain";
 import { callPricingInference }  from "../shared/compute";
 import { writeMarketPrices, writeMMState } from "../shared/storage";
+import { cfg, cfgNum } from "../shared/config";
 import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types";
 
 const TIER_NAMES: LiquidityTierString[] = ["Seed", "Low", "Medium", "High"];
@@ -44,7 +45,7 @@ const activeMarkets = new Map<string, TrackedMarket>();
 // Higher tier → more capital → more frequent repricing
 
 function getRepricingInterval(tier: number): number {
-  const base = Number(process.env.REPRICE_INTERVAL_MS ?? 60_000);
+  const base = cfgNum("REPRICE_INTERVAL_MS");
   switch (tier) {
     case 3: return Math.floor(base * 0.5);   // High:   0.5x interval
     case 2: return Math.floor(base * 1.0);   // Medium: base interval
@@ -276,7 +277,7 @@ async function startRepricingLoop(
   mmWallet: ReturnType<typeof createWallet>,
   provider: ReturnType<typeof createProvider>
 ): Promise<void> {
-  const loopInterval = Number(process.env.REPRICE_INTERVAL_MS ?? 300_000); // default 5 min
+  const loopInterval = cfgNum("REPRICE_INTERVAL_MS"); // default 5 min
 
   logger.info("Starting repricing loop", { intervalMs: loopInterval });
 
@@ -398,14 +399,8 @@ async function main() {
   logger.info("  Powered by 0G Compute + 0G Storage");
   logger.info("==============================================");
 
-  // Validate required env vars
-  const requiredEnv = [
-    "PRIVATE_KEY_MM",
-    "OG_CHAIN_RPC",
-    "OG_INDEXER_RPC",
-    "COMPUTE_PROVIDER_ADDRESS",
-    "PROPHET_FACTORY_ADDRESS",
-  ];
+  // Validate the only truly required env vars — the private keys
+  const requiredEnv = ["PRIVATE_KEY_MM", "PRIVATE_KEY_ORACLE"];
   for (const key of requiredEnv) {
     if (!process.env[key]) {
       throw new Error(`Missing required environment variable: ${key}`);
@@ -416,9 +411,9 @@ async function main() {
   const mmWallet = createWallet(process.env.PRIVATE_KEY_MM!, provider);
 
   logger.info("Market maker wallet", { address: mmWallet.address });
-  logger.info("0G Chain RPC",        { rpc: process.env.OG_CHAIN_RPC });
-  logger.info("0G Compute provider", { address: process.env.COMPUTE_PROVIDER_ADDRESS });
-  logger.info("Reprice interval",    { ms: process.env.REPRICE_INTERVAL_MS ?? 60000 });
+  logger.info("0G Chain RPC",        { rpc: cfg("OG_CHAIN_RPC") });
+  logger.info("0G Compute provider", { address: cfg("COMPUTE_PROVIDER_ADDRESS") });
+  logger.info("Reprice interval",    { ms: cfgNum("REPRICE_INTERVAL_MS") });
 
   // Check balance
   const balance = await provider.getBalance(mmWallet.address);

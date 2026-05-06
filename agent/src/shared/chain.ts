@@ -8,6 +8,7 @@ import type {
   MarketStatusString,
 } from "./types";
 import { createLogger } from "./logger";
+import { cfg } from "./config";
 
 const logger = createLogger("chain");
 
@@ -81,9 +82,7 @@ export function statusToString(n: number): MarketStatusString {
 
 
 export function createProvider(): ethers.JsonRpcProvider {
-  const rpc = process.env.OG_CHAIN_RPC;
-  if (!rpc) throw new Error("OG_CHAIN_RPC not set");
-  return new ethers.JsonRpcProvider(rpc);
+  return new ethers.JsonRpcProvider(cfg("OG_CHAIN_RPC"));
 }
 
 export function createWallet(privateKey: string, provider: ethers.JsonRpcProvider): Wallet {
@@ -94,9 +93,7 @@ export function createWallet(privateKey: string, provider: ethers.JsonRpcProvide
 export function getFactory(
   provider: ethers.JsonRpcProvider | Wallet
 ): ethers.Contract {
-  const address = process.env.PROPHET_FACTORY_ADDRESS;
-  if (!address) throw new Error("PROPHET_FACTORY_ADDRESS not set");
-  return new ethers.Contract(address, FACTORY_ABI, provider);
+  return new ethers.Contract(cfg("PROPHET_FACTORY_ADDRESS"), FACTORY_ABI, provider);
 }
 
 export function getMarket(
@@ -109,15 +106,13 @@ export function getMarket(
 export function getVault(
   signerOrProvider: ethers.JsonRpcProvider | Wallet
 ): ethers.Contract {
-  const address = process.env.POSITION_VAULT_ADDRESS;
-  if (!address) throw new Error("POSITION_VAULT_ADDRESS not set");
-  return new ethers.Contract(address, VAULT_ABI, signerOrProvider);
+  return new ethers.Contract(cfg("POSITION_VAULT_ADDRESS"), VAULT_ABI, signerOrProvider);
 }
 
 export function getLiquidityPool(
   signerOrProvider: ethers.JsonRpcProvider | Wallet
 ): ethers.Contract | null {
-  const address = process.env.LIQUIDITY_POOL_ADDRESS;
+  const address = cfg("LIQUIDITY_POOL_ADDRESS");
   if (!address) return null;
   return new ethers.Contract(address, LIQUIDITY_POOL_ABI, signerOrProvider);
 }

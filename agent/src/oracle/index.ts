@@ -1,18 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Prophet Oracle Agent
-//
-// Lifecycle:
-//   1. On startup: scan all markets in PendingResolution / Challenged state
-//   2. Listen for ResolutionTriggered events → call 0G Compute → post verdict
-//   3. Listen for ResolutionChallenged events → run second inference → process
-//   4. Listen for ResolutionFinalized events → reveal positions via PositionVault
-//
-// 0G integrations:
-//   - 0G Chain:   reads market state, submits postResolution / revealPositions
-//   - 0G Compute: DeepSeek V3 (mainnet) / Qwen 7B (testnet) for oracle inference
-//   - 0G Storage: writes reasoning chain permanently to Log layer
-//                 verdictReasoningHash on-chain points here for verifiability
-// ─────────────────────────────────────────────────────────────────────────────
 
 import "dotenv/config";
 import nacl                    from "tweetnacl";
@@ -25,6 +10,7 @@ import { createProvider, createWallet, getFactory, getMarket, getVault,
          processChallengeOnChain, revealPositionsOnChain } from "../shared/chain";
 import { callOracleInference }  from "../shared/compute";
 import { writeResolutionRecord, writeOracleWorkingState, readFromStorage } from "../shared/storage";
+import { cfg, cfgNum } from "../shared/config";
 import type { OracleResponse }  from "../shared/types";
 
 const logger = createLogger("oracle");
@@ -85,7 +71,7 @@ async function resolveMarket(
   }
 
   // 4. Call 0G Compute — question + deadline + approved sources → verdict
-  const minConfidence = Number(process.env.ORACLE_MIN_CONFIDENCE ?? 70);
+  const minConfidence = cfgNum("ORACLE_MIN_CONFIDENCE");
 
   let oracleResponse: OracleResponse;
   try {
@@ -113,7 +99,7 @@ async function resolveMarket(
     inconclusiveReason: oracleResponse.inconclusiveReason,
     timestamp:        Date.now(),
     txHash:           "",              // filled after on-chain submission
-    computeProvider:  process.env.COMPUTE_PROVIDER_ADDRESS ?? "",
+    computeProvider:  cfg("COMPUTE_PROVIDER_ADDRESS"),
     isChallenge,
   };
 
@@ -309,15 +295,8 @@ async function main() {
   logger.info("  Powered by 0G Compute + 0G Storage");
   logger.info("==============================================");
 
-  // Validate required env vars
-  const requiredEnv = [
-    "PRIVATE_KEY_ORACLE",
-    "OG_CHAIN_RPC",
-    "OG_INDEXER_RPC",
-    "COMPUTE_PROVIDER_ADDRESS",
-    "PROPHET_FACTORY_ADDRESS",
-    "POSITION_VAULT_ADDRESS",
-  ];
+  // Validate the only truly required env vars — the private keys
+  const requiredEnv = ["PRIVATE_KEY_ORACLE", "ORACLE_NACL_SECRET_KEY"];
   for (const key of requiredEnv) {
     if (!process.env[key]) {
       throw new Error(`Missing required environment variable: ${key}`);
@@ -327,9 +306,9 @@ async function main() {
   const provider     = createProvider();
   const oracleWallet = createWallet(process.env.PRIVATE_KEY_ORACLE!, provider);
 
-  logger.info("Oracle wallet", { address: oracleWallet.address });
-  logger.info("0G Chain RPC",  { rpc: process.env.OG_CHAIN_RPC });
-  logger.info("0G Compute provider", { address: process.env.COMPUTE_PROVIDER_ADDRESS });
+  logger.info("Oracle wallet",        { address: oracleWallet.address });
+  logger.info("0G Chain RPC",         { rpc: cfg("OG_CHAIN_RPC") });
+  logger.info("0G Compute provider",  { address: cfg("COMPUTE_PROVIDER_ADDRESS") });
 
   // Check balance
   const balance = await provider.getBalance(oracleWallet.address);
