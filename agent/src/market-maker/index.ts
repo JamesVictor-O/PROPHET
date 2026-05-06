@@ -276,7 +276,7 @@ async function startRepricingLoop(
   mmWallet: ReturnType<typeof createWallet>,
   provider: ReturnType<typeof createProvider>
 ): Promise<void> {
-  const loopInterval = Number(process.env.REPRICE_INTERVAL_MS ?? 60_000);
+  const loopInterval = Number(process.env.REPRICE_INTERVAL_MS ?? 300_000); // default 5 min
 
   logger.info("Starting repricing loop", { intervalMs: loopInterval });
 
@@ -309,6 +309,15 @@ async function startRepricingLoop(
             status: info.status,
           });
           activeMarkets.delete(addr);
+          continue;
+        }
+
+        // Skip 0G Compute call if market has zero collateral (no bettors yet)
+        // — saves inference credits on empty Seed-tier markets
+        if (info.totalCollateral === BigInt(0)) {
+          logger.debug("Market has no collateral — skipping reprice to save compute credits", {
+            market: tracked.address,
+          });
           continue;
         }
 
