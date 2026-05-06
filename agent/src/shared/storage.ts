@@ -27,6 +27,7 @@ import type {
   MarketMakerState,
 } from "./types";
 import { createLogger } from "./logger";
+import { cfg } from "./config";
 
 const logger = createLogger("storage");
 
@@ -57,12 +58,8 @@ export async function writeToStorage(
   data: unknown,
   signer: Wallet
 ): Promise<string> {
-  const indexerRpc = process.env.OG_INDEXER_RPC;
-  const chainRpc   = process.env.OG_CHAIN_RPC;
-
-  if (!indexerRpc || !chainRpc) {
-    throw new Error("OG_INDEXER_RPC and OG_CHAIN_RPC must be set");
-  }
+  const indexerRpc = cfg("OG_INDEXER_RPC");
+  const chainRpc   = cfg("OG_CHAIN_RPC");
 
   const indexer = new Indexer(indexerRpc);
   const buffer  = Buffer.from(JSON.stringify(data, null, 2));
@@ -91,12 +88,8 @@ export async function writeToStorage(
  * @returns Parsed JSON object
  */
 export async function readFromStorage<T = unknown>(rootHash: string): Promise<T> {
-  const indexerRpc = process.env.OG_INDEXER_RPC;
-  const chainRpc   = process.env.OG_CHAIN_RPC;
-
-  if (!indexerRpc || !chainRpc) {
-    throw new Error("OG_INDEXER_RPC and OG_CHAIN_RPC must be set");
-  }
+  const indexerRpc = cfg("OG_INDEXER_RPC");
+  const chainRpc   = cfg("OG_CHAIN_RPC");
 
   const indexer  = new Indexer(indexerRpc);
   const tmpFile  = join(tmpdir(), `prophet-storage-${randomBytes(8).toString("hex")}.json`);

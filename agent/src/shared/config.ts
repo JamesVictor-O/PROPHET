@@ -1,9 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Prophet Agent — static configuration
-//
-// Only the three private keys need to be environment variables.
-// Everything else is hardcoded here since it's public testnet data.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CONFIG = {
   // ── 0G Chain ──────────────────────────────────────────────────────────────
@@ -11,7 +5,7 @@ export const CONFIG = {
   OG_CHAIN_ID:     16602,
 
   // ── 0G Storage ────────────────────────────────────────────────────────────
-  OG_INDEXER_RPC:  "https://indexer-storage-testnet-standard.0g.ai",
+  OG_INDEXER_RPC:  "https://indexer-storage-testnet-turbo.0g.ai",
 
   // ── 0G Compute ────────────────────────────────────────────────────────────
   COMPUTE_PROVIDER_ADDRESS: "0xa48f01287233509FD694a22Bf840225062E67836",
