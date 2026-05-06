@@ -345,14 +345,18 @@ async function startRepricingLoop(
 // ── Startup scan ──────────────────────────────────────────────────────────────
 
 /**
- * On startup, find all Open markets and ensure they have price quotes.
- * Markets that were created while the agent was offline will get seeded here.
+ * On startup, find all Open markets and ensure they have:
+ *   1. Price quotes (from 0G Compute)
+ *   2. Pool liquidity allocation (from LiquidityPool)
+ *
+ * This is the crash-recovery path — any market created while the agent
+ * was offline gets fully caught up here before we start listening for events.
  */
 async function seedExistingMarkets(
   mmWallet: ReturnType<typeof createWallet>,
   provider: ReturnType<typeof createProvider>
 ): Promise<void> {
-  logger.info("Scanning for existing Open markets to seed prices...");
+  logger.info("Scanning for existing Open markets to seed prices and liquidity...");
 
   const markets = await getAllActiveMarkets(provider);
   logger.info(`Found ${markets.length} total markets`);
@@ -368,13 +372,17 @@ async function seedExistingMarkets(
       const market = getMarket(addr, provider);
       const tier   = Number(await market.liquidityTier()) as number;
 
-      logger.info("Seeding price for existing Open market", {
+      logger.info("Seeding existing Open market", {
         market: addr,
         question: info.question,
         tier,
       });
 
       await priceMarket(addr, info.question, info.deadline, tier, mmWallet);
+
+      // Also allocate pool liquidity if this market was missed while agent was down
+      await allocateLiquidityToMarket(addr, mmWallet);
+
       seeded++;
 
       // Small delay between markets to avoid hammering 0G Compute
@@ -399,12 +407,9 @@ async function main() {
   logger.info("  Powered by 0G Compute + 0G Storage");
   logger.info("==============================================");
 
-  // Validate the only truly required env vars — the private keys
-  const requiredEnv = ["PRIVATE_KEY_MM", "PRIVATE_KEY_ORACLE"];
-  for (const key of requiredEnv) {
-    if (!process.env[key]) {
-      throw new Error(`Missing required environment variable: ${key}`);
-    }
+  // Validate the only truly required env var for the market maker
+  if (!process.env.PRIVATE_KEY_MM) {
+    throw new Error("Missing required environment variable: PRIVATE_KEY_MM");
   }
 
   const provider = createProvider();
