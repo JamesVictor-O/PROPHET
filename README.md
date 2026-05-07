@@ -44,7 +44,7 @@ But in practice, every major prediction market platform is broken in at least on
 - **High gas fees on Ethereum** — makes small bets economically unviable
 
 ### The Core Problem
-Every existing prediction market forces you to choose between **decentralization** and **functionality**. You either get a centralized platform that works (Polymarket) or a decentralized one that doesn't (Augur).
+Every existing prediction market forces you to choose between **decentralization** and **functionality**. You either get a centralized platform that works  or a decentralized one that doesn't .
 
 The root cause is not product design — it is **infrastructure**. Prediction markets need:
 - Fast, cheap settlement for high-frequency betting
@@ -72,7 +72,7 @@ It is the first prediction market where:
 | **Oracle accountability** | Full reasoning chain stored permanently on 0G Storage — anyone can verify |
 | **Settlement** | Sub-second finality on 0G Chain — instant payouts to winners |
 
-Prophet does not replace Polymarket's UX — it replaces Polymarket's broken infrastructure with something that is decentralized, verifiable, and actually works.
+Prophet does not replace Polymarket's UX — its create a new infrastructure with something that is decentralized, verifiable, and actually works leveraging OG labs infastructure.
 
 ---
 

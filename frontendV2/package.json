@@ -9,8 +9,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@0gfoundation/0g-storage-ts-sdk": "^1.2.9",
     "@0glabs/0g-serving-broker": "^0.7.5",
-    "@0glabs/0g-ts-sdk": "^0.3.3",
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
     "@rainbow-me/rainbowkit": "^2.2.10",

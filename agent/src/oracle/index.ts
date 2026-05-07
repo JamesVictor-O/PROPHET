@@ -320,21 +320,7 @@ async function main() {
   // Set up event listeners
   const factory = getFactory(provider);
 
-  // ── Event: ResolutionTriggered ────────────────────────────────────────────
-  // Fired by MarketContract when anyone calls triggerResolution() after deadline
-  listenForEvent<[string, bigint, unknown]>(
-    factory,
-    "ResolutionTriggered",
-    async (marketAddress, timestamp) => {
-      logger.info("ResolutionTriggered event", {
-        market:    marketAddress,
-        timestamp: new Date(Number(timestamp) * 1000).toISOString(),
-      });
-      await resolveMarket(marketAddress, oracleWallet, provider, false);
-    }
-  );
-
-  // Also listen on all already-known markets for ResolutionTriggered
+  // Listen on all already-known markets for ResolutionTriggered
   // (factory only forwards if it's a new market)
   const existingMarkets = await getAllActiveMarkets(provider);
   for (const addr of existingMarkets) {

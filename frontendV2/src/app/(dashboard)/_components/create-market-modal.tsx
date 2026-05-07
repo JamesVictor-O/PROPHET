@@ -46,9 +46,11 @@ export default function CreateMarketModal({
   const [category, setCategory] = useState("crypto");
   const [deadlineDate, setDeadlineDate] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isStoringMetadata, setIsStoringMetadata] = useState(false);
   const [validatedSources, setValidatedSources] = useState<string[]>([]);
+  const [aiOverview, setAiOverview] = useState<object | null>(null);
   const [suggestions, setSuggestions] = useState<{
     question?:       string;
     category?:       string;
@@ -105,6 +107,7 @@ export default function CreateMarketModal({
     data: approveHash,
     error: approveError,
     isPending: isApprovePending,
+    reset: resetApprove,
   } = useWriteContract();
   const { isLoading: isApproveConfirming, isSuccess: isApproveSuccess } =
     useWaitForTransactionReceipt({ hash: approveHash });
@@ -114,6 +117,7 @@ export default function CreateMarketModal({
     data: hash,
     error: writeError,
     isPending: isWriting,
+    reset: resetWrite,
   } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
@@ -163,10 +167,17 @@ export default function CreateMarketModal({
       validationDoneRef.current = false;
       setSuggestions(null);
       setValidationError(null);
+      setValidationWarning(null);
       setIsStoringMetadata(false);
       setValidatedSources([]);
+      setAiOverview(null);
+      setQuestion("");
+      setCategory("crypto");
+      setDeadlineDate("");
+      resetWrite();
+      resetApprove();
     }
-  }, [isOpen]);
+  }, [isOpen, resetWrite, resetApprove]);
 
   if (!isOpen) return null;
 
@@ -207,12 +218,13 @@ export default function CreateMarketModal({
     setSuggestions(null);
     try {
       const deadlineIso = deadlineDate ? new Date(deadlineDate).toISOString() : "not specified";
-      const res  = await fetch("/api/validate-question", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ question: question.trim(), category, deadlineIso }),
-      });
-      const data = await res.json() as {
+
+      // 25 s client-side timeout — 0G Compute testnet can be slow.
+      // If it doesn't respond in time we proceed without AI improvements.
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 25_000);
+
+      let data: {
         valid:                    boolean;
         error?:                   string;
         detectedCategory?:        string;
@@ -220,15 +232,35 @@ export default function CreateMarketModal({
         suggestedDeadline?:       string;
         suggestedDeadlineReason?: string;
         suggestedSources?:        string[];
+        aiOverview?:              object;
       };
 
+      try {
+        const res = await fetch("/api/validate-question", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ question: question.trim(), category, deadlineIso }),
+          signal:  controller.signal,
+        });
+        data = await res.json() as typeof data;
+      } catch (fetchErr) {
+        // Timeout or network error — treat as valid so creation isn't blocked
+        clearTimeout(timeoutId);
+        console.warn("[validate-question] timed out or failed — proceeding without AI validation");
+        data = { valid: true, suggestedSources: [] };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
       if (!data.valid) {
-        setValidationError(data.error ?? "0G Compute rejected this question.");
+        // Non-blocking — show warning but let user proceed. The AI model can be wrong.
+        setValidationWarning(data.error ?? "0G Compute flagged this question. You can still proceed.");
         return;
       }
 
-      // Capture sources for 0G Storage write
+      // Capture sources and AI overview for 0G Storage write
       if (data.suggestedSources?.length) setValidatedSources(data.suggestedSources);
+      if (data.aiOverview) setAiOverview(data.aiOverview);
 
       // Collect all suggestions the model offered
       const hasBetterQuestion = data.suggestedQuestion && data.suggestedQuestion !== question.trim();
@@ -245,9 +277,8 @@ export default function CreateMarketModal({
         return;   // user must review suggestions before we proceed
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setValidationError(`Could not reach 0G Compute for validation: ${msg}`);
-      return;
+      // Hard error (not timeout) — still non-blocking, just log and proceed
+      console.warn("[validate-question] error:", err instanceof Error ? err.message : err);
     } finally {
       setIsValidating(false);
     }
@@ -264,6 +295,7 @@ export default function CreateMarketModal({
       category,
       deadline:  new Date(deadlineDate).toISOString(),
       sources:   validatedSources,
+      ...(aiOverview ? { aiOverview } : {}),
     });
     // Local fallback hash — used when 0G Storage is unreachable
     const localFallbackHash = keccak256(toBytes(metadataJson));
@@ -485,6 +517,28 @@ export default function CreateMarketModal({
                     Keep Original
                   </button>
                 </div>
+              </div>
+            )}
+
+            {validationWarning && (
+              <div className="p-3 rounded-lg flex flex-col gap-2.5" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                <p className="text-xs text-amber-200/80">
+                  <span className="font-semibold">0G Compute flagged this:</span> {validationWarning}
+                </p>
+                <p className="text-xs text-white/40">
+                  If your question has an objective YES/NO answer, you can proceed anyway.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValidationWarning(null);
+                    validationDoneRef.current = true;
+                  }}
+                  className="self-start px-3 py-1.5 rounded text-xs font-semibold transition-all hover:opacity-90"
+                  style={{ background: "rgba(245,158,11,0.2)", color: "rgb(251,191,36)" }}
+                >
+                  Proceed anyway
+                </button>
               </div>
             )}
 

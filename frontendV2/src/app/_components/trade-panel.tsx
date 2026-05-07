@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAccount,
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { erc20Abi, parseUnits } from "viem";
+import { erc20Abi, maxUint256, parseUnits } from "viem";
 import { MARKET_CONTRACT_ABI, MOCK_USDT_ADDRESS } from "../../lib/contracts";
 import { encryptBetDirection } from "@/lib/bet-encryption";
 
@@ -21,7 +21,11 @@ export default function TradePanel({
   /** When false, market is not in Open status — bets revert on-chain */
   tradeEnabled?: boolean;
 }) {
-  const { address: userAddress } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  // Cache address in a ref so brief wagmi undefined blips after tx don't show "Connect Wallet"
+  const addressRef = useRef<`0x${string}` | undefined>(undefined);
+  if (wagmiAddress) addressRef.current = wagmiAddress;
+  const userAddress = wagmiAddress ?? addressRef.current;
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amountStr, setAmountStr] = useState("");
 
@@ -50,6 +54,7 @@ export default function TradePanel({
     writeContract: writeApprove,
     data: approveHash,
     isPending: isApprovePending,
+    reset: resetApprove,
   } = useWriteContract();
   const { isLoading: isApproveConfirming, isSuccess: isApproveSuccess } =
     useWaitForTransactionReceipt({ hash: approveHash });
@@ -59,6 +64,7 @@ export default function TradePanel({
     data: betHash,
     error: betError,
     isPending: isBetPending,
+    reset: resetBet,
   } = useWriteContract();
   const { isLoading: isBetConfirming, isSuccess: isBetSuccess } =
     useWaitForTransactionReceipt({ hash: betHash });
@@ -66,6 +72,18 @@ export default function TradePanel({
   useEffect(() => {
     if (isApproveSuccess) void refetchAllowance();
   }, [isApproveSuccess, refetchAllowance]);
+
+  // After a successful bet, clear tx state after 3 s so the user can place another
+  useEffect(() => {
+    if (!isBetSuccess) return;
+    const timer = setTimeout(() => {
+      resetBet();
+      resetApprove();
+      setAmountStr("");
+      void refetchAllowance();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [isBetSuccess, resetBet, resetApprove, refetchAllowance]);
 
   const handleAction = () => {
     if (!tradeEnabled || !marketAddress || amountUnits === BigInt(0)) return;
@@ -75,7 +93,7 @@ export default function TradePanel({
         address: MOCK_USDT_ADDRESS as `0x${string}`,
         abi: erc20Abi,
         functionName: "approve",
-        args: [marketAddress as `0x${string}`, amountUnits],
+        args: [marketAddress as `0x${string}`, maxUint256],
       });
     } else {
       // Encrypt bet direction with oracle's NaCl public key (ECDH + XSalsa20-Poly1305).

@@ -1,4 +1,4 @@
-import { Indexer } from "@0glabs/0g-ts-sdk";
+import { Indexer } from "@0gfoundation/0g-storage-ts-sdk";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";

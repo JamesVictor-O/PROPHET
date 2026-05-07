@@ -18,6 +18,7 @@ import {
   formatDeadlineTs,
 } from "@/lib/hooks/use-market-detail";
 import { useOracleReasoning } from "@/lib/hooks/use-oracle-reasoning";
+import { useMarketMetadata } from "@/lib/hooks/use-market-metadata";
 import { zeroGGalileo } from "@/lib/web3-config";
 
 const CandlestickChart = dynamic(
@@ -67,6 +68,11 @@ export default function MarketDetailPage() {
     error: reasoningError,
     hasHash: hasReasoningHash,
   } = useOracleReasoning(detail?.verdictReasoningHash);
+
+  const {
+    data: metadata,
+    isLoading: loadingOverview,
+  } = useMarketMetadata(detail?.resolutionSourcesHash);
 
   return (
     <div
@@ -371,13 +377,91 @@ export default function MarketDetailPage() {
                 <div className="flex flex-col gap-4 py-4">
                   {detail && (
                     <>
-                      <p
-                        className="text-[13px] leading-relaxed"
-                        style={{ color: "rgba(255,255,255,0.5)" }}
+                      {/* ── AI Overview (0G Compute) ─────────────────────── */}
+                      <div
+                        className="p-3 rounded-lg"
+                        style={{
+                          border: "1px solid rgba(123,110,244,0.15)",
+                          background: "rgba(123,110,244,0.04)",
+                        }}
                       >
-                        Resolution sources are committed on-chain as a hash. The
-                        oracle reasoning below is now fetched from 0G Storage.
-                      </p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span
+                            className="text-[10px] font-semibold uppercase tracking-widest"
+                            style={{ color: "rgba(167,159,250,0.7)" }}
+                          >
+                            AI Overview · 0G Compute
+                          </span>
+                        </div>
+
+                        {loadingOverview && (
+                          <div className="flex flex-col gap-1.5">
+                            {[80, 100, 60].map((w) => (
+                              <div
+                                key={w}
+                                style={{
+                                  width: `${w}%`,
+                                  height: 11,
+                                  background: "rgba(255,255,255,0.06)",
+                                  borderRadius: 2,
+                                  animation: "skeleton-pulse 1.5s ease-in-out infinite",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {!loadingOverview && metadata?.aiOverview && (
+                          <div className="flex flex-col gap-3 text-[12px]">
+                            <p className="text-white/70 leading-relaxed">
+                              {metadata.aiOverview.overview}
+                            </p>
+                            {metadata.aiOverview.keyFactors?.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] uppercase tracking-widest text-white/30">
+                                  Key factors
+                                </span>
+                                <ul className="flex flex-col gap-0.5">
+                                  {metadata.aiOverview.keyFactors.map((f) => (
+                                    <li
+                                      key={f}
+                                      className="flex items-start gap-1.5 text-white/55"
+                                    >
+                                      <span
+                                        className="mt-1.5 shrink-0 rounded-full"
+                                        style={{
+                                          width: 3,
+                                          height: 3,
+                                          background: "rgba(167,159,250,0.6)",
+                                        }}
+                                      />
+                                      {f}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {metadata.aiOverview.currentOddsContext && (
+                              <p
+                                className="text-[11px] leading-relaxed"
+                                style={{ color: "rgba(255,255,255,0.38)" }}
+                              >
+                                {metadata.aiOverview.currentOddsContext}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {!loadingOverview && !metadata?.aiOverview && (
+                          <p className="text-[12px] text-white/30">
+                            {metadata
+                              ? "AI overview not generated for this market."
+                              : "Overview loading…"}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* ── On-chain details ─────────────────────────────── */}
                       <dl className="grid gap-2 text-[12px]">
                         <div className="flex justify-between gap-4">
                           <dt className="text-white/35">Contract</dt>
@@ -424,8 +508,9 @@ export default function MarketDetailPage() {
                         )}
                       </dl>
 
+                      {/* ── Oracle reasoning (post-resolution) ───────────── */}
                       <div
-                        className="mt-2 p-3 rounded-lg"
+                        className="p-3 rounded-lg"
                         style={{
                           border: "1px solid rgba(255,255,255,0.06)",
                           background: "rgba(255,255,255,0.02)",
@@ -443,8 +528,10 @@ export default function MarketDetailPage() {
                         </div>
 
                         {!hasReasoningHash && (
-                          <p className="text-[12px] text-white/45">
-                            Reasoning hash not set for this market yet.
+                          <p className="text-[12px] text-white/35">
+                            The AI oracle will post its full reasoning here once
+                            this market resolves. The reasoning chain is stored
+                            permanently on 0G Storage and linked on-chain.
                           </p>
                         )}
 

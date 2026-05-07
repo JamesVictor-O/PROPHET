@@ -33,6 +33,7 @@ export type MarketDetail = {
   totalCollateral: bigint;
   challengeDeadline: bigint;
   verdictReasoningHash: `0x${string}`;
+  resolutionSourcesHash: `0x${string}`;
   creator: `0x${string}`;
 };
 
@@ -74,6 +75,7 @@ function parseInfo(
     totalCollateral: r[4],
     challengeDeadline: r[5],
     verdictReasoningHash: r[6],
+    resolutionSourcesHash: "0x" as `0x${string}`,
     creator: r[8],
   };
 }
@@ -132,10 +134,22 @@ export function useMarketDetail(routeId: string | undefined) {
     query: { enabled: !!address && isValid === true },
   });
 
-  const detail = useMemo(
-    () => (address && infoRaw ? parseInfo(address, infoRaw) : null),
-    [address, infoRaw],
-  );
+  const { data: sourcesHashRaw } = useReadContract({
+    address: address ?? "0x0000000000000000000000000000000000000000",
+    abi: MARKET_CONTRACT_ABI,
+    functionName: "resolutionSourcesHash",
+    query: { enabled: !!address && isValid === true },
+  });
+
+  const detail = useMemo(() => {
+    if (!address || !infoRaw) return null;
+    const d = parseInfo(address, infoRaw);
+    if (!d) return null;
+    return {
+      ...d,
+      resolutionSourcesHash: (sourcesHashRaw as `0x${string}` | undefined) ?? ("0x" as `0x${string}`),
+    };
+  }, [address, infoRaw, sourcesHashRaw]);
 
   const notRegistered =
     !!address && isValid === false && !loadingValid;

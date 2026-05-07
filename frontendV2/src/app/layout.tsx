@@ -1,7 +1,6 @@
 import React from "react";
 import "./globals.css";
 import { Web3Provider } from "./_components/web3-provider";
-import FloatingCreateButton from "./_components/floating-create-button";
 
 export const metadata = {
   title: "Prophet — AI Prediction Markets",
@@ -18,7 +17,6 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <Web3Provider>
           {children}
-          <FloatingCreateButton />
         </Web3Provider>
       </body>
     </html>

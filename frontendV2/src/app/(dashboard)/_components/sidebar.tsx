@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -12,6 +13,7 @@ import {
   Tick01Icon,
   Copy01Icon,
   Analytics01Icon,
+  Coins01Icon,
 } from "@hugeicons/core-free-icons";
 
 const NAV = [
@@ -20,6 +22,10 @@ const NAV = [
   { label: "Portfolio", href: "/portfolio", icon: PieChart01Icon },
   { label: "Oracle Agent", href: "/oracle", icon: Robot01Icon },
   { label: "Liquidity", href: "/liquidity", icon: Analytics01Icon },
+];
+
+const NAV_TOOLS = [
+  { label: "Faucet", href: "/faucet", icon: Coins01Icon },
 ];
 
 const ACCENT = "#7B6EF4";
@@ -119,9 +125,13 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="px-5 pt-5 pb-5 flex items-center gap-3">
-        <div className="size-6 bg-gradient-to-tr from-purple-600 to-blue-500 rounded flex items-center justify-center overflow-hidden">
-          <span className="text-[13px] font-bold text-white">P</span>
-        </div>
+        <Image
+          src="/ProphateLogo1.png"
+          alt="Prophet"
+          width={26}
+          height={26}
+          className="rounded object-contain"
+        />
         <span className="text-[16px] font-bold tracking-wide text-white">
           Prophet
         </span>
@@ -135,6 +145,53 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 flex flex-col gap-1">
         {NAV.map(({ label, href, icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 px-3 py-[9px] rounded-md transition-colors"
+              style={{
+                background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                color: active ? "#fff" : "rgba(255,255,255,0.35)",
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "rgba(255,255,255,0.03)";
+                  (e.currentTarget as HTMLElement).style.color =
+                    "rgba(255,255,255,0.6)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+                  (e.currentTarget as HTMLElement).style.color =
+                    "rgba(255,255,255,0.35)";
+                }
+              }}
+            >
+              <HugeiconsIcon
+                icon={icon}
+                size={16}
+                strokeWidth={active ? 2 : 1.5}
+                color={active ? ACCENT : "currentColor"}
+              />
+              <span className="text-[14px] font-medium">{label}</span>
+            </Link>
+          );
+        })}
+
+        {/* Divider + tools section */}
+        <div
+          className="my-2 mx-1"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+        />
+        <span className="px-3 pb-1 text-[10px] font-semibold tracking-widest uppercase text-white/20">
+          Tools
+        </span>
+        {NAV_TOOLS.map(({ label, href, icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link

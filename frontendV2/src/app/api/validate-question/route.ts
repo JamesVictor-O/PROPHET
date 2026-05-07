@@ -28,31 +28,29 @@ async function getEthers() {
 const VALIDATION_SYSTEM = `You are a prediction market question assistant.
 Your job is to help users create well-formed prediction market questions.
 
-IMPORTANT: Sports events, crypto prices, election results, and financial data are ALL publicly
-verifiable from free sources (ESPN, BBC Sport, UEFA, CoinGecko, Reuters, etc.).
-Never reject a question on those topics for "no verifiable outcome" — they always have one.
+CRYPTO PRICE QUESTIONS ARE ALWAYS VALID. Any question asking whether a token price will reach
+a specific number (e.g. "Will ETH hit $2500?", "Will BTC surpass $100k?") is ALWAYS valid: true.
+Price data is publicly verifiable on CoinGecko, Binance, Coinbase, and all major exchanges.
+NEVER return valid: false for a crypto price target question.
 
-HARD REJECT (valid: false) ONLY for these narrow cases:
-- Pure opinion with no factual answer: "Will Arsenal play well?", "Is Bitcoin a good investment?"
-- Private events that cannot be verified publicly: "Will my friend get a promotion?"
-- Completely undefined scope with no way to determine YES/NO even in principle
+HARD REJECT (valid: false) ONLY for these three narrow cases:
+1. Pure subjective opinion with no objective YES/NO: "Will Arsenal play well?", "Is Bitcoin a good investment?"
+2. Private events impossible to verify publicly: "Will my friend get a promotion?"
+3. Completely undefined scope: no asset, no price, no event, no way to determine outcome even in principle
 
 ACCEPT and IMPROVE everything else — including any question about:
+- Crypto: price targets, protocol launches, listings, TVL milestones
 - Sports: match winners, championship results, tournament outcomes
-- Crypto: price targets, protocol events, listings
-- Politics: election winners, policy outcomes
-- Finance: market levels, company events
+- Politics: election winners, policy outcomes, referendums
+- Finance: index levels, company earnings, IPOs
 
 For all valid questions, suggest improvements where useful:
-- suggestedQuestion: use official names, add season/year, standard market phrasing
+- suggestedQuestion: use official names, add season/year, use standard market phrasing
 - suggestedCategory: correct the category if wrong
-- suggestedDeadline: ISO 8601 — the real-world event deadline, MUST be in the future relative to today.
-  (Champions League final ≈ late May; World Cup final ≈ mid July; election day = exact date)
-  If the most recent occurrence has already passed, use the NEXT upcoming one
-  (e.g. if today is 2026, suggest the 2025/26 final, not the 2024/25 one).
-  Override the user's deadline if it falls before the event actually concludes.
-  Return null only if no specific future event date can be inferred.
-- suggestedDeadlineReason: one short sentence
+- suggestedDeadline: ISO 8601. For open-ended questions return null. For questions with a natural
+  deadline (sports finals, election day, end of day/week/month), match the user's intent exactly.
+  If user says "end of today", keep their deadline — do not override it.
+- suggestedDeadlineReason: one short sentence, or null
 
 Respond ONLY in valid JSON. No markdown, no preamble.`;
 
@@ -73,25 +71,32 @@ Respond with this exact JSON (all fields required):
   "suggestedSources": ["source1", "source2"]
 }
 
-Examples of VALID questions (always accept, suggest improvements):
+Examples of VALID questions (always return valid: true):
+- "Will ETH surpass $2500 before the end of today?" →
+  valid: true, detectedCategory: "crypto",
+  suggestedQuestion: "Will Ethereum (ETH) exceed $2,500 before the deadline?",
+  suggestedDeadline: null, suggestedDeadlineReason: null,
+  suggestedSources: ["CoinGecko", "Binance", "Coinbase"]
+
+- "Will BTC hit $100k?" →
+  valid: true, detectedCategory: "crypto",
+  suggestedQuestion: "Will Bitcoin (BTC) reach $100,000 before the deadline?",
+  suggestedDeadline: null, suggestedDeadlineReason: null,
+  suggestedSources: ["CoinGecko", "Binance", "Coinbase"]
+
 - "Will Arsenal win the champions league?" (asked in 2026) →
   valid: true, detectedCategory: "sports",
   suggestedQuestion: "Will Arsenal win the UEFA Champions League 2025/26?",
   suggestedDeadline: "2026-05-30T22:00:00.000Z",
   suggestedDeadlineReason: "UEFA Champions League 2025/26 final is approximately late May 2026"
 
-- "Will BTC hit 100k?" →
-  valid: true, detectedCategory: "crypto",
-  suggestedQuestion: "Will Bitcoin (BTC) reach $100,000 before the deadline?",
-  suggestedDeadline: null, suggestedDeadlineReason: null
-
 - "Will Man City win the Premier League?" →
   valid: true, detectedCategory: "sports",
-  suggestedQuestion: "Will Manchester City win the Premier League 2024/25?",
-  suggestedDeadline: "2025-05-25T17:00:00.000Z",
-  suggestedDeadlineReason: "Premier League 2024/25 final day is May 25, 2025"
+  suggestedQuestion: "Will Manchester City win the Premier League 2025/26?",
+  suggestedDeadline: "2026-05-17T17:00:00.000Z",
+  suggestedDeadlineReason: "Premier League 2025/26 final day is approximately mid-May 2026"
 
-Examples of INVALID questions (reject only these):
+Examples of INVALID questions (the ONLY cases for valid: false):
 - "Will Arsenal play well?" → valid: false, error: "Opinion-based — 'playing well' has no objective YES/NO outcome."
 - "Will my friend get a raise?" → valid: false, error: "Private event with no publicly verifiable outcome."`;
 }
@@ -156,7 +161,7 @@ export async function POST(req: NextRequest) {
         { role: "user",   content: userPrompt },
       ],
       temperature: 0.2,
-      max_tokens:  400,
+      max_tokens:  180,
     });
 
     const raw = response.choices[0]?.message?.content ?? "";
@@ -175,7 +180,41 @@ export async function POST(req: NextRequest) {
     if (!parsed.suggestedDeadline)       delete parsed.suggestedDeadline;
     if (!parsed.suggestedDeadlineReason) delete parsed.suggestedDeadlineReason;
 
-    return NextResponse.json(parsed);
+    // If valid, generate AI overview in the same 0G Compute session (reuses broker + client)
+    // This is stored in 0G Storage at market creation and read on the detail page — no per-view cost.
+    let aiOverview: { overview: string; keyFactors: string[]; currentOddsContext: string } | undefined;
+    if (parsed.valid) {
+      try {
+        const finalQuestion = parsed.suggestedQuestion ?? question.trim();
+        const overviewPrompt = `Market question: "${finalQuestion}"
+Category: ${parsed.detectedCategory ?? category}
+Today's date: ${new Date().toISOString().split("T")[0]}
+
+Respond with this exact JSON (no markdown, no preamble):
+{
+  "overview": "2-3 sentences explaining what this event is, who the key participants are, and why it matters. Be factual and informative.",
+  "keyFactors": ["Factor 1 that will determine the outcome", "Factor 2", "Factor 3"],
+  "currentOddsContext": "One sentence on current real-world expectations or recent developments that would inform a trader."
+}`;
+        const overviewHeaders = await broker.inference.getRequestHeaders(providerAddress, overviewPrompt);
+        const overviewClient  = new OpenAI({ baseURL: endpoint, apiKey: "", defaultHeaders: overviewHeaders });
+        const overviewResp    = await overviewClient.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: "You are a prediction market analyst. Respond ONLY in valid JSON. No markdown, no preamble." },
+            { role: "user",   content: overviewPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens:  220,
+        });
+        aiOverview = JSON.parse(overviewResp.choices[0]?.message?.content ?? "{}") as typeof aiOverview;
+      } catch (overviewErr) {
+        // Non-fatal — market creation proceeds without an overview
+        console.warn("[validate-question] Overview generation failed:", overviewErr instanceof Error ? overviewErr.message : overviewErr);
+      }
+    }
+
+    return NextResponse.json({ ...parsed, aiOverview });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[validate-question] 0G Compute validation failed:", err);

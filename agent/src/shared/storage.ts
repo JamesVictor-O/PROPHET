@@ -17,7 +17,7 @@ import { promises as fs } from "fs";
 import { tmpdir }         from "os";
 import { join }           from "path";
 import { randomBytes }    from "crypto";
-import { Indexer, MemData } from "@0glabs/0g-ts-sdk";
+import { Indexer, MemData } from "@0gfoundation/0g-storage-ts-sdk";
 import type { Wallet }    from "ethers";
 import type {
   MarketMetadata,
@@ -63,20 +63,24 @@ export async function writeToStorage(
 
   const indexer = new Indexer(indexerRpc);
   const buffer  = Buffer.from(JSON.stringify(data, null, 2));
-
-  // MemData wraps a buffer for in-memory upload to 0G Storage
   const memData = new MemData(buffer);
 
-  logger.info("Uploading to 0G Storage...", {
-    bytes: buffer.length,
-  });
+  // Required by the SDK: populate internal Merkle tree state before upload
+  const [, treeErr] = await memData.merkleTree();
+  if (treeErr) throw new Error(`0G Storage merkle tree failed: ${String(treeErr)}`);
+
+  logger.info("Uploading to 0G Storage...", { bytes: buffer.length });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, err] = await indexer.upload(memData, chainRpc, signer as any);
   if (err) throw new Error(`0G Storage upload failed: ${String(err)}`);
 
-  const rootHash = result.rootHash;
-  logger.info("0G Storage upload complete", { rootHash, txHash: result.txHash });
+  // New SDK returns either single-file or fragmented result — normalise both
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = result as any;
+  const rootHash = (r.rootHash ?? r.rootHashes?.[0]) as string;
+  const txHash   = (r.txHash  ?? r.txHashes?.[0])  as string | undefined;
+  logger.info("0G Storage upload complete", { rootHash, txHash });
   return rootHash;
 }
 
@@ -89,7 +93,6 @@ export async function writeToStorage(
  */
 export async function readFromStorage<T = unknown>(rootHash: string): Promise<T> {
   const indexerRpc = cfg("OG_INDEXER_RPC");
-  const chainRpc   = cfg("OG_CHAIN_RPC");
 
   const indexer  = new Indexer(indexerRpc);
   const tmpFile  = join(tmpdir(), `prophet-storage-${randomBytes(8).toString("hex")}.json`);

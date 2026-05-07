@@ -1,4 +1,5 @@
 import Sidebar from "./_components/sidebar";
+import FloatingCreateButton from "../_components/floating-create-button";
 
 export default function DashboardLayout({
   children,
@@ -9,6 +10,7 @@ export default function DashboardLayout({
     <div className="flex bg-[#161616] min-h-screen text-white">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">{children}</main>
+      <FloatingCreateButton />
     </div>
   );
 }

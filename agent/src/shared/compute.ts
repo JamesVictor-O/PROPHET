@@ -24,6 +24,24 @@ import { cfg, cfgNum } from "./config";
 
 const logger = createLogger("compute");
 
+// ── Timeout helper ────────────────────────────────────────────────────────────
+
+/** Rejects after `ms` milliseconds with a timeout error. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`0G Compute timed out after ${ms / 1000}s (${label})`)),
+      ms
+    );
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err as Error); }
+    );
+  });
+}
+
+const COMPUTE_TIMEOUT_MS = 45_000; // 45 s — generous for testnet latency
+
 // ── Broker singleton — one per wallet, recreated if wallet changes ────────────
 
 let _brokerCache: {
@@ -180,19 +198,23 @@ export async function callOracleInference(
   const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
 
   // 1. Get broker (cached after first call)
-  const broker = await getBroker(signer);
+  const broker = await withTimeout(getBroker(signer), COMPUTE_TIMEOUT_MS, "broker-init");
 
   // 2. Ensure account is funded and provider is acknowledged
-  await ensureAccountReady(broker, providerAddress);
+  await withTimeout(ensureAccountReady(broker, providerAddress), COMPUTE_TIMEOUT_MS, "account-ready");
 
   // 3. Get the provider's inference endpoint and model
-  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+  const { endpoint, model } = await withTimeout(
+    broker.inference.getServiceMetadata(providerAddress) as Promise<{ endpoint: string; model: string }>,
+    COMPUTE_TIMEOUT_MS,
+    "service-metadata"
+  );
   logger.info("Provider metadata retrieved", { endpoint, model });
 
   // 4. Verify TEE attestation — proves inference runs in a secure enclave
   logger.info("Verifying TEE attestation...");
   try {
-    await broker.inference.verifyService(providerAddress);
+    await withTimeout(broker.inference.verifyService(providerAddress), COMPUTE_TIMEOUT_MS, "tee-verify");
     logger.info("TEE attestation verified");
   } catch (err) {
     logger.warn("TEE attestation verification failed (non-fatal on testnet)", err);
@@ -203,7 +225,11 @@ export async function callOracleInference(
   const userPrompt   = buildOraclePrompt(question, deadlineDate, sources);
 
   // Billing headers — signed token required by the 0G provider proxy
-  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+  const billingHeaders = await withTimeout(
+    broker.inference.getRequestHeaders(providerAddress, userPrompt) as Promise<Record<string, string>>,
+    COMPUTE_TIMEOUT_MS,
+    "billing-headers"
+  );
 
   const client = new OpenAI({
     baseURL:        endpoint,
@@ -213,15 +239,19 @@ export async function callOracleInference(
 
   logger.info("Calling 0G Compute for oracle inference...", { model, question });
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: ORACLE_SYSTEM_PROMPT },
-      { role: "user",   content: userPrompt },
-    ],
-    temperature: 0.1,   // Low temperature = deterministic oracle decisions
-    max_tokens:  1500,
-  });
+  const response = await withTimeout(
+    client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: ORACLE_SYSTEM_PROMPT },
+        { role: "user",   content: userPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens:  1500,
+    }),
+    COMPUTE_TIMEOUT_MS,
+    "oracle-inference"
+  );
 
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("0G Compute returned empty response");
@@ -271,13 +301,17 @@ export async function callPricingInference(
 
   logger.info("Calling 0G Compute for market pricing...", { question });
 
-  const broker = await getBroker(signer);
-  await ensureAccountReady(broker, providerAddress);
+  const broker = await withTimeout(getBroker(signer), COMPUTE_TIMEOUT_MS, "broker-init");
+  await withTimeout(ensureAccountReady(broker, providerAddress), COMPUTE_TIMEOUT_MS, "account-ready");
 
-  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+  const { endpoint, model } = await withTimeout(
+    broker.inference.getServiceMetadata(providerAddress) as Promise<{ endpoint: string; model: string }>,
+    COMPUTE_TIMEOUT_MS,
+    "service-metadata"
+  );
 
   try {
-    await broker.inference.verifyService(providerAddress);
+    await withTimeout(broker.inference.verifyService(providerAddress), COMPUTE_TIMEOUT_MS, "tee-verify");
   } catch (err) {
     logger.warn("TEE verification failed for pricing (non-fatal on testnet)", err);
   }
@@ -285,7 +319,11 @@ export async function callPricingInference(
   const deadlineDate = new Date(deadline * 1000).toISOString();
   const userPrompt   = buildPricingPrompt(question, deadlineDate);
 
-  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+  const billingHeaders = await withTimeout(
+    broker.inference.getRequestHeaders(providerAddress, userPrompt) as Promise<Record<string, string>>,
+    COMPUTE_TIMEOUT_MS,
+    "billing-headers"
+  );
 
   const client = new OpenAI({
     baseURL:        endpoint,
@@ -293,15 +331,19 @@ export async function callPricingInference(
     defaultHeaders: billingHeaders,
   });
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: MARKET_MAKER_SYSTEM_PROMPT },
-      { role: "user",   content: userPrompt },
-    ],
-    temperature: 0.3,
-    max_tokens:  200,
-  });
+  const response = await withTimeout(
+    client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: MARKET_MAKER_SYSTEM_PROMPT },
+        { role: "user",   content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens:  200,
+    }),
+    COMPUTE_TIMEOUT_MS,
+    "pricing-inference"
+  );
 
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("0G Compute returned empty pricing response");

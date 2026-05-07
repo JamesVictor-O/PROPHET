@@ -94,7 +94,7 @@ async function priceMarket(
     const rootHash = await writeMarketPrices(marketAddress, prices, mmWallet);
     logger.info("Prices written to 0G Storage", { market: marketAddress, rootHash });
   } catch (err) {
-    logger.warn("0G Storage price write failed (non-fatal)", err);
+    logger.warn("0G Storage price write failed (non-fatal)", { message: err instanceof Error ? err.message : String(err) });
   }
 
   // Update in-memory tracker
@@ -144,19 +144,37 @@ async function persistMMState(mmWallet: ReturnType<typeof createWallet>): Promis
 // ── Allocate pool liquidity to a new market ───────────────────────────────────
 
 /**
- * Reads the pool's available liquidity and BPS limits, picks an allocation
- * amount (clamped between min and max), then calls allocateToMarket().
+ * Tier → target BPS mapping.
  *
- * Strategy: allocate at the midpoint between minAllocationBps and maxAllocationBps
- * so we neither under-seed nor over-concentrate in a single market.
+ * Seed  (0): minBps          — just enough to show a live spread on a brand-new market
+ * Low   (1): min + range/3   — small but meaningful; some bettors have joined
+ * Medium(2): min + range*2/3 — solid volume; worth deeper liquidity
+ * High  (3): maxBps          — top-tier market; deploy maximum capital
  *
- * Silently skips if:
- *   - LIQUIDITY_POOL_ADDRESS is not set
- *   - Pool has no available liquidity
- *   - Market already has an allocation
+ * All values are clamped between minBps and maxBps from the contract.
+ */
+function tierToBps(tier: number, minBps: bigint, maxBps: bigint): bigint {
+  const range = maxBps - minBps;
+  switch (tier) {
+    case 0:  return minBps;                          // Seed
+    case 1:  return minBps + range / BigInt(3);      // Low
+    case 2:  return minBps + (range * BigInt(2)) / BigInt(3); // Medium
+    case 3:  return maxBps;                          // High
+    default: return minBps;
+  }
+}
+
+/**
+ * Allocates (or tops up) pool liquidity for a market, scaled to its liquidity tier.
+ *
+ * - First call: allocates tier-appropriate amount
+ * - Subsequent calls (tier increase): tops up the difference so the total
+ *   allocated matches what the new tier deserves
+ * - Silently skips if pool has no funds or market is already at its target
  */
 async function allocateLiquidityToMarket(
   marketAddress: string,
+  tier:          number,
   mmWallet:      ReturnType<typeof createWallet>
 ): Promise<void> {
   const pool = getLiquidityPool(mmWallet);
@@ -166,48 +184,51 @@ async function allocateLiquidityToMarket(
   }
 
   try {
-    // Check if already allocated
-    const existing = await pool.marketAllocation(marketAddress) as bigint;
-    if (existing > BigInt(0)) {
-      logger.info("Market already has pool allocation — skipping", {
+    const [existing, available, poolValue, maxBps, minBps] = await Promise.all([
+      pool.marketAllocation(marketAddress) as Promise<bigint>,
+      pool.availableLiquidity()            as Promise<bigint>,
+      pool.totalPoolValue()                as Promise<bigint>,
+      pool.maxAllocationBps()              as Promise<bigint>,
+      pool.minAllocationBps()              as Promise<bigint>,
+    ]);
+
+    if (poolValue === BigInt(0)) {
+      logger.warn("Pool has no value — skipping allocation", { market: marketAddress });
+      return;
+    }
+
+    const targetBps    = tierToBps(tier, minBps, maxBps);
+    const targetAmount = (poolValue * targetBps) / BigInt(10_000);
+
+    // Already at or above target — nothing to do
+    if (existing >= targetAmount) {
+      logger.info("Market allocation already at target for tier", {
         market: marketAddress,
+        tier:   TIER_NAMES[tier] ?? "Seed",
         existing: existing.toString(),
+        target:   targetAmount.toString(),
       });
       return;
     }
 
-    const [available, poolValue, maxBps, minBps] = await Promise.all([
-      pool.availableLiquidity() as Promise<bigint>,
-      pool.totalPoolValue()     as Promise<bigint>,
-      pool.maxAllocationBps()   as Promise<bigint>,
-      pool.minAllocationBps()   as Promise<bigint>,
-    ]);
+    const topUp = targetAmount - existing;
+    const finalAmount = topUp > available ? available : topUp;
 
-    if (available === BigInt(0) || poolValue === BigInt(0)) {
-      logger.warn("Pool has no available liquidity — skipping allocation", {
-        market: marketAddress,
+    if (finalAmount === BigInt(0)) {
+      logger.warn("Pool has no available liquidity for top-up", {
+        market:    marketAddress,
+        needed:    topUp.toString(),
         available: available.toString(),
       });
       return;
     }
 
-    // Pick midpoint BPS between min and max
-    const targetBps = (minBps + maxBps) / BigInt(2);
-    const amount    = (poolValue * targetBps) / BigInt(10_000);
-
-    // Clamp to what's actually available
-    const finalAmount = amount > available ? available : amount;
-
-    if (finalAmount === BigInt(0)) {
-      logger.warn("Calculated allocation is zero — skipping", { market: marketAddress });
-      return;
-    }
-
     logger.info("Allocating pool liquidity to market", {
       market:    marketAddress,
-      amount:    finalAmount.toString(),
+      tier:      TIER_NAMES[tier] ?? "Seed",
       targetBps: targetBps.toString(),
-      available: available.toString(),
+      topUp:     finalAmount.toString(),
+      existing:  existing.toString(),
     });
 
     const tx      = await pool.allocateToMarket(marketAddress, finalAmount);
@@ -215,6 +236,7 @@ async function allocateLiquidityToMarket(
 
     logger.info("Pool liquidity allocated", {
       market: marketAddress,
+      tier:   TIER_NAMES[tier] ?? "Seed",
       amount: finalAmount.toString(),
       txHash: receipt.hash,
       block:  receipt.blockNumber,
@@ -253,10 +275,12 @@ async function handleMarketCreated(
     const market = getMarket(marketAddress, provider);
     const tier   = Number(await market.liquidityTier()) as number;
 
-    await priceMarket(marketAddress, info.question, info.deadline, tier, mmWallet);
-
-    // Allocate protocol liquidity from the pool to this market
-    await allocateLiquidityToMarket(marketAddress, mmWallet);
+    // Run pricing and allocation in parallel — don't let a slow 0G Compute
+    // call block capital deployment (allocation has no dependency on pricing)
+    await Promise.all([
+      priceMarket(marketAddress, info.question, info.deadline, tier, mmWallet),
+      allocateLiquidityToMarket(marketAddress, tier, mmWallet),
+    ]);
 
     await persistMMState(mmWallet);
   } catch (err) {
@@ -322,6 +346,19 @@ async function startRepricingLoop(
           continue;
         }
 
+        // Check if tier has increased since last reprice — top up allocation if so
+        const market      = getMarket(tracked.address, provider);
+        const currentTier = Number(await market.liquidityTier()) as number;
+        if (currentTier !== tracked.liquidityTier) {
+          logger.info("Market tier changed — updating allocation", {
+            market:  tracked.address,
+            oldTier: TIER_NAMES[tracked.liquidityTier] ?? "Seed",
+            newTier: TIER_NAMES[currentTier] ?? "Seed",
+          });
+          tracked.liquidityTier = currentTier;
+          await allocateLiquidityToMarket(tracked.address, currentTier, mmWallet);
+        }
+
         // Reprice
         await priceMarket(
           tracked.address,
@@ -378,10 +415,10 @@ async function seedExistingMarkets(
         tier,
       });
 
-      await priceMarket(addr, info.question, info.deadline, tier, mmWallet);
-
-      // Also allocate pool liquidity if this market was missed while agent was down
-      await allocateLiquidityToMarket(addr, mmWallet);
+      await Promise.all([
+        priceMarket(addr, info.question, info.deadline, tier, mmWallet),
+        allocateLiquidityToMarket(addr, tier, mmWallet),
+      ]);
 
       seeded++;
 

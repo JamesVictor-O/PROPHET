@@ -101,10 +101,13 @@ export default function LandingPage() {
       {/* ── TOP BAR ───────────────────────────────────────── */}
       <div className="relative z-10 flex items-center justify-between px-8 pt-7">
         <div className="flex items-center gap-2">
-          {/* Logo Placeholder */}
-          <div className="size-6 bg-gradient-to-tr from-purple-600 to-blue-500 rounded flex items-center justify-center overflow-hidden">
-            <span className="text-[12px] font-bold text-white">P</span>
-          </div>
+          <Image
+            src="/ProphateLogo1.png"
+            alt="Prophet"
+            width={28}
+            height={28}
+            className="rounded object-full bg-white"
+          />
           <span className="text-[16px] font-semibold tracking-wide text-white">
             Prophet
           </span>
@@ -118,10 +121,8 @@ export default function LandingPage() {
       <div className="relative z-10 flex flex-col items-center justify-center min-h-[85vh] gap-7 px-6 text-center">
         <div className="flex flex-col items-center gap-4 max-w-2xl">
           <h1 className="text-[52px] font-bold leading-[1.05] text-white tracking-tight">
-            Trade smarter. <br />
-            <span style={{ color: "rgba(255,255,255,0.25)" }}>
-              Privately. Autonomously. Verifiably.
-            </span>
+            Trade your opinions. Autonomously
+            <span style={{ color: "rgba(255,255,255,0.25)" }}></span>
           </h1>
           <p
             className="text-[16px] leading-relaxed mt-4"
