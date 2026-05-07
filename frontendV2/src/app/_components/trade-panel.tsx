@@ -14,10 +14,13 @@ import { encryptBetDirection } from "@/lib/bet-encryption";
 export default function TradePanel({
   marketAddress,
   marketYesPct,
+  isPriceLive = true,
   tradeEnabled = true,
 }: {
   marketAddress?: string;
   marketYesPct: number;
+  /** When false, the price is a fallback 50 — show "—" in toggle instead */
+  isPriceLive?: boolean;
   /** When false, market is not in Open status — bets revert on-chain */
   tradeEnabled?: boolean;
 }) {
@@ -145,13 +148,13 @@ export default function TradePanel({
           onClick={() => setSide("YES")}
           className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${side === "YES" ? "bg-[#34d399]/20 text-[#34d399]" : "text-white/40 hover:text-white"}`}
         >
-          YES {marketYesPct}%
+          YES {isPriceLive ? `${marketYesPct}%` : "—"}
         </button>
         <button
           onClick={() => setSide("NO")}
           className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${side === "NO" ? "bg-[#f87171]/20 text-[#f87171]" : "text-white/40 hover:text-white"}`}
         >
-          NO {100 - marketYesPct}%
+          NO {isPriceLive ? `${100 - marketYesPct}%` : "—"}
         </button>
       </div>
 

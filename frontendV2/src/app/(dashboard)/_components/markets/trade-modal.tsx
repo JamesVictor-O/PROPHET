@@ -8,12 +8,14 @@ export default function TradeModal({
   marketAddress,
   marketTitle,
   marketYesPct,
+  isPriceLive,
 }: {
   isOpen: boolean;
   onClose: () => void;
   marketAddress: string;
   marketTitle: string;
   marketYesPct: number;
+  isPriceLive?: boolean;
 }) {
   if (!isOpen) return null;
 
@@ -55,6 +57,7 @@ export default function TradeModal({
           <TradePanel
             marketAddress={marketAddress}
             marketYesPct={marketYesPct}
+            isPriceLive={isPriceLive}
           />
         </div>
       </div>

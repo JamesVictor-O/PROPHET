@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { getAddress, formatUnits, type Abi } from "viem";
 import {
@@ -94,6 +94,29 @@ export function useMarkets() {
     },
   });
 
+  // Fetch all live prices from the market-maker push cache and keep them fresh
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    function load() {
+      fetch("/api/prices")
+        .then((r) => r.json())
+        .then((data: Record<string, { yesPrice: number; fallback?: boolean }>) => {
+          const map: Record<string, number> = {};
+          for (const [addr, entry] of Object.entries(data)) {
+            if (!entry.fallback && typeof entry.yesPrice === "number") {
+              map[addr.toLowerCase()] = Math.round(entry.yesPrice);
+            }
+          }
+          setPriceMap(map);
+        })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const markets: ProphetMarket[] = useMemo(() => {
     if (!infoResults?.length || !rawAddresses.length) return [];
 
@@ -138,11 +161,13 @@ export function useMarkets() {
           ? cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase()
           : "Custom";
 
+      const livePrice = priceMap[checksummed.toLowerCase()];
       out.push({
         id: checksummed,
         title: question || "Untitled market",
         category,
-        price: 50,
+        price: livePrice ?? 50,
+        isPriceLive: livePrice !== undefined,
         change: 0,
         volume: `${formatVolume(totalCollateral_)} Vol`,
         rawCollateral: totalCollateral_,
@@ -155,7 +180,7 @@ export function useMarkets() {
     }
 
     return out.reverse();
-  }, [infoResults, rawAddresses]);
+  }, [infoResults, rawAddresses, priceMap]);
 
   const isLoading = loadingTotal || loadingAddresses || loadingInfo;
   const error = totalError ?? addressesError ?? infoError;

@@ -69,15 +69,20 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
       <div className="flex flex-col gap-3 p-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-1">
-            <span className="text-xl font-bold text-white leading-none">
-              {market.price}¢
-            </span>
-            <span
-              className="text-[10px]"
-              style={{ color: "rgba(255,255,255,0.25)" }}
-            >
-              / YES
-            </span>
+            {market.isPriceLive ? (
+              <>
+                <span className="text-xl font-bold text-white leading-none">
+                  {market.price}¢
+                </span>
+                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                  / YES
+                </span>
+              </>
+            ) : (
+              <span className="text-[11px] italic" style={{ color: "rgba(255,255,255,0.2)" }}>
+                Awaiting pricing…
+              </span>
+            )}
           </div>
           {market.change !== 0 ? (
             <div
@@ -172,6 +177,7 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
         marketAddress={market.id}
         marketTitle={market.title}
         marketYesPct={market.price}
+        isPriceLive={market.isPriceLive}
       />
     </div>
   );

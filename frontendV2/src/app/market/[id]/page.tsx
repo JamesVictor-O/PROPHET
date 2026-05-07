@@ -625,6 +625,7 @@ export default function MarketDetailPage() {
             <TradePanel
               marketAddress={address}
               marketYesPct={impliedYesPct}
+              isPriceLive={isPriceLive}
               tradeEnabled={!isLoading && canTrade}
             />
           </div>
