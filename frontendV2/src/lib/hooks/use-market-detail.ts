@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useReadContract } from "wagmi";
 import { getAddress, isAddress, formatUnits } from "viem";
 import {
@@ -160,14 +160,36 @@ export function useMarketDetail(routeId: string | undefined) {
     !!address &&
     (loadingValid || (isValid === true && loadingInfo));
 
+  // Fetch live YES price from the price cache populated by the market-maker agent
+  const [yesPrice, setYesPrice] = useState<number>(50);
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+
+    async function fetchPrice() {
+      try {
+        const res = await fetch(`/api/prices?market=${address}`);
+        if (!res.ok) return;
+        const data = await res.json() as { yesPrice: number };
+        if (!cancelled && typeof data.yesPrice === "number") {
+          setYesPrice(Math.min(99, Math.max(1, Math.round(data.yesPrice))));
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    void fetchPrice();
+    // Refresh every 30 s so the UI stays in sync with repricing ticks
+    const id = setInterval(() => { void fetchPrice(); }, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [address]);
+
   return {
     address,
     invalidAddress,
     notRegistered,
     detail,
     canTrade: canTrade ?? false,
-    /** Placeholder until MM / order book feeds a live YES price */
-    impliedYesPct: 50,
+    impliedYesPct: yesPrice,
     isLoading,
     error: infoError,
     refetch,

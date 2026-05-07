@@ -115,7 +115,32 @@ async function priceMarket(
     });
   }
 
+  // Push prices to the frontend API so the UI reflects live quotes immediately
+  pushPriceToFrontend(marketAddress, yesProbability);
+
   return yesProbability;
+}
+
+// ── Push prices to frontend price cache ──────────────────────────────────────
+
+function pushPriceToFrontend(marketAddress: string, yesProbability: number): void {
+  const frontendUrl = process.env.FRONTEND_API_URL ?? "http://localhost:3000";
+  const url = `${frontendUrl}/api/prices`;
+  fetch(url, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      market:      marketAddress,
+      yesPrice:    yesProbability,
+      noPrice:     100 - yesProbability,
+      lastUpdated: Date.now(),
+    }),
+  }).then((r) => {
+    if (!r.ok) logger.warn("Frontend price push non-2xx", { status: r.status });
+    else logger.debug("Pushed price to frontend", { market: marketAddress, yesProbability });
+  }).catch((err: unknown) => {
+    logger.warn("Frontend price push failed (non-fatal)", { error: err instanceof Error ? err.message : String(err) });
+  });
 }
 
 // ── Persist global MM state to 0G Storage ────────────────────────────────────
