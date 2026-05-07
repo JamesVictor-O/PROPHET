@@ -49,6 +49,7 @@ export default function MarketDetailPage() {
     detail,
     canTrade,
     impliedYesPct,
+    isPriceLive,
     isLoading,
     error,
   } = useMarketDetail(id);
@@ -254,35 +255,30 @@ export default function MarketDetailPage() {
                   )}
                   {!isLoading && detail && (
                     <div className="flex items-center gap-1.5 ml-auto">
-                      <span className="text-[22px] font-bold text-white leading-none">
-                        {impliedYesPct}¢
-                      </span>
-                      <span
-                        className="text-[10px] text-white/30 max-w-[140px] text-right"
-                        title="Placeholder until a market-maker feed is wired"
-                      >
-                        implied YES
-                      </span>
-                      <div
-                        className="flex items-center gap-1 px-1.5 py-0.5"
-                        style={{
-                          background: "rgba(52,211,153,0.1)",
-                          border: "1px solid rgba(52,211,153,0.15)",
-                        }}
-                      >
-                        <HugeiconsIcon
-                          icon={ArrowUpRight01Icon}
-                          size={10}
-                          color="#34d399"
-                          strokeWidth={2}
-                        />
-                        <span
-                          className="text-[10px] font-semibold"
-                          style={{ color: "#34d399" }}
-                        >
-                          YES
+                      {isPriceLive ? (
+                        <>
+                          <span className="text-[22px] font-bold text-white leading-none">
+                            {impliedYesPct}¢
+                          </span>
+                          <span className="text-[10px] text-white/30 max-w-[140px] text-right">
+                            implied YES
+                          </span>
+                          <div
+                            className="flex items-center gap-1 px-1.5 py-0.5"
+                            style={{
+                              background: "rgba(52,211,153,0.1)",
+                              border: "1px solid rgba(52,211,153,0.15)",
+                            }}
+                          >
+                            <HugeiconsIcon icon={ArrowUpRight01Icon} size={10} color="#34d399" strokeWidth={2} />
+                            <span className="text-[10px] font-semibold" style={{ color: "#34d399" }}>YES</span>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-white/25 italic">
+                          Awaiting market maker…
                         </span>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -307,12 +303,15 @@ export default function MarketDetailPage() {
                   >
                     YES probability
                   </span>
-                  <span
-                    className="text-[11px] font-mono"
-                    style={{ color: "#34d399" }}
-                  >
-                    {impliedYesPct}¢
-                  </span>
+                  {isPriceLive ? (
+                    <span className="text-[11px] font-mono" style={{ color: "#34d399" }}>
+                      {impliedYesPct}¢
+                    </span>
+                  ) : (
+                    <span className="text-[11px] italic" style={{ color: "rgba(255,255,255,0.2)" }}>
+                      pending
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-0.5">
                   {["1W", "1M", "3M", "All"].map((r) => (

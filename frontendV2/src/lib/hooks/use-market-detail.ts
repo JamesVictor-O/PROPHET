@@ -162,6 +162,8 @@ export function useMarketDetail(routeId: string | undefined) {
 
   // Fetch live YES price from the price cache populated by the market-maker agent
   const [yesPrice, setYesPrice] = useState<number>(50);
+  const [isPriceLive, setIsPriceLive] = useState<boolean>(false);
+
   useEffect(() => {
     if (!address) return;
     let cancelled = false;
@@ -170,9 +172,13 @@ export function useMarketDetail(routeId: string | undefined) {
       try {
         const res = await fetch(`/api/prices?market=${address}`);
         if (!res.ok) return;
-        const data = await res.json() as { yesPrice: number };
-        if (!cancelled && typeof data.yesPrice === "number") {
+        const data = await res.json() as { yesPrice: number; fallback?: boolean };
+        if (cancelled) return;
+        if (!data.fallback && typeof data.yesPrice === "number") {
           setYesPrice(Math.min(99, Math.max(1, Math.round(data.yesPrice))));
+          setIsPriceLive(true);
+        } else {
+          setIsPriceLive(false);
         }
       } catch { /* non-fatal */ }
     }
@@ -190,6 +196,7 @@ export function useMarketDetail(routeId: string | undefined) {
     detail,
     canTrade: canTrade ?? false,
     impliedYesPct: yesPrice,
+    isPriceLive,
     isLoading,
     error: infoError,
     refetch,
