@@ -257,6 +257,19 @@ export async function processChallengeOnChain(
 }
 
 
+export async function triggerResolutionOnChain(
+  marketAddress: string,
+  oracleSigner:  Wallet
+): Promise<ethers.TransactionReceipt> {
+  const market  = getMarket(marketAddress, oracleSigner);
+  logger.info("Triggering resolution on-chain...", { market: marketAddress });
+  const tx      = await market.triggerResolution();
+  const receipt = await tx.wait();
+  logger.info("Resolution triggered", { txHash: receipt.hash });
+  return receipt;
+}
+
+
 export async function revealPositionsOnChain(
   marketAddress: string,
   positions:     Array<{ bettor: string; direction: boolean; collateralAmount: bigint }>,

@@ -1,12 +1,12 @@
 
 import "dotenv/config";
 import nacl                    from "tweetnacl";
-import { decodeBase64, decodeUTF8 } from "tweetnacl-util";
+import { decodeBase64 } from "tweetnacl-util";
 import { ethers }              from "ethers";
 import { createLogger }        from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket, getVault,
          listenForEvent, getMarketInfo, getAllActiveMarkets,
-         postResolutionOnChain, cancelMarketOnChain,
+         postResolutionOnChain, cancelMarketOnChain, triggerResolutionOnChain,
          processChallengeOnChain, revealPositionsOnChain } from "../shared/chain";
 import { callOracleInference }  from "../shared/compute";
 import { writeResolutionRecord, writeOracleWorkingState, readFromStorage } from "../shared/storage";
@@ -255,8 +255,11 @@ async function revealPositions(
 // ── Startup scan ──────────────────────────────────────────────────────────────
 
 /**
- * On startup, scan all markets and pick up any that are stuck in
- * PendingResolution or Challenged (agent may have been offline).
+ * On startup (and periodically), scan all markets and pick up any that need action:
+ * - Open markets past their deadline → call triggerResolution() then resolve
+ * - PendingResolution markets → resolve (agent was offline when event fired)
+ * - Challenged markets → run second inference
+ * - Resolved markets → reveal positions if not yet revealed
  */
 async function catchUpOnPendingMarkets(
   oracleWallet: ReturnType<typeof createWallet>,
@@ -267,22 +270,47 @@ async function catchUpOnPendingMarkets(
   const markets = await getAllActiveMarkets(provider);
   logger.info(`Found ${markets.length} total markets`);
 
+  const nowSec = Math.floor(Date.now() / 1000);
+
   for (const addr of markets) {
     try {
       const info = await getMarketInfo(addr, provider);
 
-      if (info.status === "PendingResolution") {
+      if (info.status === "Open" && info.deadline < nowSec) {
+        const minsAgo = Math.floor((nowSec - info.deadline) / 60);
+        logger.info("Found expired Open market — triggering resolution", {
+          market: addr,
+          question: info.question,
+          expiredAgo: `${minsAgo} minute(s) ago`,
+        });
+        try {
+          await triggerResolutionOnChain(addr, oracleWallet);
+          // Brief pause for the chain to process the state transition
+          await new Promise((r) => setTimeout(r, 3_000));
+        } catch (triggerErr: unknown) {
+          const msg = triggerErr instanceof Error ? triggerErr.message : String(triggerErr);
+          // If already in PendingResolution (race condition), continue to resolve
+          if (!msg.includes("InvalidStatus") && !msg.includes("already")) {
+            logger.error("triggerResolution failed", { market: addr, err: triggerErr });
+            continue;
+          }
+          logger.info("Market already transitioning — proceeding to resolve", { market: addr });
+        }
+        await resolveMarket(addr, oracleWallet, provider, false);
+
+      } else if (info.status === "PendingResolution") {
         logger.info("Found market in PendingResolution — resolving", { market: addr });
         await resolveMarket(addr, oracleWallet, provider, false);
+
       } else if (info.status === "Challenged" && info.challenger !== ethers.ZeroAddress) {
         logger.info("Found challenged market — running second inference", { market: addr });
         await resolveMarket(addr, oracleWallet, provider, true);
+
       } else if (info.status === "Resolved") {
-        // Check if positions need to be revealed
         await revealPositions(addr, oracleWallet, provider);
       }
     } catch (err) {
-      logger.error("Error processing market during startup scan", { market: addr, err });
+      logger.error("Error processing market during scan", { market: addr, err });
     }
   }
 }
@@ -399,7 +427,17 @@ async function main() {
     }
   );
 
-  logger.info("Oracle agent running — listening for events");
+  // Periodic scan: catch markets that expire while the agent is running.
+  // Every 5 minutes, re-scan for Open markets past their deadline.
+  const SCAN_INTERVAL_MS = 5 * 60 * 1000;
+  setInterval(async () => {
+    logger.info("Periodic scan: checking for newly expired markets...");
+    await catchUpOnPendingMarkets(oracleWallet, provider).catch((err) =>
+      logger.error("Periodic scan failed", err)
+    );
+  }, SCAN_INTERVAL_MS);
+
+  logger.info("Oracle agent running — listening for events + scanning every 5 min");
 }
 
 main().catch((err) => {
