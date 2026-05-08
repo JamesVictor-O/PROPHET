@@ -205,8 +205,13 @@ export async function postResolutionOnChain(
   reasoningHash:  string,
   oracleSigner:   Wallet
 ): Promise<ethers.TransactionReceipt> {
-  const market      = getMarket(marketAddress, oracleSigner);
-  const bytes32Hash = ethers.zeroPadValue(ethers.hexlify(ethers.toUtf8Bytes(reasoningHash)), 32);
+  const market = getMarket(marketAddress, oracleSigner);
+  // reasoningHash may be a 0x-prefixed bytes32 hex (from keccak256 or 0G Storage root hash)
+  // or an arbitrary string. Use it as-is if it's already bytes32, otherwise hash it.
+  const bytes32Hash: `0x${string}` =
+    (reasoningHash.startsWith("0x") && reasoningHash.length === 66)
+      ? (reasoningHash as `0x${string}`)
+      : (ethers.keccak256(ethers.toUtf8Bytes(reasoningHash)) as `0x${string}`);
 
   // Sign keccak256(market ++ verdict ++ reasoningHash) with the oracle private key.
   // The contract's _verifyTeeAttestation recovers the signer and checks it equals oracleAgent.

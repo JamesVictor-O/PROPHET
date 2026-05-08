@@ -285,8 +285,8 @@ async function catchUpOnPendingMarkets(
         });
         try {
           await triggerResolutionOnChain(addr, oracleWallet);
-          // Brief pause for the chain to process the state transition
-          await new Promise((r) => setTimeout(r, 3_000));
+          // Wait for provider nonce cache to refresh before any further txs from same wallet
+          await new Promise((r) => setTimeout(r, 8_000));
         } catch (triggerErr: unknown) {
           const msg = triggerErr instanceof Error ? triggerErr.message : String(triggerErr);
           // If already in PendingResolution (race condition), continue to resolve
