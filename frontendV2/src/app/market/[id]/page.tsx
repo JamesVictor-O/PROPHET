@@ -618,17 +618,19 @@ export default function MarketDetailPage() {
             </div>
           </div>
 
-          <div
-            className="w-[30%] shrink-0 sticky top-0 self-start pt-6 pb-6 px-5 max-lg:w-full max-lg:border-l-0 max-lg:border-t max-lg:border-white/5"
-            style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}
-          >
-            <TradePanel
-              marketAddress={address}
-              marketYesPct={impliedYesPct}
-              isPriceLive={isPriceLive}
-              tradeEnabled={!isLoading && canTrade}
-            />
-          </div>
+          {(!isLoading && canTrade) && (
+            <div
+              className="w-[30%] shrink-0 sticky top-0 self-start pt-6 pb-6 px-5 max-lg:w-full max-lg:border-l-0 max-lg:border-t max-lg:border-white/5"
+              style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              <TradePanel
+                marketAddress={address}
+                marketYesPct={impliedYesPct}
+                isPriceLive={isPriceLive}
+                tradeEnabled={true}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
