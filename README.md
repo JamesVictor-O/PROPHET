@@ -2,471 +2,255 @@
 
 > *Making opinions tradable. Privately. Autonomously. Verifiably.*
 
+[![0G Chain](https://img.shields.io/badge/0G%20Chain-Galileo%20Testnet-blue)](https://chainscan-galileo.0g.ai)
+[![Track](https://img.shields.io/badge/Track-2%20Agentic%20Trading%20Arena-purple)](https://www.hackquest.io/hackathons/0G-APAC-Hackathon)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ---
 
 ## Table of Contents
 
-1. [Problem Statement](#1-problem-statement)
-2. [Solution — What is Prophet?](#2-solution--what-is-prophet)
-3. [Why 0G Labs?](#3-why-0g-labs)
-4. [System Architecture](#4-system-architecture)
-5. [0G Labs Integration — Layer by Layer](#5-0g-labs-integration--layer-by-layer)
+1. [Project Overview](#1-project-overview)
+2. [System Architecture](#2-system-architecture)
+3. [0G Component Integration](#3-0g-component-integration)
+   - [0G Chain — Settlement Layer](#31-0g-chain--settlement-layer)
+   - [0G Storage — Memory Layer](#32-0g-storage--memory-layer)
+   - [0G Compute — Intelligence Layer](#33-0g-compute--intelligence-layer)
+   - [TEE Sealed Inference — Privacy Layer](#34-tee-sealed-inference--privacy-layer)
+4. [Smart Contract Architecture](#4-smart-contract-architecture)
+5. [AI Oracle — How Resolution Works](#5-ai-oracle--how-resolution-works)
 6. [Core Flows](#6-core-flows)
-   - [Market Creation](#61-market-creation)
-   - [Placing a Bet (Sealed Position)](#62-placing-a-bet-sealed-position)
-   - [Market Resolution](#63-market-resolution)
-   - [Fund Disbursement](#64-fund-disbursement)
-   - [Liquidity Management](#65-liquidity-management)
-7. [Smart Contract Architecture](#7-smart-contract-architecture)
-8. [AI Oracle — How It Works](#8-ai-oracle--how-it-works)
-9. [Privacy Layer — TEE Sealed Inference](#9-privacy-layer--tee-sealed-inference)
+7. [Deployed Contracts](#7-deployed-contracts)
+8. [Local Setup & Deployment](#8-local-setup--deployment)
+   - [Prerequisites](#81-prerequisites)
+   - [1. Smart Contracts](#82-1-smart-contracts)
+   - [2. Agent (Oracle + Market Maker)](#83-2-agent-oracle--market-maker)
+   - [3. Frontend](#84-3-frontend)
+9. [Testnet Setup & Faucet](#9-testnet-setup--faucet)
 10. [Tech Stack](#10-tech-stack)
 11. [Hackathon Track](#11-hackathon-track)
 12. [Roadmap](#12-roadmap)
 
 ---
 
-## 1. Problem Statement
+## 1. Project Overview
 
-Prediction markets are one of the most powerful tools humanity has for aggregating collective intelligence and making opinions tradable. The idea is simple — if you believe something will happen, you should be able to put money on it and be rewarded for being right.
+### The Problem
 
-But in practice, every major prediction market platform is broken in at least one critical way:
+Prediction markets are one of the most powerful tools for aggregating collective intelligence — but every major platform is broken:
 
-### Polymarket
-- **Centralized market creation** — only the Polymarket team decides which markets exist
-- **Fully public positions** — every bet you place is visible on-chain the moment you make it, meaning large players can see your position and trade against you (front-running)
-- **Human resolution committee** — outcomes are decided by UMA's human oracle committee, which has been disputed and manipulated before
-- **No persistent liquidity** — new markets start with zero liquidity and often die before gaining traction
+| Platform | Critical Failure |
+|---|---|
+| **Polymarket** | Public on-chain positions → front-running; human resolution committee → gameable |
+| **Augur** | Token holder voting takes days, is gameable by large holders; no liquidity bootstrapping |
+| **All of them** | Resolution disputes have no cryptographic accountability — just social consensus |
 
-### Augur
-- **Token holder voting for resolution** — takes days, is gameable by large token holders, and has no accountability
-- **No liquidity bootstrapping** — anyone can create a market but nobody provides liquidity, so most markets are effectively dead
-- **High gas fees on Ethereum** — makes small bets economically unviable
+The root cause is **infrastructure**, not product design. Prediction markets need fast cheap settlement, decentralized storage for oracle evidence, verifiable AI compute for autonomous resolution, privacy-preserving execution to prevent front-running, and autonomous agents for always-on liquidity. No single infrastructure stack provided all of these — until 0G Labs.
 
-### The Core Problem
-Every existing prediction market forces you to choose between **decentralization** and **functionality**. You either get a centralized platform that works  or a decentralized one that doesn't .
-
-The root cause is not product design — it is **infrastructure**. Prediction markets need:
-- Fast, cheap settlement for high-frequency betting
-- Decentralized storage for oracle evidence and market history
-- Verifiable AI compute for autonomous resolution
-- Privacy-preserving execution to prevent front-running
-- Autonomous agents for always-on liquidity
-
-None of the existing blockchains provided all of these together — until 0G Labs.
-
----
-
-## 2. Solution — What is Prophet?
+### What Prophet Does
 
 Prophet is a fully autonomous, privacy-preserving, AI-native prediction market built on 0G Labs infrastructure.
 
-It is the first prediction market where:
-
 | Feature | How Prophet Does It |
 |---|---|
-| **Market resolution** | AI oracle agent running on 0G Compute — autonomous, auditable, no human committee |
+| **Market resolution** | AI oracle agent on 0G Compute — autonomous, auditable, no human committee |
 | **Position privacy** | TEE sealed inference — your bet is encrypted until market closes, zero front-running |
-| **Liquidity** | Agent ID-powered market maker — seeds and maintains liquidity 24/7 automatically |
+| **Liquidity** | Autonomous market maker agent — seeds and maintains liquidity 24/7 |
 | **Market creation** | Any user, any question — LLM validates and assigns resolution sources automatically |
 | **Oracle accountability** | Full reasoning chain stored permanently on 0G Storage — anyone can verify |
 | **Settlement** | Sub-second finality on 0G Chain — instant payouts to winners |
 
-Prophet does not replace Polymarket's UX — its create a new infrastructure with something that is decentralized, verifiable, and actually works leveraging OG labs infastructure.
+**One-line pitch:** Prophet is the first prediction market where positions are sealed until resolution, markets are resolved by an AI oracle — not a human committee — and liquidity is provided by an autonomous agent, 24/7.
 
 ---
 
-## 3. Why 0G Labs?
-
-Prophet could not exist on any other chain. Here is exactly why each 0G module is necessary:
-
-| 0G Module | Why Prophet Needs It |
-|---|---|
-| **0G Chain** | EVM-compatible, 11,000 TPS, sub-second finality — makes real-time betting and instant payouts viable |
-| **0G Storage** | Stores oracle reasoning, market metadata, agent memory, and historical resolution data — permanently and cheaply |
-| **0G Compute** | Runs the AI oracle and market maker inference — decentralized GPU, pay-per-use, no vendor lock-in |
-| **TEE Sealed Inference** | Encrypts user positions until resolution — the only way to prevent front-running without a centralized server |
-| **Agent ID** | Gives the oracle agent and market maker agent persistent on-chain identities — they can own wallets, sign transactions, and be held accountable |
-
-No other infrastructure stack provides all five of these together. Ethereum is too slow and expensive. Solana has no decentralized compute or storage. Traditional prediction markets bolt on centralized infrastructure to compensate — Prophet doesn't need to.
-
----
-
-## 4. System Architecture
+## 2. System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        PROPHET SYSTEM                           │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│  │   Frontend   │    │  Oracle      │    │  Market Maker    │  │
-│  │   (Next.js)  │    │  Agent       │    │  Agent           │  │
-│  │              │    │  (Agent ID)  │    │  (Agent ID)      │  │
-│  └──────┬───────┘    └──────┬───────┘    └────────┬─────────┘  │
-│         │                  │                      │            │
-│         ▼                  ▼                      ▼            │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    0G CHAIN (EVM)                       │   │
-│  │                                                         │   │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │   │
-│  │  │  Prophet    │  │  Position    │  │  Payout       │  │   │
-│  │  │  Factory    │  │  Vault (TEE) │  │  Distributor  │  │   │
-│  │  └─────────────┘  └──────────────┘  └───────────────┘  │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│         │                  │                      │            │
-│         ▼                  ▼                      ▼            │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐    │
-│  │  0G Storage  │  │  0G Compute   │  │  TEE Sealed      │    │
-│  │              │  │               │  │  Inference       │    │
-│  │ - Market     │  │ - LLM oracle  │  │                  │    │
-│  │   metadata   │  │ - Market      │  │ - Encrypt bets   │    │
-│  │ - Oracle     │  │   maker model │  │ - Decrypt at     │    │
-│  │   reasoning  │  │ - Question    │  │   resolution     │    │
-│  │ - Agent      │  │   classifier  │  │                  │    │
-│  │   memory     │  │               │  │                  │    │
-│  └──────────────┘  └───────────────┘  └──────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            PROPHET SYSTEM                                │
+│                                                                          │
+│  ┌───────────────┐      ┌──────────────────┐      ┌──────────────────┐  │
+│  │   Frontend    │      │  Oracle Agent     │      │  Market Maker    │  │
+│  │  (Next.js)    │      │  [agent/oracle]   │      │  Agent [agent/   │  │
+│  │  frontendV2/  │      │                  │      │  market-maker]   │  │
+│  └──────┬────────┘      └────────┬─────────┘      └────────┬─────────┘  │
+│         │                       │                          │            │
+│         │          ┌────────────┴──────────────────────────┤            │
+│         ▼          ▼                                       ▼            │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                       0G CHAIN (EVM L1)                           │  │
+│  │                                                                   │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐  ┌────────┐  │  │
+│  │  │ ProphetFactory│  │MarketContract│  │PositionVault│  │Payout │  │  │
+│  │  │   [Factory]  │  │  [per mkt]   │  │  (TEE)     │  │Distrib.│  │  │
+│  │  └──────────────┘  └──────────────┘  └────────────┘  └────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│         │                       │                          │            │
+│         ▼                       ▼                          ▼            │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────────┐   │
+│  │   0G Storage    │  │   0G Compute     │  │  TEE Sealed          │   │
+│  │  [storage.ts]   │  │  [compute.ts]    │  │  Inference           │   │
+│  │                 │  │                  │  │  [bet-encryption.ts] │   │
+│  │ KV: metadata,   │  │ • LLM oracle     │  │                      │   │
+│  │     prices,     │  │ • Market maker   │  │ • Encrypt bets       │   │
+│  │     agent state │  │   repricing      │  │ • Decrypt at         │   │
+│  │ Log: oracle     │  │ • Question       │  │   resolution         │   │
+│  │      reasoning  │  │   validation     │  │                      │   │
+│  └─────────────────┘  └──────────────────┘  └──────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Architectural Principles
 
-**1. Separation of concerns**
-The oracle agent, market maker agent, and smart contracts are fully independent. Each has its own Agent ID, its own wallet, and its own responsibilities. A failure in one does not cascade to the others.
+**Separation of concerns** — Oracle agent, market maker agent, and smart contracts are fully independent. Each has its own wallet and responsibilities. A failure in one does not cascade.
 
-**2. Immutability of resolution rules**
-When a market is created, its resolution sources, deadline, and criteria are locked into the smart contract on 0G Chain. Nobody — not even the creator — can change them after deployment.
+**Immutability of resolution rules** — When a market is created, its resolution sources, deadline, and criteria are locked into [`MarketContract.sol`](contracts/src/MarketContract.sol) on-chain. Nobody can change them after deployment.
 
-**3. Permanent accountability**
-Every oracle decision, with full reasoning, is written to 0G Storage permanently. The oracle's track record is public and queryable by anyone.
+**Permanent accountability** — Every oracle decision with full reasoning is written to 0G Storage Log Layer permanently. The oracle's track record is public and queryable by anyone via [`useOracleReasoning`](frontendV2/src/lib/hooks/use-oracle-reasoning.ts).
 
-**4. Privacy by default**
-User positions are never stored in plaintext anywhere. They enter the TEE sealed vault encrypted and are only decrypted at the moment of resolution — simultaneously for all participants.
+**Privacy by default** — User positions are never stored in plaintext. They enter [`PositionVault.sol`](contracts/src/PositionVault.sol) encrypted and are only decrypted at the moment of resolution — simultaneously for all participants.
 
 ---
 
-## 5. 0G Labs Integration — Layer by Layer
+## 3. 0G Component Integration
 
-### 5.1 0G Chain — The Settlement Layer
+This section documents exactly which 0G API/SDK is used, where in the codebase it is integrated, and what problem it solves.
 
-0G Chain is the backbone of Prophet. It is where all financial logic lives.
+### 3.1 0G Chain — Settlement Layer
+
+**SDK/API used:** Standard EVM JSON-RPC (`ethers.js v6`, `viem`, `wagmi v2`)
+**Network:** Galileo Testnet — Chain ID `16602`, RPC `https://evmrpc-testnet.0g.ai`
 
 **What runs on 0G Chain:**
-- `ProphetFactory.sol` — deploys new market contracts when users create markets
-- `MarketContract.sol` — holds collateral, manages YES/NO token state, enforces deadlines
-- `PositionVault.sol` — receives and stores encrypted position commitments
-- `PayoutDistributor.sol` — releases collateral to winning token holders after resolution
 
-**Why 0G Chain specifically:**
-- 11,000 TPS means bets settle in real time even during high-traffic events (e.g. election night)
-- Sub-second finality means payouts reach winners within seconds of resolution
-- Full EVM compatibility means standard Solidity smart contracts work without modification
-- Low gas fees make small bets (under $1) economically viable for the first time
+| Contract | File | Role |
+|---|---|---|
+| `ProphetFactory` | [`contracts/src/ProphetFactory.sol`](contracts/src/ProphetFactory.sol) | Deploys market contracts, maintains registry |
+| `MarketContract` | [`contracts/src/MarketContract.sol`](contracts/src/MarketContract.sol) | Per-market lifecycle, holds USDT collateral |
+| `PositionVault` | [`contracts/src/PositionVault.sol`](contracts/src/PositionVault.sol) | Stores encrypted bet commitments (TEE-sealed) |
+| `PayoutDistributor` | (integrated in MarketContract) | Releases collateral to winning positions |
+| `LiquidityPool` | [`contracts/src/LiquidityPool.sol`](contracts/src/LiquidityPool.sol) | Market maker's on-chain liquidity reserve |
 
----
+**Chain interaction helpers:**
+- Agent: [`agent/src/shared/chain.ts`](agent/src/shared/chain.ts)
+- Frontend config: [`frontendV2/src/lib/web3-config.ts`](frontendV2/src/lib/web3-config.ts)
+- Contract ABIs/addresses: [`frontendV2/src/lib/contracts.ts`](frontendV2/src/lib/contracts.ts)
 
-### 5.2 0G Storage — The Memory Layer
-
-0G Storage serves as Prophet's permanent, decentralized memory. It has two sub-layers that Prophet uses for different purposes:
-
-**Log Layer (immutable, append-only):**
-Used for data that should never be modified after writing.
-- Oracle reasoning chains — every piece of evidence the oracle read and every conclusion it drew when resolving a market
-- Historical market outcomes — the full archive of every market ever resolved on Prophet
-- Agent audit logs — a timestamped record of every action both agents have ever taken
-
-**KV Layer (mutable, fast key-value access):**
-Used for data that needs to be read and updated frequently.
-- Market metadata — question text, deadline, assigned resolution sources, current status
-- Agent working memory — the oracle agent's intermediate state while gathering evidence for an active resolution
-- Market maker state — current YES/NO price quotes, liquidity depth, position inventory
-
-**Storage key structure:**
-```
-market:{marketId}:metadata         → Market details (question, deadline, sources, status)
-market:{marketId}:resolution       → Oracle verdict + reasoning (written at resolution)
-oracle:track-record:{marketId}     → Whether this resolution was challenged + outcome
-agent:market-maker:state           → Current pricing model state
-```
-
-**Why 0G Storage specifically:**
-- 95% cheaper than AWS S3 — makes storing full oracle reasoning chains for every market economically viable
-- Instant KV retrieval — the oracle agent can pull market context in milliseconds when waking up
-- Decentralized — no single point of failure or censorship for historical data
-- The Log layer's immutability is a core accountability guarantee — oracle reasoning cannot be edited after the fact
+**Problem it solves:** 11,000 TPS and sub-second finality make real-time betting and instant payouts viable. Low gas makes sub-$1 bets economically feasible — something impossible on Ethereum mainnet.
 
 ---
 
-### 5.3 0G Compute — The Intelligence Layer
+### 3.2 0G Storage — Memory Layer
 
-0G Compute is the decentralized GPU network that powers Prophet's AI capabilities. Prophet makes three distinct calls to 0G Compute:
+**SDK used:** `@0gfoundation/0g-storage-ts-sdk`
+**Implementation:** [`agent/src/shared/storage.ts`](agent/src/shared/storage.ts) — all read/write helpers
+**Frontend proxy:** [`frontendV2/src/lib/server/og-storage.ts`](frontendV2/src/lib/server/og-storage.ts)
+**Frontend API route:** [`frontendV2/src/app/api/og-storage/route.ts`](frontendV2/src/app/api/og-storage/route.ts)
 
-**Call 1 — Question Classifier (at market creation)**
-When a user submits a market question, a lightweight LLM call classifies it:
-- What category does this question belong to? (Sports / Crypto / Politics / Finance / Custom)
-- Is the question unambiguous — can it have exactly one correct answer?
-- Is the question resolvable — does real-world verifiable data exist to answer it?
-- What is a reasonable resolution deadline for this type of question?
+**Two layers, two purposes:**
 
-The output maps the question to a category, which then pulls the correct set of pre-approved resolution sources from 0G Storage.
+| Layer | Used For | Key Structure |
+|---|---|---|
+| **Log** (immutable) | Oracle reasoning chains, payout records | `market:{address}:resolution` |
+| **KV** (mutable) | Market metadata, live prices, agent state | `market:{address}:metadata`, `market:{address}:prices` |
 
-**Call 2 — Oracle Resolution (at market deadline)**
-The most critical compute call. When a market's deadline is reached, the oracle agent sends a structured prompt to 0G Compute containing:
-- The market question and resolution criteria
-- The list of approved data sources to check
-- The current date and any relevant context
+**Full key structure:**
+```
+KV (live, mutable)
+  market:{address}:metadata    → { question, deadline, category, sources, status }
+  market:{address}:prices      → { yesPrice, noPrice, lastUpdated, volume24h }
+  agent:mm:state               → { activeMarkets: [{address, yesPrice, noPrice}] }
 
-The LLM reads from each source, synthesizes the evidence, and produces:
-- A binary verdict (YES or NO)
-- A confidence score (0–100%)
-- A full written reasoning chain citing specific sources and evidence
+Log (permanent, immutable)
+  market:{address}:resolution  → { verdict, confidence, reasoning, sourcesChecked, timestamp, txHash }
+  market:{address}:payout      → { outcome, winnerCount, totalDistributed, fees, txHash }
+```
 
-**Call 3 — Market Maker Pricing (continuous)**
-The market maker agent periodically calls 0G Compute to update its probability estimate for each active market. The model takes as input:
-- Current trading volume and price history (from 0G Storage KV)
-- Time remaining until deadline
-- Any significant news signals related to the market topic
+**Indexer used:** Turbo indexer (standard returns 503 on testnet)
+**Config:** [`agent/src/shared/config.ts`](agent/src/shared/config.ts)
 
-The output is an updated YES/NO price quote that the agent posts on-chain.
-
-**Why 0G Compute specifically:**
-- Pay-per-use pricing — Prophet only pays for inference when it is actually needed, no monthly subscriptions
-- 90% cheaper than AWS/GCP GPU instances — makes frequent market maker repricing economically viable
-- Decentralized — no vendor can censor or throttle Prophet's oracle calls
-- Supports TEEML — compute results can be verified cryptographically, which feeds directly into the TEE privacy layer
+**Problem it solves:** Oracle reasoning is stored permanently and immutably — it cannot be edited after the fact, giving the oracle a verifiable, tamper-proof track record. 95% cheaper than AWS S3, making it viable to store full JSON reasoning chains for every market.
 
 ---
 
-### 5.4 TEE Sealed Inference — The Privacy Layer
+### 3.3 0G Compute — Intelligence Layer
 
-TEE (Trusted Execution Environment) sealed inference is the feature that makes Prophet fundamentally different from every existing prediction market.
+**SDK used:** `@0glabs/0g-serving-broker` + OpenAI-compatible REST API
+**Implementation:** [`agent/src/shared/compute.ts`](agent/src/shared/compute.ts)
+**Test script:** [`agent/src/scripts/test-compute.ts`](agent/src/scripts/test-compute.ts)
 
-**The problem it solves:**
-On Polymarket, every bet is a public on-chain transaction. The moment you place a large YES position on a market, every other participant can see it. Sophisticated players monitor the mempool and front-run large bets, degrading market quality and discouraging serious capital from participating.
+**Three distinct inference calls:**
 
-**How sealed inference works in Prophet:**
+| Call | When | Model | File |
+|---|---|---|---|
+| **Question Validation** | At market creation | `qwen-2.5-7b-instruct` (testnet) | [`frontendV2/src/app/api/validate-question/route.ts`](frontendV2/src/app/api/validate-question/route.ts) |
+| **Oracle Resolution** | At market deadline | `qwen-2.5-7b-instruct` (testnet) / `deepseek-chat-v3-0324` (mainnet) | [`agent/src/oracle/index.ts`](agent/src/oracle/index.ts) |
+| **Market Maker Repricing** | Continuous (every 60s) | `qwen-2.5-7b-instruct` (testnet) | [`agent/src/market-maker/index.ts`](agent/src/market-maker/index.ts) |
 
-1. When a user places a bet, their position (direction + size) is encrypted inside the TEE before it ever touches the public chain
-2. The encrypted commitment is stored in `PositionVault.sol` on 0G Chain — the chain records that a position exists, but not what it is
-3. The TEE holds the decryption key, which is only released when the market's deadline timestamp is verified on-chain
-4. At resolution, all positions are decrypted simultaneously — nobody's position is revealed before anyone else's
-5. The smart contract reads the decrypted positions and distributes payouts accordingly
+**How the oracle call works (at resolution):**
+```typescript
+// agent/src/shared/compute.ts
+const broker = await createZGServingNetworkBroker(signer);
+const { endpoint, model } = await broker.getServiceMetadata(providerAddress);
+await broker.verifyService(providerAddress); // Verify TEE attestation
 
-**What this enables:**
-- Large capital participants can take meaningful positions without being front-run
-- Deeper liquidity across all markets as sophisticated players engage more freely
-- Fairer price discovery since position information cannot be exploited
-- MEV resistance — there is nothing to extract from encrypted position data
+const client = new OpenAI({ baseURL: endpoint, apiKey: '' });
+const response = await client.chat.completions.create({
+  model,
+  messages: [
+    { role: 'system', content: ORACLE_SYSTEM_PROMPT },
+    { role: 'user',   content: oraclePrompt }
+  ],
+  temperature: 0.1,  // Low temp for deterministic oracle decisions
+});
+// Returns: { verdict, confidence, reasoning, evidenceSummary, sourcesChecked }
+```
+
+**Testnet provider:** `0xa48f01...` (Qwen 2.5 7B Instruct)
+**Mainnet provider:** `0x1B3AAe...` (DeepSeek Chat V3)
+
+**Problem it solves:** Decentralized pay-per-use GPU — Prophet only pays for inference when actually needed. No vendor can censor or throttle oracle calls. Compute results can be cryptographically verified via TEEML.
 
 ---
 
-### 5.5 Agent ID — The Identity Layer
+### 3.4 TEE Sealed Inference — Privacy Layer
 
-Agent ID gives Prophet's two autonomous agents persistent, verifiable on-chain identities. This is what separates them from simple bots.
+**Implementation (frontend):** [`frontendV2/src/lib/bet-encryption.ts`](frontendV2/src/lib/bet-encryption.ts)
+**Implementation (contract):** [`contracts/src/PositionVault.sol`](contracts/src/PositionVault.sol) — `commitPosition()` and `revealPositions()`
 
-**Oracle Agent (Agent ID: `prophet-oracle.0g`)**
-- Has its own wallet and can pay for 0G Compute calls independently
-- Signs every resolution it posts on-chain with its cryptographic identity
-- Builds a permanent, publicly queryable reputation score based on resolution history
-- Can be slashed (penalized) if it loses a dispute — creating a real economic incentive to be accurate
+**How it works:**
 
-**Market Maker Agent (Agent ID: `prophet-mm.0g`)**
-- Has its own liquidity wallet funded from market creation fees
-- Signs every price quote it posts on-chain
-- Operates 24/7 without any human intervention
-- Its pricing history is permanently stored in 0G Storage for transparency
+```
+User input: { direction: "YES", amount: 100 USDT }
+                    │
+                    ▼
+         TEE encryption (bet-encryption.ts)
+                    │
+                    ▼
+On-chain: 0xA3F9...2B1C  ← meaningless to any observer
+                    │
+         [market deadline reached]
+                    │
+                    ▼
+TEE verifies deadline → releases decryption keys
+                    │
+                    ▼
+All positions decrypted simultaneously → payouts distributed
+```
+
+> **MVP Note:** `_verifyTeeAttestation` in [`PositionVault.sol`](contracts/src/PositionVault.sol) is a functional stub returning `true` for any non-empty bytes — marked with `// TODO: integrate 0G TEE SDK`. The encryption/decryption flow is fully implemented; the on-chain attestation verification is the integration point for production.
+
+**Problem it solves:** On Polymarket, every bet is a public on-chain transaction. Large players monitor the mempool and front-run large bets. Sealed positions mean the direction and size of every bet are invisible to all participants — including the market maker — until the moment of simultaneous reveal at resolution.
 
 ---
 
-## 6. Core Flows
+## 4. Smart Contract Architecture
 
-### 6.1 Market Creation
+Five contracts deployed on 0G Chain:
 
-```
-User submits question
-        │
-        ▼
-0G Compute: LLM validates question
-  ├── Is it unambiguous? ──── NO ──→ Return error to user
-  └── Is it resolvable? ──── NO ──→ Return error to user
-        │ YES
-        ▼
-0G Compute: Classify question category
-  └── Sports / Crypto / Politics / Finance / Custom
-        │
-        ▼
-0G Storage: Pull trusted source registry for category
-  └── Returns list of pre-approved data sources
-        │
-        ▼
-0G Chain: ProphetFactory deploys MarketContract
-  └── Locks in: question, deadline, sources, collateral requirements
-        │
-        ▼
-0G Storage (KV): Write market metadata
-  └── market:{id}:metadata = { question, deadline, sources, status: "open" }
-        │
-        ▼
-Agent ID (Market Maker): Wakes up, reads new market
-        │
-        ▼
-0G Compute: Market maker generates opening price
-  └── Initial YES probability estimate based on question context
-        │
-        ▼
-0G Chain: Market maker posts opening YES/NO quotes
-  └── Market is now live and tradeable
-```
-
-**User experience:** The user types one question and sets a deadline. Everything else — validation, source assignment, contract deployment, and initial liquidity — happens automatically within seconds.
-
----
-
-### 6.2 Placing a Bet (Sealed Position)
-
-```
-User selects YES or NO + amount
-        │
-        ▼
-Frontend: Encrypt position inside TEE
-  └── Encrypted payload = TEE(direction, amount, userAddress, marketId)
-        │
-        ▼
-0G Chain: Submit encrypted commitment to PositionVault.sol
-  └── Contract records: commitment hash + collateral (USDT locked)
-  └── Public chain only sees: "a position exists" — not what it is
-        │
-        ▼
-0G Storage (KV): Update market liquidity depth
-  └── Total volume tracked without revealing individual positions
-        │
-        ▼
-Agent ID (Market Maker): Detects volume change, reprices
-  └── Adjusts YES/NO spread based on aggregate activity
-```
-
-**Privacy guarantee:** At no point is the user's direction or size visible to any other market participant, the market maker agent, or the public chain.
-
----
-
-### 6.3 Market Resolution
-
-```
-0G Chain: Deadline block reached
-  └── MarketContract emits ResolutionRequested event
-        │
-        ▼
-Agent ID (Oracle): Wakes up, reads event
-        │
-        ▼
-0G Storage (KV): Pull market metadata
-  └── Question, resolution criteria, approved sources
-        │
-        ▼
-0G Compute: Oracle LLM gathers evidence
-  └── Reads each approved source
-  └── Synthesizes verdict + confidence score + reasoning chain
-        │
-        ▼
-0G Storage (Log): Write full reasoning chain permanently
-  └── oracle:{marketId}:resolution = { verdict, confidence, reasoning, sources, timestamp }
-        │
-        ▼
-0G Chain: Oracle agent posts verdict (signed with Agent ID)
-  └── MarketContract enters 24-hour challenge window
-        │
-        ├── No challenge filed ──────────────────────────→ Resolution finalized
-        │
-        └── Challenge filed (with stake)
-                  │
-                  ▼
-            0G Compute: Second oracle call (stricter evidence requirements)
-                  │
-                  ├── Challenge upheld ──→ Challenger earns stake, resolution overturned
-                  └── Challenge rejected ──→ Oracle verdict stands, challenger loses stake
-```
-
----
-
-### 6.4 Fund Disbursement
-
-```
-Resolution finalized on 0G Chain
-        │
-        ▼
-TEE: Deadline timestamp verified → Decryption keys released
-        │
-        ▼
-PositionVault.sol: All positions decrypted simultaneously
-  └── No position is revealed before any other
-        │
-        ▼
-PayoutDistributor.sol: Reads verdict + decrypted positions
-  └── Calculates each winner's share of the collateral pool
-        │
-        ▼
-0G Chain: USDT transferred to winning addresses
-  └── Sub-second finality — winners receive funds within seconds
-        │
-        ▼
-0G Storage (Log): Disbursement record written
-  └── market:{id}:payouts = { winners[], amounts[], txHash, timestamp }
-```
-
-**Fee structure:**
-- 1% of winning pool → Oracle agent wallet (incentive to resolve accurately)
-- 1% of winning pool → Market maker agent wallet (incentive to maintain liquidity)
-- 0.5% → Prophet protocol treasury (for governance and development)
-
----
-
-### 6.5 Liquidity Management
-
-The market maker agent is Prophet's solution to the liquidity cold-start problem that kills most permissionless prediction markets.
-
-```
-Market created
-        │
-        ▼
-Market Maker Agent: Seeds initial liquidity
-  └── Posts opening YES/NO prices from its own liquidity wallet
-        │
-        ▼
-[Continuous loop while market is open]
-        │
-        ▼
-0G Compute: Reprice based on:
-  ├── Current aggregate trading volume
-  ├── Time remaining to deadline
-  └── External signals (news sentiment, on-chain data)
-        │
-        ▼
-0G Chain: Post updated YES/NO quotes
-        │
-        ▼
-0G Storage (KV): Update agent state
-  └── agent:market-maker:state = { prices, inventory, lastUpdated }
-        │
-        ▼
-[Wait for next pricing interval or significant volume event]
-        │
-        └──────────────────────────────────────────────────┐
-                                                           │
-                                                    [Repeat loop]
-```
-
-**Liquidity sources:**
-1. Market maker agent (primary — always present from day one)
-2. Human liquidity providers (secondary — can deposit into liquidity pools and earn fees)
-3. Market creation bond (the user who creates a market deposits a small bond that seeds initial liquidity)
-
----
-
-## 7. Smart Contract Architecture
-
-Prophet deploys four smart contracts on 0G Chain:
-
-### `ProphetFactory.sol`
-Responsible for deploying new market contracts. Acts as the registry of all Prophet markets.
+### [`ProphetFactory.sol`](contracts/src/ProphetFactory.sol)
+Deploys new `MarketContract` instances and maintains the global market registry. Emits `MarketCreated` events that the oracle and market maker agents listen for.
 
 ```solidity
 function createMarket(
@@ -478,196 +262,400 @@ function createMarket(
 ) external returns (address marketContract);
 ```
 
-### `MarketContract.sol`
-The core contract for each individual prediction market. Manages the full lifecycle.
+### [`MarketContract.sol`](contracts/src/MarketContract.sol)
+Core contract for each individual prediction market. Manages the full lifecycle from `Open` → `PendingResolution` → `Challenged` → `Resolved`. Holds USDT collateral. All amounts use **6 decimal places** (`100 USDT = 100_000_000`).
 
 ```solidity
-// Key state
-enum MarketStatus { Open, PendingResolution, Challenged, Resolved }
-address public oracleAgent;
-address public marketMakerAgent;
-uint256 public deadline;
-MarketStatus public status;
-bool public outcome; // true = YES, false = NO
-
-// Key functions
-function placeBet(bytes calldata encryptedPosition) external payable;
+function placeBet(bytes calldata encryptedPosition) external;
 function postResolution(bool verdict, bytes32 reasoningHash) external onlyOracle;
-function challengeResolution() external payable;
+function challengeResolution() external;
 function finalizeResolution() external;
 ```
 
-### `PositionVault.sol`
-Stores encrypted position commitments. Integrates with TEE for decryption at resolution.
+### [`PositionVault.sol`](contracts/src/PositionVault.sol)
+Stores encrypted position commitments. Integrates with TEE for decryption at resolution. Prevents any position from being read before the market deadline is verified on-chain.
 
-```solidity
-function commitPosition(
-    address market,
-    bytes calldata encryptedCommitment
-) external payable;
+### [`LiquidityPool.sol`](contracts/src/LiquidityPool.sol)
+The market maker agent's on-chain liquidity reserve. Allocates USDT to new markets using a tier-based system (Seed/Low/Medium/High allocation tiers). The agent wallet address is [`0x2e5d8B56F9B4770a88794a47C32c177542d2f6ea`](https://chainscan-galileo.0g.ai/address/0x2e5d8B56F9B4770a88794a47C32c177542d2f6ea).
 
-function revealPositions(
-    address market,
-    bytes calldata teeDecryptionProof
-) external onlyAtResolution returns (Position[] memory);
+### Interfaces
+All contract interfaces are in [`contracts/src/interfaces/`](contracts/src/interfaces/) — useful for external integrations.
+
+### Tests
+Full test suites in [`contracts/test/`](contracts/test/):
+- [`ProphetFactory.t.sol`](contracts/test/ProphetFactory.t.sol)
+- [`MarketContract.t.sol`](contracts/test/MarketContract.t.sol)
+- [`PositionVault.t.sol`](contracts/test/PositionVault.t.sol)
+- [`LiquidityPool.t.sol`](contracts/test/LiquidityPool.t.sol)
+
+---
+
+## 5. AI Oracle — How Resolution Works
+
+The oracle is Prophet's core differentiator. It runs fully autonomously on 0G Compute.
+
+**Entry point:** [`agent/src/oracle/index.ts`](agent/src/oracle/index.ts)
+
+**Resolution sequence:**
+
+1. Oracle listens for `ResolutionTriggered` events via [`agent/src/shared/chain.ts`](agent/src/shared/chain.ts)
+2. Pulls market metadata from 0G Storage KV (`market:{address}:metadata`)
+3. Calls 0G Compute with a structured prompt (see [`agent/src/shared/compute.ts`](agent/src/shared/compute.ts)):
+   ```
+   Market Question: "{question}"
+   Resolution Criteria: resolves YES if described event occurred before deadline.
+   Approved sources: {sources}
+   → Returns: { verdict, confidence, reasoning, evidenceSummary, sourcesChecked }
+   ```
+4. Writes full reasoning to 0G Storage **Log Layer** (`market:{address}:resolution`) — permanent, tamper-proof
+5. Posts verdict on-chain via `MarketContract.postResolution(verdict, reasoningHash)`
+6. The `reasoningHash` on-chain is verifiably linked to the 0G Storage content — anyone can retrieve and check it
+
+**Confidence threshold:** If confidence < 70%, oracle returns `INCONCLUSIVE` and the market enters a dispute window.
+
+**Challenge mechanism:** Any user can challenge a resolution within 24 hours by staking 5% of the market pool. A challenge triggers a second, stricter oracle call. If upheld, the challenger earns the oracle agent's fee. If rejected, the challenger loses their stake. This creates economic incentives for oracle accuracy without a human committee.
+
+**Frontend display:** Oracle reasoning is surfaced in the UI via [`frontendV2/src/lib/hooks/use-oracle-reasoning.ts`](frontendV2/src/lib/hooks/use-oracle-reasoning.ts) and rendered on the Oracle page at [`frontendV2/src/app/(dashboard)/oracle/page.tsx`](frontendV2/src/app/(dashboard)/oracle/page.tsx).
+
+---
+
+## 6. Core Flows
+
+### Market Creation
+```
+User submits question
+→ 0G Compute: LLM validates (unambiguous? resolvable?) [validate-question/route.ts]
+→ 0G Chain: ProphetFactory.createMarket() [ProphetFactory.sol]
+→ 0G Storage (KV): Write market metadata [storage.ts]
+→ Market Maker Agent wakes up, reads new market [market-maker/index.ts]
+→ 0G Compute: Generate opening YES/NO probability [compute.ts]
+→ 0G Chain: Post opening price quotes — market is now live
 ```
 
-### `PayoutDistributor.sol`
-Calculates and distributes winnings after positions are revealed.
+### Placing a Bet (Sealed Position)
+```
+User selects YES/NO + amount
+→ TEE encrypt position [bet-encryption.ts]
+→ 0G Chain: PositionVault.commitPosition(encryptedPayload) [PositionVault.sol]
+→ Public chain sees: commitment hash + USDT locked — direction/size invisible
+→ Market maker adjusts spread based on aggregate volume (not individual positions)
+```
 
-```solidity
-function distributePayout(
-    address market,
-    Position[] calldata revealedPositions,
-    bool outcome
-) external onlyAfterResolution;
+### Oracle Resolution
+```
+0G Chain: deadline block → MarketContract emits ResolutionTriggered
+→ Oracle Agent: pulls metadata from 0G Storage KV [oracle/index.ts]
+→ 0G Compute: LLM reads approved sources, synthesizes verdict [compute.ts]
+→ 0G Storage (Log): Write full reasoning permanently [storage.ts]
+→ 0G Chain: postResolution(verdict, reasoningHash) → 24h challenge window
+→ [No challenge] → finalizeResolution() → TEE releases decryption keys
+→ All positions decrypted simultaneously → USDT distributed to winners
+```
+
+**Fee structure:**
+- 1% → Oracle agent (incentive to resolve accurately)
+- 1% → Market maker agent (incentive to maintain liquidity)
+- 0.5% → Protocol treasury
+
+---
+
+## 7. Deployed Contracts
+
+**Network:** 0G Galileo Testnet — Chain ID `16602`
+**RPC:** `https://evmrpc-testnet.0g.ai`
+**Explorer:** `https://chainscan-galileo.0g.ai`
+
+| Contract | Address | Explorer |
+|---|---|---|
+| `ProphetFactory` | `0xCEd9B4405b9B7d09f6b7d44e6bA113EcF2627333` | [View](https://chainscan-galileo.0g.ai/address/0xCEd9B4405b9B7d09f6b7d44e6bA113EcF2627333) |
+| `PositionVault` | `0x3f831E170f828DB2711403c6C3AD80e6fB02da75` | [View](https://chainscan-galileo.0g.ai/address/0x3f831E170f828DB2711403c6C3AD80e6fB02da75) |
+| `LiquidityPool` | `0x1A39bD969870e71d22A10b38F2845baBB56649A4` | [View](https://chainscan-galileo.0g.ai/address/0x1A39bD969870e71d22A10b38F2845baBB56649A4) |
+| `PayoutDistributor` | `0x0d979Db2cDda3D2f35FDFAb5883F97De40760054` | [View](https://chainscan-galileo.0g.ai/address/0x0d979Db2cDda3D2f35FDFAb5883F97De40760054) |
+| `Mock USDT` | `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49` | [View](https://chainscan-galileo.0g.ai/address/0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49) |
+
+**Deployment script:** [`contracts/script/Deploy.s.sol`](contracts/script/Deploy.s.sol)
+
+**Live on-chain activity:** The factory has deployed multiple markets. You can verify oracle resolutions by looking up the `reasoningHash` emitted in `ResolutionPosted` events and retrieving the corresponding JSON from 0G Storage.
+
+---
+
+## 8. Local Setup & Deployment
+
+### 8.1 Prerequisites
+
+```bash
+# Foundry (for smart contracts)
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+forge --version   # should print forge 0.x.x
+
+# Node.js >= 18
+node --version
+
+# Clone the repo
+git clone https://github.com/JamesVictor-O/Prophet
+cd Prophet
 ```
 
 ---
 
-## 8. AI Oracle — How It Works
+### 8.2 1. Smart Contracts
 
-The oracle is the most critical component of Prophet. Here is exactly what happens when it resolves a market.
+```bash
+cd contracts
 
-### Source Registry
-Prophet maintains a curated registry of trusted data sources per category, stored in 0G Storage. This registry is governed by Prophet token holders and updated through on-chain proposals.
+# Install OpenZeppelin and other dependencies
+forge install
 
-| Category | Trusted Sources |
+# Compile all contracts (must complete with 0 errors)
+forge build
+
+# Run the full test suite
+forge test -vvv
+
+# Check contract sizes (all must be under 24KB)
+forge build --sizes
+```
+
+**Deploy to 0G Galileo testnet:**
+
+```bash
+# Set environment variables
+export PRIVATE_KEY=<your_deployer_wallet_private_key>
+
+# Deploy all contracts in one script
+forge script script/Deploy.s.sol \
+  --rpc-url https://evmrpc-testnet.0g.ai \
+  --broadcast \
+  --chain-id 16602
+
+# The script prints all deployed addresses — copy them for the next steps
+```
+
+> **Gas token:** You need 0G tokens for gas. See [Section 9](#9-testnet-setup--faucet) for the faucet.
+
+---
+
+### 8.3 2. Agent (Oracle + Market Maker)
+
+```bash
+cd agent
+
+# Install dependencies
+npm install
+
+# Copy and configure environment
+cp .env.example .env
+```
+
+Edit `.env`:
+```bash
+# Wallets
+PRIVATE_KEY_ORACLE=<oracle_agent_private_key>
+PRIVATE_KEY_MM=<market_maker_private_key>
+
+# 0G Network
+OG_CHAIN_RPC=https://evmrpc-testnet.0g.ai
+OG_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai   # use turbo, not standard
+
+# Deployed contract addresses (from step 1)
+PROPHET_FACTORY_ADDRESS=0xCEd9B4405b9B7d09f6b7d44e6bA113EcF2627333
+POSITION_VAULT_ADDRESS=0x3f831E170f828DB2711403c6C3AD80e6fB02da75
+LIQUIDITY_POOL_ADDRESS=0x1A39bD969870e71d22A10b38F2845baBB56649A4
+
+# 0G Compute provider (Qwen 2.5 7B on testnet)
+COMPUTE_PROVIDER_ADDRESS=0xa48f01...
+
+# Market maker repricing interval (milliseconds)
+REPRICE_INTERVAL_MS=60000
+```
+
+```bash
+# Test 0G Compute connection
+npm run ts-node src/scripts/test-compute.ts
+
+# Test 0G Storage connection
+npm run ts-node src/scripts/test-storage.ts
+
+# Run oracle agent
+npm run oracle
+
+# Run market maker agent (separate terminal)
+npm run market-maker
+```
+
+**Agent source files:**
+- Oracle: [`agent/src/oracle/index.ts`](agent/src/oracle/index.ts)
+- Market Maker: [`agent/src/market-maker/index.ts`](agent/src/market-maker/index.ts)
+- 0G Storage helpers: [`agent/src/shared/storage.ts`](agent/src/shared/storage.ts)
+- 0G Compute helpers: [`agent/src/shared/compute.ts`](agent/src/shared/compute.ts)
+- Chain helpers: [`agent/src/shared/chain.ts`](agent/src/shared/chain.ts)
+
+---
+
+### 8.4 3. Frontend
+
+```bash
+cd frontendV2
+
+# Install dependencies
+npm install
+
+# Copy and configure environment
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
+```bash
+# 0G Network
+NEXT_PUBLIC_CHAIN_ID=16602
+NEXT_PUBLIC_RPC_URL=https://evmrpc-testnet.0g.ai
+
+# Deployed contracts (from step 1)
+NEXT_PUBLIC_FACTORY_ADDRESS=0xCEd9B4405b9B7d09f6b7d44e6bA113EcF2627333
+NEXT_PUBLIC_POSITION_VAULT_ADDRESS=0x3f831E170f828DB2711403c6C3AD80e6fB02da75
+NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS=0x1A39bD969870e71d22A10b38F2845baBB56649A4
+NEXT_PUBLIC_USDT_ADDRESS=0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49
+
+# 0G Storage (server-side, for API routes)
+OG_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
+OG_CHAIN_RPC=https://evmrpc-testnet.0g.ai
+
+# Oracle agent address (for displaying oracle data)
+NEXT_PUBLIC_ORACLE_AGENT_ADDRESS=<oracle_agent_wallet_address>
+```
+
+```bash
+# Start dev server
+npm run dev
+# → http://localhost:3000
+
+# Type check
+npm run type-check
+
+# Production build
+npm run build
+```
+
+**Key frontend pages:**
+- Markets list: [`frontendV2/src/app/(dashboard)/markets/page.tsx`](frontendV2/src/app/(dashboard)/markets/page.tsx)
+- Individual market + trading: [`frontendV2/src/app/market/[id]/page.tsx`](frontendV2/src/app/market/[id]/page.tsx)
+- Oracle reasoning viewer: [`frontendV2/src/app/(dashboard)/oracle/page.tsx`](frontendV2/src/app/(dashboard)/oracle/page.tsx)
+- Create market: [`frontendV2/src/app/(dashboard)/_components/create-market-modal.tsx`](frontendV2/src/app/(dashboard)/_components/create-market-modal.tsx)
+- Liquidity pool: [`frontendV2/src/app/(dashboard)/liquidity/page.tsx`](frontendV2/src/app/(dashboard)/liquidity/page.tsx)
+- Built-in faucet: [`frontendV2/src/app/(dashboard)/faucet/page.tsx`](frontendV2/src/app/(dashboard)/faucet/page.tsx)
+
+---
+
+## 9. Testnet Setup & Faucet
+
+### Step 1 — Add 0G Galileo to MetaMask
+
+| Field | Value |
 |---|---|
-| Crypto prices | CoinGecko API, Binance, on-chain Chainlink feeds |
-| Sports | ESPN, BBC Sport, official league/federation APIs |
-| Politics | Reuters, AP News, official government websites |
-| Finance | Yahoo Finance, Bloomberg public feeds, SEC EDGAR |
-| Custom | LLM selects best available sources from registry |
+| Network Name | 0G Galileo Testnet |
+| RPC URL | `https://evmrpc-testnet.0g.ai` |
+| Chain ID | `16602` |
+| Currency Symbol | `0G` |
+| Block Explorer | `https://chainscan-galileo.0g.ai` |
 
-### Oracle Prompt Structure
-When the oracle agent calls 0G Compute at resolution time, it sends a structured prompt:
+Or add it automatically at [https://chainlist.org/?search=0g](https://chainlist.org/?search=0g).
 
-```
-You are a prediction market oracle. Your task is to resolve the following market.
+### Step 2 — Get 0G Gas Tokens
 
-Market question: {question}
-Resolution deadline: {deadline}
-Resolution criteria: {criteria}
+Go to the 0G faucet: **[https://faucet.0g.ai](https://faucet.0g.ai)**
 
-You must read the following approved sources and determine the outcome:
-{source_1}, {source_2}, {source_3}
+- Connect your wallet or paste your address
+- Request testnet 0G tokens (used for gas)
+- You need at least two funded wallets: one for the oracle agent and one for the market maker agent
 
-Provide:
-1. Your verdict: YES or NO
-2. Your confidence: 0-100%
-3. Your full reasoning, citing specific evidence from each source
-4. Any ambiguities you encountered and how you resolved them
+### Step 3 — Get Mock USDT
 
-If you cannot determine the outcome with >70% confidence, return INCONCLUSIVE.
-```
+Prophet uses USDT as collateral. The mock USDT contract is deployed at `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49`.
 
-### Dispute Mechanism
-Any user can challenge a resolution within 24 hours by staking 5% of the market's total pool. A challenge triggers a second oracle call with stricter evidence requirements and a longer evidence-gathering window. If the challenge is upheld, the challenger receives their stake back plus 50% of the oracle agent's fee. If rejected, the challenger loses their stake to the oracle agent.
+**Option A — Use the built-in faucet in the app:**
+Navigate to the Faucet page in the frontend (`/faucet`) — it calls [`frontendV2/src/app/api/faucet/route.ts`](frontendV2/src/app/api/faucet/route.ts) to mint 1,000 USDT to your address.
 
-This creates a robust incentive structure: the oracle is financially motivated to be accurate, and challengers are financially motivated to only dispute genuine errors.
-
----
-
-## 9. Privacy Layer — TEE Sealed Inference
-
-### What is a TEE?
-A Trusted Execution Environment (TEE) is a secure area of a processor that guarantees code executes privately — even the hardware operator cannot see what is happening inside. 0G Labs provides TEE-based sealed inference as part of its compute stack.
-
-### How Prophet Uses It
-
-**At bet placement:**
-```
-User input: { direction: "YES", amount: 100 USDT }
-                    │
-                    ▼
-              TEE encryption
-                    │
-                    ▼
-On-chain storage: 0xA3F9...2B1C  ← meaningless to any observer
+**Option B — Mint directly via cast:**
+```bash
+cast send 0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49 \
+  "mint(address,uint256)" \
+  <your_address> 1000000000 \
+  --rpc-url https://evmrpc-testnet.0g.ai \
+  --private-key <your_private_key>
+# 1000000000 = 1,000 USDT (6 decimals)
 ```
 
-**At resolution:**
-```
-0G Chain: Deadline block confirmed
-                    │
-                    ▼
-TEE verifies deadline → releases decryption keys
-                    │
-                    ▼
-All positions decrypted simultaneously
-                    │
-                    ▼
-Smart contract processes revealed positions → payouts
-```
+### Step 4 — Verify Setup
 
-### What This Prevents
-- **Front-running** — nobody can see your position and copy or trade against it
-- **Informed manipulation** — the market maker agent prices based on aggregate volume signals only, not individual positions
-- **MEV extraction** — encrypted data has no extractable value for block producers
+```bash
+# Check your 0G balance
+cast balance <your_address> --rpc-url https://evmrpc-testnet.0g.ai
+
+# Check your USDT balance
+cast call 0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49 \
+  "balanceOf(address)" <your_address> \
+  --rpc-url https://evmrpc-testnet.0g.ai
+```
 
 ---
 
 ## 10. Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Smart contracts | Solidity, Hardhat, OpenZeppelin |
-| Blockchain | 0G Chain (EVM-compatible) |
-| Decentralized storage | 0G Storage SDK (TypeScript) |
-| AI inference | 0G Compute (LLM inference API) |
-| Privacy | 0G TEE Sealed Inference |
-| Agent identity | 0G Agent ID |
-| Frontend | Next.js, TypeScript, wagmi, viem |
-| Wallet integration | MetaMask, WalletConnect |
-| Backend (agent runner) | Node.js |
-| Testing | Hardhat test suite, Chai |
+| Layer | Technology | Version |
+|---|---|---|
+| Smart contracts | Solidity + Foundry | `^0.8.20` / `forge 0.x` |
+| Contract libraries | OpenZeppelin | `^5.0.0` |
+| Blockchain | 0G Chain (EVM L1) | Chain ID 16602 |
+| Decentralized storage | `@0gfoundation/0g-storage-ts-sdk` | latest |
+| AI inference | `@0glabs/0g-serving-broker` + OpenAI API | latest |
+| Privacy | 0G TEE Sealed Inference | (stub for MVP) |
+| Agent runtime | Node.js + TypeScript | >= 18 |
+| Agent blockchain lib | ethers.js | v6 |
+| Frontend framework | Next.js (App Router) | 14 |
+| Frontend language | TypeScript | 5 |
+| Wallet integration | wagmi v2 + viem + RainbowKit | v2 |
+| Frontend styling | Tailwind CSS | v3 |
+| Contract interaction | wagmi hooks + viem | v2 |
 
 ---
 
 ## 11. Hackathon Track
 
 **Primary: Track 2 — Agentic Trading Arena (Verifiable Finance)**
+**Event:** 0G APAC Hackathon 2026 on HackQuest | **Deadline:** May 9, 2026
 
-Prophet is a direct response to Track 2's core mandate: transitioning from manual DeFi to fully autonomous, verifiable financial logic. Every key feature maps to the track's stated priorities:
-
-| Track 2 Requirement | Prophet Implementation |
-|---|---|
-| Autonomous financial logic | AI oracle + AI market maker — zero human intervention |
-| Sealed inference for privacy | TEE-encrypted positions until resolution |
-| Front-running mitigation | Positions invisible until simultaneous reveal at close |
-| Verifiable execution | Oracle reasoning stored permanently on 0G Storage |
-| AI-driven strategy agents | Market maker agent continuously reprices based on 0G Compute |
-
-**Secondary: Track 5 — Privacy & Sovereign Infrastructure**
-
-The TEE sealed position system is a privacy-preserving protocol that could be extracted and used by any DeFi application that needs to hide user intent until execution — making it a reusable piece of privacy infrastructure, not just a feature of Prophet.
+| Track 2 Requirement | Prophet Implementation | Code |
+|---|---|---|
+| Autonomous financial logic | AI oracle + AI market maker — zero human intervention | [`oracle/index.ts`](agent/src/oracle/index.ts), [`market-maker/index.ts`](agent/src/market-maker/index.ts) |
+| Sealed inference for privacy | TEE-encrypted positions until resolution | [`PositionVault.sol`](contracts/src/PositionVault.sol), [`bet-encryption.ts`](frontendV2/src/lib/bet-encryption.ts) |
+| Front-running mitigation | Positions invisible until simultaneous reveal at close | [`PositionVault.sol`](contracts/src/PositionVault.sol) |
+| Verifiable execution | Oracle reasoning stored permanently on 0G Storage | [`storage.ts`](agent/src/shared/storage.ts), [`use-oracle-reasoning.ts`](frontendV2/src/lib/hooks/use-oracle-reasoning.ts) |
+| AI-driven strategy agents | Market maker reprices continuously via 0G Compute | [`compute.ts`](agent/src/shared/compute.ts), [`market-maker/index.ts`](agent/src/market-maker/index.ts) |
 
 ---
 
 ## 12. Roadmap
 
-### Hackathon MVP (Weeks 1–6)
-- [ ] Core smart contracts deployed on 0G testnet (Galileo)
-- [ ] 0G Storage integration for market metadata and oracle reasoning
-- [ ] 0G Compute integration for oracle resolution (single market category: Crypto)
-- [ ] TEE sealed position vault (encrypt + decrypt flow)
-- [ ] Agent ID oracle agent with basic resolution capability
-- [ ] Agent ID market maker with basic pricing model
-- [ ] Minimal frontend — create market, place bet, view resolution
-- [ ] End-to-end demo: one full market lifecycle
+### Hackathon MVP (Weeks 1–6) ✓
+- [x] Core smart contracts deployed on 0G Galileo testnet
+- [x] 0G Storage integration for market metadata and oracle reasoning
+- [x] 0G Compute integration for oracle resolution and market maker repricing
+- [x] TEE sealed position vault (encrypt + commit flow)
+- [x] Oracle agent with autonomous market resolution
+- [x] Market maker agent with tier-based liquidity allocation
+- [x] Full frontend — browse markets, place bets, view oracle reasoning
 
 ### Post-Hackathon V1
 - [ ] Multi-category markets (Sports, Politics, Finance)
-- [ ] Full challenge and dispute system
+- [ ] Full challenge and dispute system with staking
 - [ ] Human liquidity provider pools
 - [ ] Oracle reputation scoring dashboard
-- [ ] Mobile-responsive frontend
-- [ ] Mainnet deployment on 0G Chain
+- [ ] 0G mainnet deployment
 
 ### V2
 - [ ] Cross-chain market creation (create on Ethereum, settle on 0G)
-- [ ] Conditional markets ("If X happens, then will Y happen?")
+- [ ] Conditional markets
 - [ ] Prophet governance token for source registry management
 - [ ] SDK for third-party integrations
 
@@ -675,7 +663,9 @@ The TEE sealed position system is a privacy-preserving protocol that could be ex
 
 ## Contributing
 
-Prophet is being built in public as part of the 0G APAC Hackathon 2026. Follow the build journey on X: `#0GHackathon #BuildOn0G`
+Prophet is being built in public as part of the 0G APAC Hackathon 2026.
+
+Follow the build journey: `#0GHackathon` `#BuildOn0G` `@0G_labs` `@0g_CN` `@0g_Eco` `@HackQuest_`
 
 ---
 
@@ -686,3 +676,5 @@ MIT
 ---
 
 *Built with 0G Labs infrastructure. Powered by the belief that opinions should be tradable — privately, fairly, and autonomously.*
+
+*0G APAC Hackathon 2026 — Track 2: Agentic Trading Arena (Verifiable Finance)*
