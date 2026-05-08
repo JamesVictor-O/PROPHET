@@ -2,10 +2,17 @@
 
 type Level = "INFO" | "WARN" | "ERROR" | "DEBUG";
 
+function serializeData(data: unknown): string {
+  if (data instanceof Error) {
+    return JSON.stringify({ message: data.message, code: (data as NodeJS.ErrnoException).code, stack: data.stack?.split("\n")[1]?.trim() });
+  }
+  return JSON.stringify(data);
+}
+
 function log(level: Level, agent: string, msg: string, data?: unknown): void {
   const ts    = new Date().toISOString();
   const entry = data !== undefined
-    ? `[${ts}] [${level}] [${agent}] ${msg} ${JSON.stringify(data)}`
+    ? `[${ts}] [${level}] [${agent}] ${msg} ${serializeData(data)}`
     : `[${ts}] [${level}] [${agent}] ${msg}`;
 
   if (level === "ERROR") {

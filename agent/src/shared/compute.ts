@@ -258,20 +258,25 @@ export async function callOracleInference(
 
   logger.info("Received oracle response from 0G Compute");
 
-  // 6. Parse and validate
+  // 6. Parse and validate — strip markdown code fences if the model wrapped the JSON
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
   let parsed: OracleResponse;
   try {
-    parsed = JSON.parse(raw) as OracleResponse;
+    parsed = JSON.parse(cleaned) as OracleResponse;
   } catch {
-    throw new Error(`Oracle returned invalid JSON:\n${raw}`);
+    throw new Error(`Oracle returned invalid JSON:\n${cleaned}`);
   }
 
   if (
     parsed.confidence === undefined ||
-    parsed.reasoning  === undefined ||
-    !Array.isArray(parsed.sourcesChecked)
+    parsed.reasoning  === undefined
   ) {
-    throw new Error(`Oracle response missing required fields:\n${raw}`);
+    throw new Error(`Oracle response missing required fields:\n${cleaned}`);
+  }
+
+  if (!Array.isArray(parsed.sourcesChecked)) {
+    parsed.sourcesChecked = [];
   }
 
   logger.info("Oracle inference complete", {
@@ -348,11 +353,13 @@ export async function callPricingInference(
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("0G Compute returned empty pricing response");
 
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
   let parsed: PricingResponse;
   try {
-    parsed = JSON.parse(raw) as PricingResponse;
+    parsed = JSON.parse(cleaned) as PricingResponse;
   } catch {
-    throw new Error(`Pricing returned invalid JSON:\n${raw}`);
+    throw new Error(`Pricing returned invalid JSON:\n${cleaned}`);
   }
 
   parsed.yesProbability = Math.max(1, Math.min(99, Math.round(parsed.yesProbability)));
