@@ -309,17 +309,31 @@ contract LiquidityPoolTest is Test {
         pool.allocateToMarket(address(0x1234), 500e6);
     }
 
-    function test_AllocateToMarket_RevertsIfAlreadyAllocated() public {
+    function test_AllocateToMarket_AllowsTopUpWithinMaxAllocation() public {
         _deposit(ALICE, 10_000e6);
         MarketContract market = _deployMarket();
 
         vm.startPrank(AGENT);
-        pool.allocateToMarket(address(market), 500e6);
+        pool.allocateToMarket(address(market), 300e6);
+        pool.allocateToMarket(address(market), 200e6);
+        vm.stopPrank();
+
+        assertEq(pool.marketAllocation(address(market)), 500e6);
+        assertEq(pool.totalAllocated(), 500e6);
+        assertEq(pool.totalMarketsAllocated(), 1);
+    }
+
+    function test_AllocateToMarket_RevertsIfTopUpExceedsMaxBps() public {
+        _deposit(ALICE, 10_000e6);
+        MarketContract market = _deployMarket();
+
+        vm.startPrank(AGENT);
+        pool.allocateToMarket(address(market), 300e6);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ILiquidityPool.LiquidityPool__AlreadyAllocated.selector, address(market))
+            abi.encodeWithSelector(ILiquidityPool.LiquidityPool__AllocationTooLarge.selector, 501e6, 500e6)
         );
-        pool.allocateToMarket(address(market), 500e6);
+        pool.allocateToMarket(address(market), 201e6);
         vm.stopPrank();
     }
 
@@ -574,7 +588,8 @@ contract LiquidityPoolTest is Test {
 
         uint256 poolBalBefore = usdt.balanceOf(address(pool));
 
-        // Anyone can call returnLiquidityToPool
+        // Market maker agent returns allocated capital to the canonical pool
+        vm.prank(AGENT);
         market.returnLiquidityToPool(address(pool));
 
         assertEq(usdt.balanceOf(address(pool)), poolBalBefore + 500e6);
@@ -597,6 +612,7 @@ contract LiquidityPoolTest is Test {
         market.cancelMarket("inconclusive");
 
         uint256 poolBalBefore = usdt.balanceOf(address(pool));
+        vm.prank(AGENT);
         market.returnLiquidityToPool(address(pool));
 
         assertEq(usdt.balanceOf(address(pool)), poolBalBefore + 500e6);
@@ -609,6 +625,7 @@ contract LiquidityPoolTest is Test {
         vm.prank(AGENT);
         pool.allocateToMarket(address(market), 500e6);
 
+        vm.prank(AGENT);
         vm.expectRevert(MarketContract.MarketContract__NotSettled.selector);
         market.returnLiquidityToPool(address(pool));
     }
@@ -631,8 +648,10 @@ contract LiquidityPoolTest is Test {
         vm.warp(block.timestamp + 25 hours);
         market.finalizeResolution();
 
+        vm.prank(AGENT);
         market.returnLiquidityToPool(address(pool));
 
+        vm.prank(AGENT);
         vm.expectRevert(MarketContract.MarketContract__PoolAlreadyReturned.selector);
         market.returnLiquidityToPool(address(pool));
     }
@@ -649,9 +668,32 @@ contract LiquidityPoolTest is Test {
         market.cancelMarket("inconclusive");
 
         uint256 poolBalBefore = usdt.balanceOf(address(pool));
+        vm.prank(AGENT);
         market.returnLiquidityToPool(address(pool)); // should be no-op
 
         assertEq(usdt.balanceOf(address(pool)), poolBalBefore);
+    }
+
+    function test_MarketReturnLiquidityToPool_RevertsFromNonMarketMaker() public {
+        _deposit(ALICE, 10_000e6);
+        MarketContract market = _deployMarket();
+
+        vm.prank(AGENT);
+        pool.allocateToMarket(address(market), 500e6);
+
+        vm.warp(block.timestamp + 7 days + 1);
+        market.triggerResolution();
+
+        bytes32 reasonHash = keccak256("oracle reasoning");
+        bytes memory attest = _oracleAttest(address(market), true, reasonHash);
+        vm.prank(ORACLE);
+        market.postResolution(true, reasonHash, attest);
+
+        vm.warp(block.timestamp + 25 hours);
+        market.finalizeResolution();
+
+        vm.expectRevert(MarketContract.MarketContract__NotMarketMakerAgent.selector);
+        market.returnLiquidityToPool(address(pool));
     }
 
     // ══════════════════════════════════════════════════════════════════════════

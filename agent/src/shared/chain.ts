@@ -24,6 +24,9 @@ const MARKET_ABI = [
   "event ResolutionPosted(address indexed market, bool verdict, bytes32 reasoningHash, uint256 challengeDeadline)",
   "event ResolutionChallenged(address indexed market, address indexed challenger, uint256 challengeStake)",
   "event ResolutionFinalized(address indexed market, bool outcome, uint256 timestamp)",
+  "event MarketCancelled(address indexed market, string reason)",
+  "event SharesPurchased(address indexed market, address indexed trader, bool indexed isYes, uint256 collateralIn, uint256 sharesOut, uint256 fee)",
+  "event SharesSold(address indexed market, address indexed trader, bool indexed isYes, uint256 sharesIn, uint256 collateralOut, uint256 fee)",
   "event MarketActivated(address indexed market, uint256 interestCount, uint256 timestamp)",
 
   "function getMarketInfo() view returns (string question, uint256 deadline, uint8 status, bool outcome, uint256 totalCollateral, uint256 challengeDeadline, bytes32 verdictReasoningHash, string category, address creator)",
@@ -39,12 +42,14 @@ const MARKET_ABI = [
   "function challenger() view returns (address)",
   "function challengeDeadline() view returns (uint256)",
   "function hasBet(address bettor) view returns (bool)",
+  "function getAmmState(address trader) view returns (uint256 yesReserve, uint256 noReserve, uint256 collateralBacking, uint256 tradingFees, uint256 traderYesShares, uint256 traderNoShares, uint256 yesPriceBps, uint256 noPriceBps)",
 
   "function triggerResolution()",
   "function postResolution(bool verdict, bytes32 reasoningHash, bytes teeAttestation)",
   "function processChallengeOutcome(bool challengeUpheld)",
   "function finalizeResolution()",
   "function cancelMarket(string reason)",
+  "function returnLiquidityToPool(address pool)",
 ] as const;
 
 const LIQUIDITY_POOL_ABI = [
@@ -271,6 +276,19 @@ export async function triggerResolutionOnChain(
   const tx      = await market.triggerResolution();
   const receipt = await tx.wait();
   logger.info("Resolution triggered", { txHash: receipt.hash });
+  return receipt;
+}
+
+
+export async function finalizeResolutionOnChain(
+  marketAddress: string,
+  signer:        Wallet
+): Promise<ethers.TransactionReceipt> {
+  const market  = getMarket(marketAddress, signer);
+  logger.info("Finalizing resolution (challenge window expired, no challenge)...", { market: marketAddress });
+  const tx      = await market.finalizeResolution();
+  const receipt = await tx.wait();
+  logger.info("Resolution finalized", { txHash: receipt.hash });
   return receipt;
 }
 

@@ -90,6 +90,11 @@ contract MarketContractTest is Test {
         vm.stopPrank();
     }
 
+    function _seedAmm(uint256 amount) internal {
+        usdt.mint(address(market), amount);
+        market.seedLiquidity(amount);
+    }
+
     function _triggerResolution() internal {
         vm.warp(MARKET_DEADLINE + 1);
         market.triggerResolution();
@@ -252,6 +257,114 @@ contract MarketContractTest is Test {
         vm.expectRevert(IMarketContract.MarketContract__NotOpen.selector);
         market.placeBet(abi.encode(true), ALICE_BET);
         vm.stopPrank();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // YES/NO share AMM
+    // ─────────────────────────────────────────────────────────────
+
+    function test_AmmBuyYes_MovesPriceUpAndMintsShares() public {
+        _seedAmm(20e6);
+
+        (, , , , , , uint256 yesBefore, uint256 noBefore) = market.getAmmState(ALICE);
+        assertEq(yesBefore, 5_000);
+        assertEq(noBefore, 5_000);
+
+        vm.startPrank(ALICE);
+        usdt.approve(address(market), 15e6);
+        uint256 sharesOut = market.buyShares(true, 15e6, 0);
+        vm.stopPrank();
+
+        (, , , , uint256 aliceYes, , uint256 yesAfter, uint256 noAfter) = market.getAmmState(ALICE);
+        assertEq(aliceYes, sharesOut);
+        assertGt(yesAfter, yesBefore);
+        assertLt(noAfter, noBefore);
+    }
+
+    function test_AmmSellYes_ReturnsCollateralAndReducesShares() public {
+        _seedAmm(100e6);
+
+        vm.startPrank(ALICE);
+        usdt.approve(address(market), 20e6);
+        uint256 sharesOut = market.buyShares(true, 20e6, 0);
+        uint256 sellAmount = sharesOut / 2;
+        uint256 balBefore = usdt.balanceOf(ALICE);
+        uint256 collateralOut = market.sellShares(true, sellAmount, 0);
+        vm.stopPrank();
+
+        assertEq(usdt.balanceOf(ALICE), balBefore + collateralOut);
+        assertEq(market.yesShares(ALICE), sharesOut - sellAmount);
+    }
+
+    function test_AmmSellNo_WorksWhenNoReserveIsLowButYesReserveCanPay() public {
+        _seedAmm(50e6);
+
+        vm.startPrank(ALICE);
+        usdt.approve(address(market), 200e6);
+        uint256 noSharesOut = market.buyShares(false, 175e6, 0);
+
+        (, uint256 noReserveBefore, , , , , , uint256 noPriceBefore) = market.getAmmState(ALICE);
+        assertLt(noReserveBefore, noSharesOut);
+        assertGt(noPriceBefore, 9_000);
+
+        uint256 balBefore = usdt.balanceOf(ALICE);
+        uint256 collateralOut = market.sellShares(false, noSharesOut, 0);
+        vm.stopPrank();
+
+        assertGt(collateralOut, 0);
+        assertEq(usdt.balanceOf(ALICE), balBefore + collateralOut);
+        assertEq(market.noShares(ALICE), 0);
+    }
+
+    function test_AmmRedeemWinningShares_PaysOneDollarPerShare() public {
+        _seedAmm(100e6);
+
+        vm.startPrank(ALICE);
+        usdt.approve(address(market), 20e6);
+        uint256 sharesOut = market.buyShares(true, 20e6, 0);
+        vm.stopPrank();
+
+        _resolveMarket(true);
+
+        uint256 balBefore = usdt.balanceOf(ALICE);
+        vm.prank(ALICE);
+        uint256 payout = market.redeemWinningShares();
+
+        assertEq(payout, sharesOut);
+        assertEq(usdt.balanceOf(ALICE), balBefore + sharesOut);
+        assertEq(market.yesShares(ALICE), 0);
+    }
+
+    function test_AmmRedeemCancelledShares_PaysNeutralHalfValue() public {
+        _seedAmm(100e6);
+
+        vm.startPrank(ALICE);
+        usdt.approve(address(market), 40e6);
+        uint256 yesOut = market.buyShares(true, 40e6, 0);
+        vm.stopPrank();
+
+        vm.startPrank(BOB);
+        usdt.approve(address(market), 20e6);
+        uint256 noOut = market.buyShares(false, 20e6, 0);
+        vm.stopPrank();
+
+        _triggerResolution();
+        vm.prank(ORACLE);
+        market.cancelMarket("INCONCLUSIVE");
+
+        uint256 aliceBalBefore = usdt.balanceOf(ALICE);
+        vm.prank(ALICE);
+        uint256 alicePayout = market.redeemCancelledShares();
+        assertEq(alicePayout, yesOut / 2);
+        assertEq(usdt.balanceOf(ALICE), aliceBalBefore + alicePayout);
+        assertEq(market.yesShares(ALICE), 0);
+
+        uint256 bobBalBefore = usdt.balanceOf(BOB);
+        vm.prank(BOB);
+        uint256 bobPayout = market.redeemCancelledShares();
+        assertEq(bobPayout, noOut / 2);
+        assertEq(usdt.balanceOf(BOB), bobBalBefore + bobPayout);
+        assertEq(market.noShares(BOB), 0);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -527,6 +640,37 @@ contract MarketContractTest is Test {
         uint256 oracleFee  = 300e6 * 100 / 10_000; // 3_000_000
         uint256 reward     = oracleFee * 5_000 / 10_000; // 1_500_000
         assertEq(usdt.balanceOf(BOB), bobBefore + stake + reward);
+        assertEq(market.challengeRewardPaid(), reward);
+    }
+
+    function test_E2E_ChallengeUpheld_RewardComesOutOfOracleFee() public {
+        _placeBet(ALICE, ALICE_BET, true);
+        _placeBet(BOB,   BOB_BET,   false);
+        _triggerResolution();
+        _postResolution(true); // oracle says YES
+
+        uint256 stake = market.requiredChallengeStake();
+        vm.startPrank(CHARLIE);
+        usdt.approve(address(market), stake);
+        market.challengeResolution();
+        vm.stopPrank();
+
+        vm.prank(ORACLE);
+        market.processChallengeOutcome(true); // challenge flips outcome to NO
+
+        IPositionVault.RevealedPosition[] memory positions = new IPositionVault.RevealedPosition[](2);
+        positions[0] = IPositionVault.RevealedPosition({ bettor: ALICE, direction: true,  collateralAmount: ALICE_BET });
+        positions[1] = IPositionVault.RevealedPosition({ bettor: BOB,   direction: false, collateralAmount: BOB_BET   });
+
+        uint256 oracleBefore = usdt.balanceOf(ORACLE);
+        uint256 reward = market.challengeRewardPaid();
+
+        vm.prank(ORACLE);
+        vault.revealPositions(address(market), positions, VALID_ATTEST);
+
+        uint256 oracleFee = (ALICE_BET + BOB_BET) * 100 / 10_000;
+        assertEq(usdt.balanceOf(ORACLE), oracleBefore + oracleFee - reward);
+        assertEq(usdt.balanceOf(address(market)), 0);
     }
 
     function test_processChallengeOutcome_Rejected_KeepsVerdict() public {

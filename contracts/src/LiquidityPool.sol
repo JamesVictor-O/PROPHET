@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IProphetFactory } from "./interfaces/IProphetFactory.sol";
 import { ILiquidityPool } from "./interfaces/ILiquidityPool.sol";
+import { IMarketContract } from "./interfaces/IMarketContract.sol";
 
 /// @title LiquidityPool
 /// @notice Protocol-owned liquidity for Prophet prediction markets.
@@ -178,8 +179,8 @@ contract LiquidityPool is ILiquidityPool, ReentrancyGuard, Ownable {
         if (msg.sender != agent) revert LiquidityPool__NotAgent();
         if (!IProphetFactory(factory).isValidMarket(market))
             revert LiquidityPool__NotValidMarket();
-        if (marketAllocation[market] != 0)
-            revert LiquidityPool__AlreadyAllocated(market);
+        if (marketReturned[market])
+            revert LiquidityPool__AlreadyReturned(market);
         if (amount == 0) revert LiquidityPool__ZeroAmount();
 
         uint256 available = availableLiquidity();
@@ -189,17 +190,20 @@ contract LiquidityPool is ILiquidityPool, ReentrancyGuard, Ownable {
         uint256 poolVal = totalPoolValue();
         uint256 maxAmt  = (poolVal * maxAllocationBps) / 10_000;
         uint256 minAmt  = (poolVal * minAllocationBps) / 10_000;
+        uint256 existing = marketAllocation[market];
+        uint256 totalForMarket = existing + amount;
 
-        if (amount > maxAmt) revert LiquidityPool__AllocationTooLarge(amount, maxAmt);
-        if (amount < minAmt) revert LiquidityPool__AllocationTooSmall(amount, minAmt);
+        if (totalForMarket > maxAmt) revert LiquidityPool__AllocationTooLarge(totalForMarket, maxAmt);
+        if (totalForMarket < minAmt) revert LiquidityPool__AllocationTooSmall(totalForMarket, minAmt);
 
         // Effects
-        marketAllocation[market]  = amount;
+        marketAllocation[market]  = totalForMarket;
         totalAllocated           += amount;
-        totalMarketsAllocated    += 1;
+        if (existing == 0) totalMarketsAllocated += 1;
 
         // Interaction — push USDT directly to market contract
         IERC20(USDT).safeTransfer(market, amount);
+        IMarketContract(market).seedLiquidity(amount);
 
         emit AllocatedToMarket(market, amount, block.timestamp);
     }

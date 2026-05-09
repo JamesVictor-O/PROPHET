@@ -1,10 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, AiBrain01Icon } from "@hugeicons/core-free-icons";
 import Image from "next/image";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+
+const ConnectButton = dynamic(
+  () => import("@rainbow-me/rainbowkit").then((mod) => mod.ConnectButton),
+  { ssr: false }
+);
 
 const SOCIAL = [
   { label: "X (Twitter)", href: "https://x.com/prophet" },

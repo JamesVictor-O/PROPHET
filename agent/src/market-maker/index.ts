@@ -40,6 +40,25 @@ interface TrackedMarket {
 }
 
 const activeMarkets = new Map<string, TrackedMarket>();
+const settlementListeners = new Set<string>();
+const tradingListeners = new Set<string>();
+let txQueue: Promise<void> = Promise.resolve();
+let repricingTickInFlight = false;
+let recoveryTickInFlight = false;
+
+async function runQueuedTx<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const run = txQueue.then(fn, fn);
+  txQueue = run.then(
+    () => undefined,
+    (err) => {
+      logger.error("Queued transaction failed", {
+        label,
+        err,
+      });
+    }
+  );
+  return run;
+}
 
 // ── Repricing interval by liquidity tier ─────────────────────────────────────
 // Higher tier → more capital → more frequent repricing
@@ -71,13 +90,22 @@ async function priceMarket(
 
   let yesProbability: number;
   try {
-    const result = await callPricingInference(question, deadline, mmWallet);
-    yesProbability = result.yesProbability;
-    logger.info("0G Compute pricing result", {
-      market: marketAddress,
-      yesProbability,
-      rationale: result.rationale,
-    });
+    const market = getMarket(marketAddress, mmWallet);
+    const state = await market.getAmmState(ethers.ZeroAddress) as readonly [
+      bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
+    ];
+    if (state[0] > BigInt(0) && state[1] > BigInt(0)) {
+      yesProbability = Math.round(Number(state[6]) / 100);
+      logger.info("Using on-chain AMM price", { market: marketAddress, yesProbability });
+    } else {
+      const result = await callPricingInference(question, deadline, mmWallet);
+      yesProbability = result.yesProbability;
+      logger.info("0G Compute pricing result", {
+        market: marketAddress,
+        yesProbability,
+        rationale: result.rationale,
+      });
+    }
   } catch (err) {
     logger.error("0G Compute pricing failed — using default 50/50", err);
     yesProbability = 50;
@@ -141,6 +169,23 @@ function pushPriceToFrontend(marketAddress: string, yesProbability: number): voi
   }).catch((err: unknown) => {
     logger.warn("Frontend price push failed (non-fatal)", { error: err instanceof Error ? err.message : String(err) });
   });
+}
+
+async function pushOnChainAmmPrice(
+  marketAddress: string,
+  provider:      ReturnType<typeof createProvider>
+): Promise<void> {
+  try {
+    const market = getMarket(marketAddress, provider);
+    const state = await market.getAmmState(ethers.ZeroAddress) as readonly [
+      bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint
+    ];
+    const yesPrice = Number(state[6]) / 100;
+    if (!Number.isFinite(yesPrice) || yesPrice <= 0) return;
+    pushPriceToFrontend(marketAddress, Math.round(yesPrice));
+  } catch (err) {
+    logger.warn("Failed to push on-chain AMM price", { market: marketAddress, err });
+  }
 }
 
 // ── Persist global MM state to 0G Storage ────────────────────────────────────
@@ -256,7 +301,9 @@ async function allocateLiquidityToMarket(
       existing:  existing.toString(),
     });
 
-    const tx      = await pool.allocateToMarket(marketAddress, finalAmount);
+    const tx      = await runQueuedTx("allocateToMarket", () =>
+      pool.allocateToMarket(marketAddress, finalAmount)
+    );
     const receipt = await tx.wait();
 
     logger.info("Pool liquidity allocated", {
@@ -273,6 +320,95 @@ async function allocateLiquidityToMarket(
       err,
     });
   }
+}
+
+// ── Return settled pool liquidity ────────────────────────────────────────────
+
+async function returnLiquidityToPool(
+  marketAddress: string,
+  mmWallet:      ReturnType<typeof createWallet>
+): Promise<void> {
+  const pool = getLiquidityPool(mmWallet);
+  const poolAddress = cfg("LIQUIDITY_POOL_ADDRESS");
+  if (!pool || !poolAddress) return;
+
+  try {
+    const allocation = await pool.marketAllocation(marketAddress) as bigint;
+    if (allocation === BigInt(0)) return;
+
+    const market = getMarket(marketAddress, mmWallet);
+    logger.info("Returning settled market liquidity to pool", {
+      market: marketAddress,
+      allocation: allocation.toString(),
+    });
+
+    const tx = await runQueuedTx("returnLiquidityToPool", () =>
+      market.returnLiquidityToPool(poolAddress)
+    );
+    const receipt = await tx.wait();
+
+    logger.info("Settled liquidity returned to pool", {
+      market: marketAddress,
+      txHash: receipt.hash,
+      block: receipt.blockNumber,
+    });
+  } catch (err) {
+    logger.error("Failed to return liquidity to pool", { market: marketAddress, err });
+  }
+}
+
+function attachSettlementListeners(
+  marketAddress: string,
+  mmWallet:      ReturnType<typeof createWallet>,
+  provider:      ReturnType<typeof createProvider>
+): void {
+  const key = marketAddress.toLowerCase();
+  if (settlementListeners.has(key)) return;
+  settlementListeners.add(key);
+
+  const marketContract = getMarket(marketAddress, provider);
+
+  listenForEvent<[string, boolean, bigint, unknown]>(
+    marketContract,
+    "ResolutionFinalized",
+    async (market) => {
+      await returnLiquidityToPool(market, mmWallet);
+    }
+  );
+
+  listenForEvent<[string, string, unknown]>(
+    marketContract,
+    "MarketCancelled",
+    async (market) => {
+      await returnLiquidityToPool(market, mmWallet);
+    }
+  );
+}
+
+function attachTradingListeners(
+  marketAddress: string,
+  provider:      ReturnType<typeof createProvider>
+): void {
+  const key = marketAddress.toLowerCase();
+  if (tradingListeners.has(key)) return;
+  tradingListeners.add(key);
+
+  const marketContract = getMarket(marketAddress, provider);
+  const refresh = async (market: string) => {
+    await pushOnChainAmmPrice(market, provider);
+  };
+
+  listenForEvent<[string, string, boolean, bigint, bigint, bigint, unknown]>(
+    marketContract,
+    "SharesPurchased",
+    async (market) => refresh(market)
+  );
+
+  listenForEvent<[string, string, boolean, bigint, bigint, bigint, unknown]>(
+    marketContract,
+    "SharesSold",
+    async (market) => refresh(market)
+  );
 }
 
 // ── Handle new market created ─────────────────────────────────────────────────
@@ -331,75 +467,85 @@ async function startRepricingLoop(
   logger.info("Starting repricing loop", { intervalMs: loopInterval });
 
   setInterval(async () => {
-    const now = Date.now();
-    logger.debug(`Repricing tick — ${activeMarkets.size} tracked markets`);
-
-    for (const [addr, tracked] of activeMarkets) {
-      try {
-        // Skip if market deadline has passed
-        if (tracked.deadline * 1000 < now) {
-          logger.info("Market past deadline — removing from tracker", {
-            market: tracked.address,
-          });
-          activeMarkets.delete(addr);
-          continue;
-        }
-
-        // Check if it's time to reprice based on tier
-        const interval = getRepricingInterval(tracked.liquidityTier);
-        if (now - tracked.lastPriced < interval) {
-          continue;
-        }
-
-        // Verify market is still Open before repricing
-        const info = await getMarketInfo(tracked.address, provider);
-        if (info.status !== "Open") {
-          logger.info("Market no longer Open — removing from repricing", {
-            market: tracked.address,
-            status: info.status,
-          });
-          activeMarkets.delete(addr);
-          continue;
-        }
-
-        // Skip 0G Compute call if market has zero collateral (no bettors yet)
-        // — saves inference credits on empty Seed-tier markets
-        if (info.totalCollateral === BigInt(0)) {
-          logger.debug("Market has no collateral — skipping reprice to save compute credits", {
-            market: tracked.address,
-          });
-          continue;
-        }
-
-        // Check if tier has increased since last reprice — top up allocation if so
-        const market      = getMarket(tracked.address, provider);
-        const currentTier = Number(await market.liquidityTier()) as number;
-        if (currentTier !== tracked.liquidityTier) {
-          logger.info("Market tier changed — updating allocation", {
-            market:  tracked.address,
-            oldTier: TIER_NAMES[tracked.liquidityTier] ?? "Seed",
-            newTier: TIER_NAMES[currentTier] ?? "Seed",
-          });
-          tracked.liquidityTier = currentTier;
-          await allocateLiquidityToMarket(tracked.address, currentTier, mmWallet);
-        }
-
-        // Reprice
-        await priceMarket(
-          tracked.address,
-          tracked.question,
-          tracked.deadline,
-          tracked.liquidityTier,
-          mmWallet
-        );
-      } catch (err) {
-        logger.error("Repricing failed for market", { market: tracked.address, err });
-      }
+    if (repricingTickInFlight) {
+      logger.warn("Skipping repricing tick — previous tick still running");
+      return;
     }
+    repricingTickInFlight = true;
+    const now = Date.now();
 
-    // Persist updated MM state after each tick
-    if (activeMarkets.size > 0) {
-      await persistMMState(mmWallet);
+    try {
+      logger.debug(`Repricing tick — ${activeMarkets.size} tracked markets`);
+
+      for (const [addr, tracked] of activeMarkets) {
+        try {
+          // Skip if market deadline has passed
+          if (tracked.deadline * 1000 < now) {
+            logger.info("Market past deadline — removing from tracker", {
+              market: tracked.address,
+            });
+            activeMarkets.delete(addr);
+            continue;
+          }
+
+          // Check if it's time to reprice based on tier
+          const interval = getRepricingInterval(tracked.liquidityTier);
+          if (now - tracked.lastPriced < interval) {
+            continue;
+          }
+
+          // Verify market is still Open before repricing
+          const info = await getMarketInfo(tracked.address, provider);
+          if (info.status !== "Open") {
+            logger.info("Market no longer Open — removing from repricing", {
+              market: tracked.address,
+              status: info.status,
+            });
+            activeMarkets.delete(addr);
+            continue;
+          }
+
+          // Skip 0G Compute call if market has zero collateral (no bettors yet)
+          // — saves inference credits on empty Seed-tier markets
+          if (info.totalCollateral === BigInt(0)) {
+            logger.debug("Market has no collateral — skipping reprice to save compute credits", {
+              market: tracked.address,
+            });
+            continue;
+          }
+
+          // Check if tier has increased since last reprice — top up allocation if so
+          const market      = getMarket(tracked.address, provider);
+          const currentTier = Number(await market.liquidityTier()) as number;
+          if (currentTier !== tracked.liquidityTier) {
+            logger.info("Market tier changed — updating allocation", {
+              market:  tracked.address,
+              oldTier: TIER_NAMES[tracked.liquidityTier] ?? "Seed",
+              newTier: TIER_NAMES[currentTier] ?? "Seed",
+            });
+            tracked.liquidityTier = currentTier;
+            await allocateLiquidityToMarket(tracked.address, currentTier, mmWallet);
+          }
+
+          // Reprice
+          await priceMarket(
+            tracked.address,
+            tracked.question,
+            tracked.deadline,
+            tracked.liquidityTier,
+            mmWallet
+          );
+        } catch (err) {
+          logger.error("Repricing failed for market", { market: tracked.address, err });
+        }
+      }
+
+      // Persist updated MM state after each tick
+      if (activeMarkets.size > 0) {
+        await persistMMState(mmWallet);
+      }
+    } finally {
+      repricingTickInFlight = false;
     }
   }, loopInterval);
 }
@@ -444,6 +590,9 @@ async function seedExistingMarkets(
         priceMarket(addr, info.question, info.deadline, tier, mmWallet),
         allocateLiquidityToMarket(addr, tier, mmWallet),
       ]);
+      attachSettlementListeners(addr, mmWallet, provider);
+      attachTradingListeners(addr, provider);
+      await pushOnChainAmmPrice(addr, provider);
 
       seeded++;
 
@@ -459,6 +608,50 @@ async function seedExistingMarkets(
   if (seeded > 0) {
     await persistMMState(mmWallet);
   }
+}
+
+async function recoverSettledLiquidity(
+  mmWallet: ReturnType<typeof createWallet>,
+  provider: ReturnType<typeof createProvider>
+): Promise<void> {
+  const markets = await getAllActiveMarkets(provider);
+
+  for (const addr of markets) {
+    try {
+      attachSettlementListeners(addr, mmWallet, provider);
+      attachTradingListeners(addr, provider);
+      const info = await getMarketInfo(addr, provider);
+      if (info.status === "Resolved" || info.status === "Cancelled") {
+        await returnLiquidityToPool(addr, mmWallet);
+      }
+    } catch (err) {
+      logger.warn("Failed settled-liquidity recovery check", { market: addr, err });
+    }
+  }
+}
+
+function startRecoveryLoop(
+  mmWallet: ReturnType<typeof createWallet>,
+  provider: ReturnType<typeof createProvider>
+): void {
+  const intervalMs = cfgNum("RECOVERY_INTERVAL_MS");
+  logger.info("Starting market-maker recovery loop", { intervalMs });
+
+  setInterval(async () => {
+    if (recoveryTickInFlight) {
+      logger.warn("Skipping recovery tick — previous tick still running");
+      return;
+    }
+
+    recoveryTickInFlight = true;
+    try {
+      await recoverSettledLiquidity(mmWallet, provider);
+    } catch (err) {
+      logger.error("Market-maker recovery loop failed", { err });
+    } finally {
+      recoveryTickInFlight = false;
+    }
+  }, intervalMs);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -488,6 +681,8 @@ async function main() {
 
   // Seed prices for all existing Open markets
   await seedExistingMarkets(mmWallet, provider);
+  await recoverSettledLiquidity(mmWallet, provider);
+  startRecoveryLoop(mmWallet, provider);
 
   // Start repricing loop
   await startRepricingLoop(mmWallet, provider);
@@ -503,56 +698,10 @@ async function main() {
 
       // Wait a moment for the market contract to be fully initialized
       await new Promise((r) => setTimeout(r, 3_000));
+      attachSettlementListeners(marketAddress, mmWallet, provider);
+      attachTradingListeners(marketAddress, provider);
       await handleMarketCreated(marketAddress, mmWallet, provider);
-    }
-  );
-
-  // Listen for MarketActivated on existing markets (Pending → Open transition)
-  const existingMarkets = await getAllActiveMarkets(provider);
-  for (const addr of existingMarkets) {
-    const marketContract = getMarket(addr, provider);
-
-    listenForEvent<[string, bigint, bigint, unknown]>(
-      marketContract,
-      "MarketActivated",
-      async (market) => {
-        logger.info("MarketActivated event — pricing newly opened market", {
-          market,
-        });
-        try {
-          const info = await getMarketInfo(market, provider);
-          const tier = Number(await marketContract.liquidityTier()) as number;
-          await priceMarket(market, info.question, info.deadline, tier, mmWallet);
-          await persistMMState(mmWallet);
-        } catch (err) {
-          logger.error("Failed to price newly activated market", { market, err });
-        }
-      }
-    );
-  }
-
-  // Also attach MarketActivated listener on newly created markets
-  listenForEvent<[string, string, string, bigint, string, string, bigint, unknown]>(
-    factory,
-    "MarketCreated",
-    async (marketAddress) => {
-      const marketContract = getMarket(marketAddress, provider);
-
-      listenForEvent<[string, bigint, bigint, unknown]>(
-        marketContract,
-        "MarketActivated",
-        async (market) => {
-          logger.info("MarketActivated on new market — pricing", { market });
-          try {
-            const info = await getMarketInfo(market, provider);
-            const tier = Number(await marketContract.liquidityTier()) as number;
-            await priceMarket(market, info.question, info.deadline, tier, mmWallet);
-            await persistMMState(mmWallet);
-          } catch (err) {
-            logger.error("Failed to price newly activated market", { market, err });
-          }
-        }
-      );
+      await pushOnChainAmmPrice(marketAddress, provider);
     }
   );
 

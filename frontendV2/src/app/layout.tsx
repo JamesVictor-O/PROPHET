@@ -1,6 +1,6 @@
 import React from "react";
 import "./globals.css";
-import { Web3Provider } from "./_components/web3-provider";
+import { Providers } from "./_components/providers";
 
 export const metadata = {
   title: "Prophet — AI Prediction Markets",
@@ -30,9 +30,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <Web3Provider>
+        <Providers>
           {children}
-        </Web3Provider>
+        </Providers>
       </body>
     </html>
   );

@@ -7,7 +7,8 @@ import { createLogger }        from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket, getVault,
          listenForEvent, getMarketInfo, getAllActiveMarkets,
          postResolutionOnChain, cancelMarketOnChain, triggerResolutionOnChain,
-         processChallengeOnChain, revealPositionsOnChain } from "../shared/chain";
+         processChallengeOnChain, revealPositionsOnChain,
+         finalizeResolutionOnChain } from "../shared/chain";
 import { callOracleInference }  from "../shared/compute";
 import { writeResolutionRecord, writeOracleWorkingState, readFromStorage } from "../shared/storage";
 import { cfg, cfgNum } from "../shared/config";
@@ -302,9 +303,23 @@ async function catchUpOnPendingMarkets(
         logger.info("Found market in PendingResolution — resolving", { market: addr });
         await resolveMarket(addr, oracleWallet, provider, false);
 
-      } else if (info.status === "Challenged" && info.challenger !== ethers.ZeroAddress) {
-        logger.info("Found challenged market — running second inference", { market: addr });
-        await resolveMarket(addr, oracleWallet, provider, true);
+      } else if (info.status === "Challenged") {
+        if (info.challenger !== ethers.ZeroAddress) {
+          // Actual challenge filed — run second inference
+          logger.info("Found challenged market — running second inference", { market: addr });
+          await resolveMarket(addr, oracleWallet, provider, true);
+        } else if (info.challengeDeadline < nowSec) {
+          // Challenge window expired with no challenger — finalize so positions can be revealed
+          logger.info("Challenge window expired with no challenge — finalizing resolution", {
+            market:    addr,
+            expiredAgo: `${Math.floor((nowSec - info.challengeDeadline) / 3600)}h ago`,
+          });
+          await finalizeResolutionOnChain(addr, oracleWallet);
+          await revealPositions(addr, oracleWallet, provider);
+        } else {
+          const remaining = Math.floor((info.challengeDeadline - nowSec) / 60);
+          logger.info("Challenge window still open — waiting", { market: addr, minutesRemaining: remaining });
+        }
 
       } else if (info.status === "Resolved") {
         await revealPositions(addr, oracleWallet, provider);

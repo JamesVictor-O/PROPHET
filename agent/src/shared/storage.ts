@@ -16,7 +16,7 @@
 import { promises as fs } from "fs";
 import { tmpdir }         from "os";
 import { join }           from "path";
-import { randomBytes }    from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { Indexer, MemData } from "@0gfoundation/0g-storage-ts-sdk";
 import type { Wallet }    from "ethers";
 import type {
@@ -27,9 +27,42 @@ import type {
   MarketMakerState,
 } from "./types";
 import { createLogger } from "./logger";
-import { cfg } from "./config";
+import { cfg, cfgNum } from "./config";
 
 const logger = createLogger("storage");
+
+function sha256Hex(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  retries = cfgNum("STORAGE_RETRIES")
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === retries) break;
+      const delayMs = 750 * attempt;
+      logger.warn(`${label} failed — retrying`, {
+        attempt,
+        retries,
+        delayMs,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
 
 // ── Storage key helpers ───────────────────────────────────────────────────────
 
@@ -63,6 +96,7 @@ export async function writeToStorage(
 
   const indexer = new Indexer(indexerRpc);
   const buffer  = Buffer.from(JSON.stringify(data, null, 2));
+  const checksum = sha256Hex(buffer);
   const memData = new MemData(buffer);
 
   // Required by the SDK: populate internal Merkle tree state before upload
@@ -72,7 +106,12 @@ export async function writeToStorage(
   logger.info("Uploading to 0G Storage...", { bytes: buffer.length });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [result, err] = await indexer.upload(memData, chainRpc, signer as any);
+  const [result, err] = await withRetry("0G Storage upload", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [uploadResult, uploadErr] = await indexer.upload(memData, chainRpc, signer as any);
+    if (uploadErr) throw new Error(`0G Storage upload failed: ${String(uploadErr)}`);
+    return [uploadResult, uploadErr] as const;
+  });
   if (err) throw new Error(`0G Storage upload failed: ${String(err)}`);
 
   // New SDK returns either single-file or fragmented result — normalise both
@@ -80,7 +119,22 @@ export async function writeToStorage(
   const r = result as any;
   const rootHash = (r.rootHash ?? r.rootHashes?.[0]) as string;
   const txHash   = (r.txHash  ?? r.txHashes?.[0])  as string | undefined;
-  logger.info("0G Storage upload complete", { rootHash, txHash });
+  if (!rootHash || typeof rootHash !== "string") {
+    throw new Error("0G Storage upload did not return a root hash");
+  }
+
+  if (cfgNum("STORAGE_VERIFY_WRITES") > 0) {
+    await withRetry("0G Storage read-after-write verification", async () => {
+      const downloaded = await readFromStorage<unknown>(rootHash);
+      const downloadedBuffer = Buffer.from(JSON.stringify(downloaded, null, 2));
+      const downloadedChecksum = sha256Hex(downloadedBuffer);
+      if (downloadedChecksum !== checksum) {
+        throw new Error(`0G Storage checksum mismatch: wrote ${checksum}, read ${downloadedChecksum}`);
+      }
+    });
+  }
+
+  logger.info("0G Storage upload complete", { rootHash, txHash, checksum });
   return rootHash;
 }
 
@@ -99,10 +153,11 @@ export async function readFromStorage<T = unknown>(rootHash: string): Promise<T>
 
   logger.info("Downloading from 0G Storage...", { rootHash });
 
-  const err = await indexer.download(rootHash, tmpFile, false);
-  if (err) throw new Error(`0G Storage download failed: ${String(err)}`);
-
   try {
+    await withRetry("0G Storage download", async () => {
+      const err = await indexer.download(rootHash, tmpFile, false);
+      if (err) throw new Error(`0G Storage download failed: ${String(err)}`);
+    });
     const content = await fs.readFile(tmpFile, "utf8");
     const parsed  = JSON.parse(content) as T;
     logger.info("0G Storage download complete");

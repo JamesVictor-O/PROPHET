@@ -94,6 +94,45 @@ interface IMarketContract {
         string reason
     );
 
+    event AmmLiquiditySeeded(
+        address indexed market,
+        uint256 collateralAmount,
+        uint256 yesReserve,
+        uint256 noReserve
+    );
+
+    event SharesPurchased(
+        address indexed market,
+        address indexed trader,
+        bool indexed isYes,
+        uint256 collateralIn,
+        uint256 sharesOut,
+        uint256 fee
+    );
+
+    event SharesSold(
+        address indexed market,
+        address indexed trader,
+        bool indexed isYes,
+        uint256 sharesIn,
+        uint256 collateralOut,
+        uint256 fee
+    );
+
+    event WinningSharesRedeemed(
+        address indexed market,
+        address indexed trader,
+        uint256 sharesRedeemed,
+        uint256 payout
+    );
+
+    event CancelledSharesRedeemed(
+        address indexed market,
+        address indexed trader,
+        uint256 sharesRedeemed,
+        uint256 payout
+    );
+
     // ─────────────────────────────────────────────────────────────
     // Errors
     // ─────────────────────────────────────────────────────────────
@@ -113,10 +152,15 @@ interface IMarketContract {
     error MarketContract__NoChallengeToProcess();
     error MarketContract__InsufficientChallengeStake(uint256 provided, uint256 required);
     error MarketContract__AlreadyCancelled();
+    error MarketContract__NotCancelled();
     error MarketContract__ZeroCollateral();
     error MarketContract__TransferFailed();
     error MarketContract__ArrayLengthMismatch();
     error MarketContract__InvalidTeeAttestation();
+    error MarketContract__InsufficientAmmLiquidity();
+    error MarketContract__SlippageExceeded(uint256 actual, uint256 minimum);
+    error MarketContract__InsufficientShares(uint256 requested, uint256 available);
+    error MarketContract__AlreadyRedeemed();
     // ─────────────────────────────────────────────────────────────
     // State Variable Getters
     // ─────────────────────────────────────────────────────────────
@@ -197,6 +241,30 @@ interface IMarketContract {
         uint256 collateralAmount
     ) external;
 
+    /// @notice Convert newly received USDT into AMM YES/NO inventory.
+    /// @dev Called after protocol-owned liquidity is transferred into the market.
+    function seedLiquidity(uint256 collateralAmount) external;
+
+    /// @notice Buy YES or NO shares from the market AMM with USDT.
+    function buyShares(
+        bool isYes,
+        uint256 collateralAmount,
+        uint256 minSharesOut
+    ) external returns (uint256 sharesOut);
+
+    /// @notice Sell YES or NO shares back to the market AMM for USDT.
+    function sellShares(
+        bool isYes,
+        uint256 sharesIn,
+        uint256 minCollateralOut
+    ) external returns (uint256 collateralOut);
+
+    /// @notice Redeem winning YES/NO shares for 1 USDT each after final resolution.
+    function redeemWinningShares() external returns (uint256 payout);
+
+    /// @notice Redeem AMM YES/NO shares at neutral 50c value after cancellation.
+    function redeemCancelledShares() external returns (uint256 payout);
+
     /// @notice Move market to PendingResolution after deadline passes
     /// @dev Anyone can call this — just checks timestamp
     function triggerResolution() external;
@@ -269,4 +337,28 @@ interface IMarketContract {
 
     /// @notice Returns whether a specific address has placed a bet
     function hasBet(address bettor) external view returns (bool);
+
+    /// @notice Return AMM reserves, user balances, fees, and implied prices.
+    function getAmmState(address trader) external view returns (
+        uint256 yesReserve,
+        uint256 noReserve,
+        uint256 collateralBacking,
+        uint256 tradingFees,
+        uint256 traderYesShares,
+        uint256 traderNoShares,
+        uint256 yesPriceBps,
+        uint256 noPriceBps
+    );
+
+    /// @notice Preview shares received for a buy.
+    function getBuyAmount(bool isYes, uint256 collateralAmount) external view returns (
+        uint256 sharesOut,
+        uint256 fee
+    );
+
+    /// @notice Preview collateral received for a sell.
+    function getSellAmount(bool isYes, uint256 sharesIn) external view returns (
+        uint256 collateralOut,
+        uint256 fee
+    );
 }

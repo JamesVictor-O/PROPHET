@@ -5,6 +5,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IMarketContract } from "./interfaces/IMarketContract.sol";
 import { IPositionVault } from "./interfaces/IPositionVault.sol";
 import { ILiquidityPool } from "./interfaces/ILiquidityPool.sol";
@@ -59,6 +60,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     bool public override outcome;
     bytes32 public override verdictReasoningHash;
     uint256 public override totalCollateral;
+    uint256 public sealedCollateral;
     uint256 public override challengeDeadline;
     uint256 public override resolutionTimestamp;
 
@@ -69,9 +71,19 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     address public override challenger;
     uint256 public override challengeStake;
     bool public override challengeResolved;
+    uint256 public challengeRewardPaid;
 
     // Bettor tracking
     mapping(address => bool) private _hasBet;
+
+    // ─── YES/NO share AMM state ───
+    uint256 public yesReserve;
+    uint256 public noReserve;
+    uint256 public ammCollateral;
+    uint256 public tradingFeesAccrued;
+    mapping(address => uint256) public yesShares;
+    mapping(address => uint256) public noShares;
+    mapping(address => bool) public hasRedeemedShares;
 
     // ─────────────────────────────────────────────────────────────
     // Constants
@@ -80,11 +92,14 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     // Errors added for pool integration (not in interface — new additions)
     error MarketContract__NotSettled();
     error MarketContract__PoolAlreadyReturned();
+    error MarketContract__NotMarketMakerAgent();
 
     uint256 private constant CHALLENGE_WINDOW    = 24 hours;
     uint256 private constant CHALLENGE_STAKE_BPS = 500;   // 5% of total collateral
     uint256 private constant MIN_CHALLENGE_STAKE = 50e6;  // 50 USDT minimum
     uint256 private constant MIN_BET_AMOUNT      = 1e6;   // 1 USDT minimum bet
+    uint256 private constant TRADE_FEE_BPS       = 100;   // 1% trading fee to LP/tresury flywheel
+    uint256 private constant BPS_DENOMINATOR     = 10_000;
 
     // Liquidity tier thresholds (USDT, 6 decimals)
     uint256 private constant TIER_LOW_THRESHOLD    = 100e6;     // 100 USDT
@@ -186,6 +201,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
         // Update total collateral
         totalCollateral += collateralAmount;
+        sealedCollateral += collateralAmount;
 
         // Track that this address has bet
         _hasBet[msg.sender] = true;
@@ -204,6 +220,106 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             collateralAmount,
             IPositionVault(positionVault).positionCount(address(this)) - 1
         );
+    }
+
+    /// @inheritdoc IMarketContract
+    function seedLiquidity(uint256 collateralAmount) external override nonReentrant onlyWhenOpen {
+        if (collateralAmount == 0) revert MarketContract__ZeroCollateral();
+
+        uint256 accounted = creatorBond + sealedCollateral + ammCollateral + tradingFeesAccrued + challengeStake;
+        uint256 bal = IERC20(USDT).balanceOf(address(this));
+        if (bal < accounted + collateralAmount) revert MarketContract__ZeroCollateral();
+
+        yesReserve += collateralAmount;
+        noReserve  += collateralAmount;
+        ammCollateral += collateralAmount;
+
+        emit AmmLiquiditySeeded(address(this), collateralAmount, yesReserve, noReserve);
+    }
+
+    /// @inheritdoc IMarketContract
+    function buyShares(
+        bool isYes,
+        uint256 collateralAmount,
+        uint256 minSharesOut
+    ) external override nonReentrant onlyWhenOpen returns (uint256 sharesOut) {
+        if (block.timestamp >= deadline) revert MarketContract__DeadlinePassed();
+        if (collateralAmount < MIN_BET_AMOUNT) revert MarketContract__ZeroCollateral();
+        if (yesReserve == 0 || noReserve == 0) revert MarketContract__InsufficientAmmLiquidity();
+
+        (sharesOut, ) = getBuyAmount(isYes, collateralAmount);
+        if (sharesOut < minSharesOut) {
+            revert MarketContract__SlippageExceeded(sharesOut, minSharesOut);
+        }
+        if (sharesOut == 0) revert MarketContract__InsufficientAmmLiquidity();
+
+        uint256 fee = (collateralAmount * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 net = collateralAmount - fee;
+
+        IERC20(USDT).safeTransferFrom(msg.sender, address(this), collateralAmount);
+
+        tradingFeesAccrued += fee;
+        ammCollateral += net;
+        totalCollateral += collateralAmount;
+        _hasBet[msg.sender] = true;
+
+        if (isYes) {
+            yesReserve = yesReserve + net - sharesOut;
+            noReserve += net;
+            yesShares[msg.sender] += sharesOut;
+        } else {
+            yesReserve += net;
+            noReserve = noReserve + net - sharesOut;
+            noShares[msg.sender] += sharesOut;
+        }
+
+        emit SharesPurchased(address(this), msg.sender, isYes, collateralAmount, sharesOut, fee);
+    }
+
+    /// @inheritdoc IMarketContract
+    function sellShares(
+        bool isYes,
+        uint256 sharesIn,
+        uint256 minCollateralOut
+    ) external override nonReentrant onlyWhenOpen returns (uint256 collateralOut) {
+        if (block.timestamp >= deadline) revert MarketContract__DeadlinePassed();
+        if (sharesIn == 0) revert MarketContract__ZeroCollateral();
+
+        uint256 bal = isYes ? yesShares[msg.sender] : noShares[msg.sender];
+        if (bal < sharesIn) revert MarketContract__InsufficientShares(sharesIn, bal);
+
+        (collateralOut, ) = getSellAmount(isYes, sharesIn);
+        if (collateralOut < minCollateralOut) {
+            revert MarketContract__SlippageExceeded(collateralOut, minCollateralOut);
+        }
+        if (collateralOut == 0) revert MarketContract__InsufficientAmmLiquidity();
+
+        uint256 gross = _sellGrossCollateral(isYes, sharesIn);
+        uint256 fee = gross - collateralOut;
+
+        uint256 sameReserve = isYes ? yesReserve : noReserve;
+        uint256 oppositeReserve = isYes ? noReserve : yesReserve;
+        if (gross > oppositeReserve || gross > sameReserve + sharesIn || gross > ammCollateral) {
+            revert MarketContract__InsufficientAmmLiquidity();
+        }
+
+        tradingFeesAccrued += fee;
+        ammCollateral -= gross;
+        totalCollateral += fee;
+
+        if (isYes) {
+            yesShares[msg.sender] -= sharesIn;
+            yesReserve = yesReserve + sharesIn - gross;
+            noReserve -= gross;
+        } else {
+            noShares[msg.sender] -= sharesIn;
+            noReserve = noReserve + sharesIn - gross;
+            yesReserve -= gross;
+        }
+
+        IERC20(USDT).safeTransfer(msg.sender, collateralOut);
+
+        emit SharesSold(address(this), msg.sender, isYes, sharesIn, collateralOut, fee);
     }
 
     /// @inheritdoc IMarketContract
@@ -296,6 +412,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
             FeeLib.FeeBreakdown memory fees = FeeLib.calculateFeeBreakdown(totalCollateral);
             uint256 reward = FeeLib.calculateChallengeReward(fees.oracleFee);
             uint256 totalChallengerPayout = challengeStake + reward;
+            challengeRewardPaid = reward;
 
             IERC20(USDT).safeTransfer(challenger, totalChallengerPayout);
 
@@ -326,9 +443,16 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
 
         FeeLib.FeeBreakdown memory fees = FeeLib.calculateFeeBreakdown(totalCollateral);
 
-        if (fees.oracleFee > 0) {
-            IERC20(USDT).safeTransfer(oracleAgent, fees.oracleFee);
-            emit FeeDistributed(fees.oracleFee, oracleAgent, "oracle");
+        uint256 oracleFeeToPay = fees.oracleFee;
+        if (challengeRewardPaid > 0) {
+            oracleFeeToPay = challengeRewardPaid >= oracleFeeToPay
+                ? 0
+                : oracleFeeToPay - challengeRewardPaid;
+        }
+
+        if (oracleFeeToPay > 0) {
+            IERC20(USDT).safeTransfer(oracleAgent, oracleFeeToPay);
+            emit FeeDistributed(oracleFeeToPay, oracleAgent, "oracle");
         }
         if (fees.mmFee > 0) {
             IERC20(USDT).safeTransfer(marketMakerAgent, fees.mmFee);
@@ -351,6 +475,53 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         emit PayoutsDistributed(address(this), totalPaid, winners.length);
     }
 
+    /// @inheritdoc IMarketContract
+    function redeemWinningShares() external override nonReentrant onlyWhenResolved returns (uint256 payout) {
+        if (hasRedeemedShares[msg.sender]) revert MarketContract__AlreadyRedeemed();
+
+        uint256 winningShares = outcome ? yesShares[msg.sender] : noShares[msg.sender];
+        if (winningShares == 0) revert MarketContract__InsufficientShares(1, 0);
+
+        hasRedeemedShares[msg.sender] = true;
+        if (outcome) {
+            yesShares[msg.sender] = 0;
+        } else {
+            noShares[msg.sender] = 0;
+        }
+
+        payout = winningShares;
+        if (payout > ammCollateral) revert MarketContract__InsufficientAmmLiquidity();
+        ammCollateral -= payout;
+
+        IERC20(USDT).safeTransfer(msg.sender, payout);
+
+        emit WinningSharesRedeemed(address(this), msg.sender, winningShares, payout);
+    }
+
+    /// @notice Redeem AMM YES/NO shares after a market is cancelled.
+    /// @dev Cancelled prediction markets settle neutrally at 50c per YES or NO share.
+    ///      This is solvent because complete-set collateralization guarantees:
+    ///      0.5 * (user YES + user NO) + pool min(YES reserve, NO reserve) <= AMM collateral.
+    function redeemCancelledShares() external override nonReentrant returns (uint256 payout) {
+        if (status != MarketStatus.Cancelled) revert MarketContract__NotCancelled();
+
+        uint256 yesBal = yesShares[msg.sender];
+        uint256 noBal = noShares[msg.sender];
+        uint256 totalSharesToRefund = yesBal + noBal;
+        if (totalSharesToRefund == 0) revert MarketContract__InsufficientShares(1, 0);
+
+        yesShares[msg.sender] = 0;
+        noShares[msg.sender] = 0;
+
+        payout = totalSharesToRefund / 2;
+        if (payout > ammCollateral) revert MarketContract__InsufficientAmmLiquidity();
+        ammCollateral -= payout;
+
+        IERC20(USDT).safeTransfer(msg.sender, payout);
+
+        emit CancelledSharesRedeemed(address(this), msg.sender, totalSharesToRefund, payout);
+    }
+
     /// @notice Return the liquidity pool's allocated capital after market settlement.
     /// @dev    When the market maker agent allocates via LiquidityPool.allocateToMarket,
     ///         that USDT is transferred directly to this contract but NOT tracked in
@@ -358,6 +529,7 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     ///         bettor collateral, the pool allocation remains and can be returned here.
     ///         Fees are 0 for MVP — full fee-routing via mm fee will be added in V2.
     function returnLiquidityToPool(address pool) external nonReentrant {
+        if (msg.sender != marketMakerAgent) revert MarketContract__NotMarketMakerAgent();
         if (status != MarketStatus.Resolved && status != MarketStatus.Cancelled) {
             revert MarketContract__NotSettled();
         }
@@ -366,17 +538,46 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         uint256 allocation = ILiquidityPool(pool).marketAllocation(address(this));
         if (allocation == 0) return; // market never received pool liquidity
 
+        uint256 poolInventoryValue;
+        if (status == MarketStatus.Cancelled) {
+            poolInventoryValue = yesReserve < noReserve ? yesReserve : noReserve;
+        } else {
+            poolInventoryValue = outcome ? yesReserve : noReserve;
+        }
+
+        uint256 fees = tradingFeesAccrued;
         uint256 bal = IERC20(USDT).balanceOf(address(this));
-        uint256 returnAmt = allocation > bal ? bal : allocation; // cap at actual balance
+
+        if (poolInventoryValue > ammCollateral) {
+            poolInventoryValue = ammCollateral;
+        }
+
+        uint256 principalToReturn = poolInventoryValue > bal ? bal : poolInventoryValue;
+        uint256 feesToReturn = fees;
+        uint256 remainingBal = bal - principalToReturn;
+        if (feesToReturn > remainingBal) feesToReturn = remainingBal;
+        uint256 returnAmt = principalToReturn + feesToReturn;
 
         // Effects before external calls
         _poolFundsReturned = true;
+        if (status == MarketStatus.Cancelled) {
+            yesReserve -= principalToReturn;
+            noReserve -= principalToReturn;
+            ammCollateral = ammCollateral > principalToReturn ? ammCollateral - principalToReturn : 0;
+        } else if (outcome) {
+            ammCollateral = ammCollateral > principalToReturn ? ammCollateral - principalToReturn : 0;
+            yesReserve = yesReserve > principalToReturn ? yesReserve - principalToReturn : 0;
+        } else {
+            ammCollateral = ammCollateral > principalToReturn ? ammCollateral - principalToReturn : 0;
+            noReserve = noReserve > principalToReturn ? noReserve - principalToReturn : 0;
+        }
+        tradingFeesAccrued = fees > feesToReturn ? fees - feesToReturn : 0;
 
         // Transfer principal to pool, then notify for accounting
         if (returnAmt > 0) {
             IERC20(USDT).safeTransfer(pool, returnAmt);
         }
-        ILiquidityPool(pool).returnFromMarket(returnAmt, 0);
+        ILiquidityPool(pool).returnFromMarket(principalToReturn, feesToReturn);
     }
 
     /// @inheritdoc IMarketContract
@@ -399,8 +600,8 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         }
 
         // Transfer all bettor collateral to PositionVault for individual refunds
-        if (totalCollateral > 0) {
-            IERC20(USDT).safeTransfer(positionVault, totalCollateral);
+        if (sealedCollateral > 0) {
+            IERC20(USDT).safeTransfer(positionVault, sealedCollateral);
         }
         IPositionVault(positionVault).refundAll(address(this));
     }
@@ -481,9 +682,92 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
         return _hasBet[bettor];
     }
 
+    /// @inheritdoc IMarketContract
+    function getAmmState(address trader) external view override returns (
+        uint256 yesReserve_,
+        uint256 noReserve_,
+        uint256 collateralBacking_,
+        uint256 tradingFees_,
+        uint256 traderYesShares_,
+        uint256 traderNoShares_,
+        uint256 yesPriceBps_,
+        uint256 noPriceBps_
+    ) {
+        yesReserve_ = yesReserve;
+        noReserve_ = noReserve;
+        collateralBacking_ = ammCollateral;
+        tradingFees_ = tradingFeesAccrued;
+        traderYesShares_ = yesShares[trader];
+        traderNoShares_ = noShares[trader];
+        (yesPriceBps_, noPriceBps_) = _pricesBps();
+    }
+
+    /// @inheritdoc IMarketContract
+    function getBuyAmount(
+        bool isYes,
+        uint256 collateralAmount
+    ) public view override returns (uint256 sharesOut, uint256 fee) {
+        if (collateralAmount == 0 || yesReserve == 0 || noReserve == 0) return (0, 0);
+
+        fee = (collateralAmount * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 net = collateralAmount - fee;
+        uint256 k = yesReserve * noReserve;
+
+        if (isYes) {
+            uint256 endingYes = _ceilDiv(k, noReserve + net);
+            uint256 availableYes = yesReserve + net;
+            sharesOut = availableYes > endingYes ? availableYes - endingYes : 0;
+        } else {
+            uint256 endingNo = _ceilDiv(k, yesReserve + net);
+            uint256 availableNo = noReserve + net;
+            sharesOut = availableNo > endingNo ? availableNo - endingNo : 0;
+        }
+    }
+
+    /// @inheritdoc IMarketContract
+    function getSellAmount(
+        bool isYes,
+        uint256 sharesIn
+    ) public view override returns (uint256 collateralOut, uint256 fee) {
+        if (sharesIn == 0 || yesReserve == 0 || noReserve == 0) return (0, 0);
+
+        uint256 gross = _sellGrossCollateral(isYes, sharesIn);
+        fee = (gross * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+        collateralOut = gross - fee;
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Internal Helpers
     // ─────────────────────────────────────────────────────────────
+
+    function _pricesBps() internal view returns (uint256 yesPriceBps, uint256 noPriceBps) {
+        uint256 total = yesReserve + noReserve;
+        if (total == 0) return (5_000, 5_000);
+        yesPriceBps = (noReserve * BPS_DENOMINATOR) / total;
+        noPriceBps = BPS_DENOMINATOR - yesPriceBps;
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a == 0) return 0;
+        return ((a - 1) / b) + 1;
+    }
+
+    function _sellGrossCollateral(bool isYes, uint256 sharesIn) internal view returns (uint256) {
+        if (sharesIn == 0 || yesReserve == 0 || noReserve == 0) return 0;
+
+        uint256 sameReserve = isYes ? yesReserve : noReserve;
+        uint256 oppositeReserve = isYes ? noReserve : yesReserve;
+        uint256 augmentedSameReserve = sameReserve + sharesIn;
+
+        // Solve (same + sharesIn - gross) * (opposite - gross) = same * opposite.
+        // Use ceil(sqrt(discriminant)) so gross rounds down and cannot overpay.
+        uint256 sum = augmentedSameReserve + oppositeReserve;
+        uint256 discriminant = (sum * sum) - (4 * sharesIn * oppositeReserve);
+        uint256 root = Math.sqrt(discriminant);
+        if (root * root < discriminant) root += 1;
+
+        return (sum - root) / 2;
+    }
 
     /// @notice Transfer creator bond back to the creator if one was paid
     function _refundBondToCreator() internal {

@@ -40,7 +40,54 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-const COMPUTE_TIMEOUT_MS = 45_000; // 45 s — generous for testnet latency
+const COMPUTE_TIMEOUT_MS = cfgNum("COMPUTE_TIMEOUT_MS"); // generous for testnet latency
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  retries = cfgNum("COMPUTE_RETRIES")
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === retries) break;
+      const delayMs = 1_000 * attempt;
+      logger.warn(`${label} failed — retrying`, {
+        attempt,
+        retries,
+        delayMs,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+function extractJsonObject(raw: string, label: string): string {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  if (cleaned.startsWith("{") && cleaned.endsWith("}")) return cleaned;
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) return cleaned.slice(start, end + 1);
+
+  throw new Error(`${label} returned no JSON object:\n${raw}`);
+}
+
+function assertValidConfidence(confidence: unknown, label: string): number {
+  if (typeof confidence !== "number" || !Number.isFinite(confidence)) {
+    throw new Error(`${label} confidence must be a finite number`);
+  }
+  return Math.max(0, Math.min(100, Math.round(confidence)));
+}
 
 // ── Broker singleton — one per wallet, recreated if wallet changes ────────────
 
@@ -217,6 +264,11 @@ export async function callOracleInference(
     await withTimeout(broker.inference.verifyService(providerAddress), COMPUTE_TIMEOUT_MS, "tee-verify");
     logger.info("TEE attestation verified");
   } catch (err) {
+    if (cfgNum("COMPUTE_REQUIRE_TEE") > 0) {
+      throw new Error(`TEE attestation verification failed for provider ${providerAddress}: ${
+        err instanceof Error ? err.message : String(err)
+      }`);
+    }
     logger.warn("TEE attestation verification failed (non-fatal on testnet)", err);
   }
 
@@ -239,18 +291,20 @@ export async function callOracleInference(
 
   logger.info("Calling 0G Compute for oracle inference...", { model, question });
 
-  const response = await withTimeout(
-    client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: ORACLE_SYSTEM_PROMPT },
-        { role: "user",   content: userPrompt },
-      ],
-      temperature: 0.1,
-      max_tokens:  1500,
-    }),
-    COMPUTE_TIMEOUT_MS,
-    "oracle-inference"
+  const response = await withRetry("0G oracle inference", () =>
+    withTimeout(
+      client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: ORACLE_SYSTEM_PROMPT },
+          { role: "user",   content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens:  1500,
+      }),
+      COMPUTE_TIMEOUT_MS,
+      "oracle-inference"
+    )
   );
 
   const raw = response.choices[0]?.message?.content;
@@ -259,7 +313,7 @@ export async function callOracleInference(
   logger.info("Received oracle response from 0G Compute");
 
   // 6. Parse and validate — strip markdown code fences if the model wrapped the JSON
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  const cleaned = extractJsonObject(raw, "Oracle");
 
   let parsed: OracleResponse;
   try {
@@ -268,15 +322,29 @@ export async function callOracleInference(
     throw new Error(`Oracle returned invalid JSON:\n${cleaned}`);
   }
 
-  if (
-    parsed.confidence === undefined ||
-    parsed.reasoning  === undefined
-  ) {
+  if (parsed.verdict !== true && parsed.verdict !== false && parsed.verdict !== null) {
+    throw new Error(`Oracle verdict must be true, false, or null:\n${cleaned}`);
+  }
+
+  parsed.confidence = assertValidConfidence(parsed.confidence, "Oracle");
+
+  if (parsed.reasoning === undefined || typeof parsed.reasoning !== "string") {
     throw new Error(`Oracle response missing required fields:\n${cleaned}`);
+  }
+  if (parsed.evidenceSummary === undefined || typeof parsed.evidenceSummary !== "string") {
+    parsed.evidenceSummary = parsed.reasoning.slice(0, 240);
   }
 
   if (!Array.isArray(parsed.sourcesChecked)) {
     parsed.sourcesChecked = [];
+  }
+  parsed.sourcesChecked = parsed.sourcesChecked.map(String).slice(0, 20);
+
+  if (parsed.confidence < cfgNum("ORACLE_MIN_CONFIDENCE")) {
+    parsed.verdict = null;
+    parsed.inconclusiveReason =
+      parsed.inconclusiveReason ??
+      `Confidence ${parsed.confidence}% is below required threshold ${cfgNum("ORACLE_MIN_CONFIDENCE")}%.`;
   }
 
   logger.info("Oracle inference complete", {
@@ -318,6 +386,11 @@ export async function callPricingInference(
   try {
     await withTimeout(broker.inference.verifyService(providerAddress), COMPUTE_TIMEOUT_MS, "tee-verify");
   } catch (err) {
+    if (cfgNum("COMPUTE_REQUIRE_TEE") > 0) {
+      throw new Error(`TEE verification failed for pricing provider ${providerAddress}: ${
+        err instanceof Error ? err.message : String(err)
+      }`);
+    }
     logger.warn("TEE verification failed for pricing (non-fatal on testnet)", err);
   }
 
@@ -336,24 +409,26 @@ export async function callPricingInference(
     defaultHeaders: billingHeaders,
   });
 
-  const response = await withTimeout(
-    client.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: MARKET_MAKER_SYSTEM_PROMPT },
-        { role: "user",   content: userPrompt },
-      ],
-      temperature: 0.3,
-      max_tokens:  200,
-    }),
-    COMPUTE_TIMEOUT_MS,
-    "pricing-inference"
+  const response = await withRetry("0G pricing inference", () =>
+    withTimeout(
+      client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: MARKET_MAKER_SYSTEM_PROMPT },
+          { role: "user",   content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens:  200,
+      }),
+      COMPUTE_TIMEOUT_MS,
+      "pricing-inference"
+    )
   );
 
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("0G Compute returned empty pricing response");
 
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  const cleaned = extractJsonObject(raw, "Pricing");
 
   let parsed: PricingResponse;
   try {
@@ -362,7 +437,13 @@ export async function callPricingInference(
     throw new Error(`Pricing returned invalid JSON:\n${cleaned}`);
   }
 
+  if (typeof parsed.yesProbability !== "number" || !Number.isFinite(parsed.yesProbability)) {
+    throw new Error(`Pricing yesProbability must be a finite number:\n${cleaned}`);
+  }
   parsed.yesProbability = Math.max(1, Math.min(99, Math.round(parsed.yesProbability)));
+  if (!parsed.rationale || typeof parsed.rationale !== "string") {
+    parsed.rationale = "0G Compute returned a probability without rationale.";
+  }
 
   logger.info("Pricing inference complete", { yesProbability: parsed.yesProbability });
 
@@ -393,10 +474,14 @@ export async function callQuestionValidation(
 ): Promise<ValidationResponse> {
   const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
 
-  const broker = await getBroker(signer);
-  await ensureAccountReady(broker, providerAddress);
+  const broker = await withTimeout(getBroker(signer), COMPUTE_TIMEOUT_MS, "broker-init");
+  await withTimeout(ensureAccountReady(broker, providerAddress), COMPUTE_TIMEOUT_MS, "account-ready");
 
-  const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+  const { endpoint, model } = await withTimeout(
+    broker.inference.getServiceMetadata(providerAddress) as Promise<{ endpoint: string; model: string }>,
+    COMPUTE_TIMEOUT_MS,
+    "service-metadata"
+  );
 
   const userPrompt = `Validate this prediction market question: "${question}"
 Category hint: ${category}
@@ -411,23 +496,39 @@ Respond with this exact JSON:
   "suggestedSources": ["source1", "source2"]
 }`;
 
-  const billingHeaders = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+  const billingHeaders = await withTimeout(
+    broker.inference.getRequestHeaders(providerAddress, userPrompt) as Promise<Record<string, string>>,
+    COMPUTE_TIMEOUT_MS,
+    "billing-headers"
+  );
   const client = new OpenAI({ baseURL: endpoint, apiKey: "", defaultHeaders: billingHeaders });
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: "You are a prediction market question validator. Respond ONLY in valid JSON. No markdown." },
-      { role: "user",   content: userPrompt },
-    ],
-    temperature: 0.1,
-    max_tokens:  300,
-  });
+  const response = await withRetry("0G question validation", () =>
+    withTimeout(
+      client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: "You are a prediction market question validator. Respond ONLY in valid JSON. No markdown." },
+          { role: "user",   content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens:  300,
+      }),
+      COMPUTE_TIMEOUT_MS,
+      "question-validation"
+    )
+  );
 
   const raw = response.choices[0]?.message?.content;
   if (!raw) throw new Error("Empty validation response from 0G Compute");
 
-  return JSON.parse(raw) as ValidationResponse;
+  const parsed = JSON.parse(extractJsonObject(raw, "Question validation")) as ValidationResponse;
+  parsed.valid = Boolean(parsed.valid);
+  parsed.detectedCategory = String(parsed.detectedCategory || category || "custom");
+  parsed.suggestedSources = Array.isArray(parsed.suggestedSources)
+    ? parsed.suggestedSources.map(String).slice(0, 10)
+    : [];
+  return parsed;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
