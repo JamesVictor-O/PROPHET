@@ -42,75 +42,191 @@ body {
   }
 }
 
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8b80ff;
+}
+
 .landing-reveal {
   opacity: 1;
   transform: translateY(0);
 }
 
-.market-bar {
-  transform-origin: left center;
+.landing-scene {
+  min-height: 100svh;
 }
 
-.flow-line {
-  position: absolute;
-  top: 2.25rem;
-  bottom: -1.75rem;
-  width: 1px;
-  background: rgba(139, 128, 255, 0.24);
+.landing-panel,
+.landing-depth,
+.ledger-surface {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #151515;
 }
 
-.flow-tracer {
+.landing-grid line {
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
+}
+
+.hero-path {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 820;
+  stroke-dashoffset: 0;
+}
+
+.hero-path-yes {
+  stroke: #34d399;
+}
+
+.hero-path-no {
+  stroke: #f87171;
+}
+
+.hero-dot-yes {
+  fill: #34d399;
+}
+
+.hero-dot-no {
+  fill: #f87171;
+}
+
+.hero-chart-label {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hero-chart-label-yes {
+  fill: #34d399;
+}
+
+.hero-chart-label-no {
+  fill: #f87171;
+}
+
+.protocol-rail {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101010;
+  overflow: hidden;
+}
+
+.protocol-rail::before {
+  content: "";
   position: absolute;
-  left: 1.75rem;
-  top: 0.75rem;
+  left: 0;
+  right: 0;
+  top: 3.25rem;
+  height: 1px;
+  background: rgba(139, 128, 255, 0.28);
+}
+
+.protocol-runner {
+  position: absolute;
+  top: calc(3.25rem - 0.25rem);
+  left: 0;
   z-index: 2;
-  width: 0.5rem;
   height: 0.5rem;
+  width: 0.5rem;
   border-radius: 9999px;
-  background: #c8c2ff;
-  opacity: 0;
-  transform: translate(-50%, 0);
-}
-
-.flow-step-pulse {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 2.25rem;
-  height: 2.25rem;
-  border: 1px solid rgba(139, 128, 255, 0.34);
-  border-radius: 9999px;
+  background: #ece8df;
   opacity: 0;
 }
 
-.stack-signal {
-  transform: translateX(-120%);
+.protocol-node {
+  min-height: 19rem;
+  padding: 1.25rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stack-cell {
-  opacity: 0.32;
+.protocol-node:last-child {
+  border-right: 0;
 }
 
-.amm-yes,
-.amm-no {
+.landing-depth .amm-yes,
+.landing-depth .amm-no {
   transform-origin: left center;
 }
 
-.amm-yes {
-  width: 74%;
+.landing-depth .amm-yes {
+  width: 68%;
 }
 
-.amm-no {
-  width: 26%;
+.landing-depth .amm-no {
+  width: 32%;
+}
+
+.landing-equation {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.landing-equation span {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  background: #101010;
+}
+
+@media (max-width: 900px) {
+  .protocol-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-rail::before,
+  .protocol-runner {
+    display: none;
+  }
+
+  .protocol-node {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .protocol-node:last-child {
+    border-bottom: 0;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .landing-reveal {
-    animation: landing-reveal 360ms cubic-bezier(0, 0, 0.2, 1) both;
+    animation: landing-reveal 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .landing-reveal-1 {
-    animation-delay: 70ms;
+    animation-delay: 60ms;
   }
 
   .landing-reveal-2 {
@@ -118,54 +234,43 @@ body {
   }
 
   .landing-reveal-3 {
-    animation-delay: 210ms;
+    animation-delay: 220ms;
   }
 
   .landing-reveal-4 {
-    animation-delay: 280ms;
+    animation-delay: 300ms;
   }
 
-  .market-pulse {
-    animation: market-pulse 1600ms ease-in-out infinite;
+  .hero-path {
+    animation: hero-draw 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  .market-bar {
-    animation: market-bar 900ms cubic-bezier(0, 0, 0.2, 1) both;
+  .hero-path-no {
+    animation-delay: 120ms;
   }
 
-  .flow-tracer {
-    animation: flow-tracer 5200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  .hero-dot {
+    animation: dot-settle 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 650ms;
   }
 
-  .flow-step-pulse {
-    animation: flow-step-pulse 2100ms ease-out infinite;
+  .protocol-runner {
+    animation: protocol-runner 6800ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
   }
 
-  .stack-signal {
-    animation: stack-signal 2600ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  .landing-depth .amm-yes {
+    animation: amm-yes 4300ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
   }
 
-  .stack-cell {
-    animation: stack-cell 1800ms ease-in-out infinite;
-  }
-
-  .amm-yes {
-    animation: amm-yes 4200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  }
-
-  .amm-no {
-    animation: amm-no 4200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  }
-
-  .trade-packet {
-    animation: trade-packet 1400ms ease-in-out infinite;
+  .landing-depth .amm-no {
+    animation: amm-no 4300ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
   }
 }
 
 @keyframes landing-reveal {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -173,90 +278,50 @@ body {
   }
 }
 
-@keyframes market-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.92);
+@keyframes hero-draw {
+  from {
+    stroke-dashoffset: 820;
   }
-  50% {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes dot-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
     opacity: 1;
     transform: scale(1);
   }
 }
 
-@keyframes market-bar {
-  from {
-    transform: scaleX(0.72);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@keyframes flow-tracer {
+@keyframes protocol-runner {
   0% {
     opacity: 0;
-    transform: translate(-50%, 0);
+    transform: translateX(0);
   }
-  9% {
+  8% {
     opacity: 1;
   }
   82% {
     opacity: 1;
-    transform: translate(-50%, 19.4rem);
+    transform: translateX(calc(min(100vw, 80rem) - 4rem));
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, 19.4rem);
-  }
-}
-
-@keyframes flow-step-pulse {
-  0% {
-    opacity: 0.42;
-    transform: scale(0.8);
-  }
-  70%,
-  100% {
-    opacity: 0;
-    transform: scale(1.45);
-  }
-}
-
-@keyframes stack-signal {
-  0% {
-    transform: translateX(-120%);
-    opacity: 0;
-  }
-  16%,
-  78% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(320%);
-    opacity: 0;
-  }
-}
-
-@keyframes stack-cell {
-  0%,
-  100% {
-    opacity: 0.28;
-    background: rgba(255, 255, 255, 0.03);
-  }
-  50% {
-    opacity: 1;
-    background: rgba(139, 128, 255, 0.16);
+    transform: translateX(calc(min(100vw, 80rem) - 4rem));
   }
 }
 
 @keyframes amm-yes {
   0%,
   100% {
-    transform: scaleX(0.48);
+    transform: scaleX(0.5);
   }
-  48%,
+  45%,
   68% {
     transform: scaleX(1);
   }
@@ -267,20 +332,8 @@ body {
   100% {
     transform: scaleX(1);
   }
-  48%,
+  45%,
   68% {
-    transform: scaleX(0.42);
-  }
-}
-
-@keyframes trade-packet {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: translateX(0) scale(0.92);
-  }
-  50% {
-    opacity: 1;
-    transform: translateX(0.35rem) scale(1);
+    transform: scaleX(0.48);
   }
 }

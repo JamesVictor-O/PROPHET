@@ -4,55 +4,76 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AiBrain01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowRight01Icon,
+  Database01Icon,
+  CpuIcon,
+  Link04Icon,
+  Shield01Icon,
+  TradeUpIcon,
+} from "@hugeicons/core-free-icons";
 
 const ConnectButton = dynamic(
   () => import("@rainbow-me/rainbowkit").then((mod) => mod.ConnectButton),
-  { ssr: false }
+  { ssr: false },
 );
 
-const MARKET_ROWS = [
-  { label: "YES share", price: "$0.64", tone: "text-[#34d399]", width: "64%" },
-  { label: "NO share", price: "$0.36", tone: "text-[#f87171]", width: "36%" },
+const HERO_TICKS = [
+  { t: "09:41", yes: "0.50", no: "0.50", note: "Market initialized" },
+  { t: "09:44", yes: "0.57", no: "0.43", note: "YES pressure" },
+  { t: "09:49", yes: "0.42", no: "0.58", note: "NO rebalance" },
+  { t: "09:52", yes: "0.68", no: "0.32", note: "Liquidity deepened" },
 ];
 
-const FLOW = [
-  "Question validated by 0G Compute",
-  "Liquidity allocated from protocol pool",
-  "YES/NO AMM prices move with demand",
-  "Reasoning stored on 0G Storage",
-  "Settlement enforced on 0G Chain",
+const SYSTEM_FLOW = [
+  ["01", "Validate", "0G Compute scores the market question and sources."],
+  ["02", "Seed", "Protocol liquidity initializes a neutral YES/NO AMM."],
+  ["03", "Trade", "Users move prices through real reserve imbalance."],
+  ["04", "Resolve", "The oracle posts verdict and reasoning to 0G Storage."],
+  ["05", "Recycle", "Remaining liquidity and fees return to the pool."],
 ];
 
-const STACK = [
+const OG_MODULES = [
   {
+    icon: Link04Icon,
     title: "0G Chain",
-    status: "Settlement",
-    body: "Smart contracts execute market creation, AMM trades, redemption, and liquidity return.",
+    label: "Execution",
+    body: "Market creation, AMM trades, settlement, redemption, and liquidity return live on-chain.",
+    signal: "sub-second settlement surface",
   },
   {
+    icon: CpuIcon,
     title: "0G Compute",
-    status: "Inference",
-    body: "Agents validate markets, reason about outcomes, and support autonomous market operations.",
+    label: "Intelligence",
+    body: "Agents validate questions, evaluate risk, reason through outcomes, and operate market infrastructure.",
+    signal: "TEE-aware inference path",
   },
   {
+    icon: Database01Icon,
     title: "0G Storage",
-    status: "Memory",
-    body: "Market metadata, oracle reasoning, and agent state become durable audit trails.",
+    label: "Memory",
+    body: "Oracle reasoning, metadata, evidence packages, and agent state become durable audit trails.",
+    signal: "permanent market record",
   },
 ];
 
-const PRINCIPLES = [
-  "YES and NO shares trade between $0 and $1",
-  "Large trades create real slippage",
-  "Liquidity is finite and protected",
-  "Winning shares redeem deterministically",
+const LEDGER_ROWS = [
+  ["source", "UEFA official report", "stored"],
+  ["compute", "oracle verdict: YES", "attested"],
+  ["hash", "0xf08d...7584", "on-chain"],
+  ["status", "challenge window", "closed"],
+];
+
+const AMM_ROWS = [
+  ["YES bought", "$23.00", "$0.50", "$0.64"],
+  ["NO sold", "14.20", "$0.36", "$0.31"],
+  ["fees", "1.00%", "pool", "recycled"],
 ];
 
 const SOCIAL = [
   { label: "X", href: "https://x.com/prophet" },
   { label: "Discord", href: "https://discord.gg/prophet" },
-  { label: "GitHub", href: "https://github.com/prophet" },
+  { label: "GitHub", href: "https://github.com/JamesVictor-O/PROPHET" },
 ];
 
 function PrimaryLink({
@@ -65,105 +86,305 @@ function PrimaryLink({
   return (
     <Link
       href={href}
-      className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b80ff] px-5 py-3 text-sm font-semibold text-[#101010] transition-colors duration-150 ease-out hover:bg-[#a39aff] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c8c2ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+      className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#ece8df] px-5 py-3 text-sm font-semibold text-[#111111] transition-colors duration-150 ease-out hover:bg-white active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]"
     >
       {children}
       <HugeiconsIcon
         icon={ArrowRight01Icon}
         size={16}
-        strokeWidth={2.25}
+        strokeWidth={2.2}
         aria-hidden="true"
-        className="motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out group-hover:translate-x-0.5"
+        className="motion-safe:duration-150 motion-safe:ease-out group-hover:translate-x-0.5"
       />
     </Link>
   );
 }
 
-function SecondaryLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
+
+
+function MiniChart() {
   return (
-    <Link
-      href={href}
-      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 ease-out hover:border-white/25 hover:bg-white/[0.04] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+    <svg
+      viewBox="0 0 520 190"
+      className="h-full w-full"
+      role="img"
+      aria-label="Animated YES and NO share price movement"
     >
-      {children}
-    </Link>
+      <g className="landing-grid">
+        {[22, 68, 114, 160].map((y) => (
+          <line key={y} x1="0" x2="520" y1={y} y2={y} />
+        ))}
+        {[60, 160, 260, 360, 460].map((x) => (
+          <line key={x} x1={x} x2={x} y1="0" y2="190" />
+        ))}
+      </g>
+      <path
+        className="hero-path hero-path-yes"
+        d="M8 124 L72 124 L72 104 L136 104 L136 116 L198 116 L198 82 L262 82 L262 72 L326 72 L326 96 L388 96 L388 54 L452 54 L452 48 L512 48"
+      />
+      <path
+        className="hero-path hero-path-no"
+        d="M8 64 L72 64 L72 84 L136 84 L136 72 L198 72 L198 106 L262 106 L262 116 L326 116 L326 92 L388 92 L388 134 L452 134 L452 140 L512 140"
+      />
+      <circle className="hero-dot hero-dot-yes" cx="512" cy="48" r="5" />
+      <circle className="hero-dot hero-dot-no" cx="512" cy="140" r="5" />
+      <text x="456" y="34" className="hero-chart-label hero-chart-label-yes">
+        YES $0.68
+      </text>
+      <text x="456" y="164" className="hero-chart-label hero-chart-label-no">
+        NO $0.32
+      </text>
+    </svg>
   );
 }
 
-function MarketPreview() {
+function HeroTerminal() {
   return (
-    <div className="landing-reveal landing-reveal-2 w-full rounded-2xl border border-white/10 bg-[#171717] p-3 sm:p-4 lg:p-5">
-      <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 lg:pb-4">
+    <section className="landing-panel landing-reveal landing-reveal-2">
+      <div className="grid border-b border-white/10 lg:grid-cols-[1fr_13rem]">
+        <div className="p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8b80ff]">
+                Live YES/NO AMM
+              </p>
+              <h2 className="mt-2 max-w-lg text-lg font-semibold leading-tight text-white sm:text-xl">
+                Will autonomous agents become core DeFi infrastructure in 2026?
+              </h2>
+            </div>
+            <span className="hidden rounded-full border border-[#34d399]/25 px-3 py-1 font-mono text-xs text-[#34d399] sm:inline-flex">
+              OPEN
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-t border-white/10 lg:grid-cols-1 lg:border-l lg:border-t-0">
+          <div className="px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Pool
+            </p>
+            <p className="mt-1 font-mono text-lg text-white">$50.00</p>
+          </div>
+          <div className="border-l border-white/10 px-4 py-3 lg:border-l-0 lg:border-t">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Fee
+            </p>
+            <p className="mt-1 font-mono text-lg text-white">1.00%</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_13rem]">
+        <div className="relative h-[220px] border-b border-white/10 p-4 sm:h-[280px] lg:border-b-0 lg:p-5">
+          <MiniChart />
+        </div>
+        <div className="divide-y divide-white/10 border-white/10 lg:border-l">
+          {HERO_TICKS.map((row) => (
+            <div key={row.t} className="grid grid-cols-[3.2rem_1fr] gap-3 px-4 py-3">
+              <span className="font-mono text-[11px] text-white/32">{row.t}</span>
+              <div>
+                <div className="flex items-center justify-between gap-3 font-mono text-xs">
+                  <span className="text-[#34d399]">{row.yes}</span>
+                  <span className="text-[#f87171]">{row.no}</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-white/45">{row.note}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FlowRail() {
+  return (
+    <section className="landing-scene mx-auto flex max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+      <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-            Live market
-          </p>
-          <h2 className="mt-2 max-w-sm text-base font-semibold leading-snug text-white sm:text-lg">
-            Will autonomous agents become core DeFi infrastructure in 2026?
+          <p className="eyebrow">Autonomous Flow</p>
+          <h2 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            The protocol behaves like an exchange operator, not a betting desk.
           </h2>
         </div>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#8b80ff]/30 bg-[#8b80ff]/10">
-          <HugeiconsIcon
-            icon={AiBrain01Icon}
-            size={21}
-            strokeWidth={1.8}
-            className="text-[#c8c2ff]"
-            aria-hidden="true"
-          />
+        <p className="max-w-md text-sm leading-6 text-white/55">
+          Each step has an accountable surface: compute decides, contracts
+          enforce, storage preserves, and liquidity returns to the system.
+        </p>
+      </div>
+
+      <div className="protocol-rail">
+        <span className="protocol-runner" aria-hidden="true" />
+        {SYSTEM_FLOW.map(([step, title, body]) => (
+          <article key={step} className="protocol-node">
+            <span className="font-mono text-xs text-[#8b80ff]">{step}</span>
+            <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
+            <p className="mt-3 text-sm leading-6 text-white/55">{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OgSection() {
+  return (
+    <section className="landing-scene flex items-center border-y border-white/10 bg-[#141414]">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.72fr_1fr] lg:px-8 lg:py-24">
+        <div>
+          <p className="eyebrow">Built On 0G</p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            Chain, Compute, and Storage are not badges here. They are the market.
+          </h2>
+          <p className="mt-5 text-base leading-7 text-white/56">
+            Prophet uses 0G as the operating layer for autonomous markets:
+            settlement, intelligence, and memory are designed to reinforce one
+            another.
+          </p>
+        </div>
+
+        <div className="divide-y divide-white/10 border border-white/10">
+          {OG_MODULES.map((item) => (
+            <article key={item.title} className="grid gap-4 p-5 sm:grid-cols-[3rem_1fr_auto] sm:items-start">
+              <div className="flex h-10 w-10 items-center justify-center border border-white/10 bg-white/[0.03]">
+                <HugeiconsIcon icon={item.icon} size={20} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                  <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/34">
+                    {item.label}
+                  </span>
+                </div>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">{item.body}</p>
+              </div>
+              <span className="self-start border border-[#8b80ff]/25 px-2.5 py-1 font-mono text-[11px] text-[#c8c2ff]">
+                {item.signal}
+              </span>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AmmSection() {
+  return (
+    <section className="landing-scene mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.86fr] lg:px-8 lg:py-24">
+      <div>
+        <p className="eyebrow">AMM Mechanics</p>
+        <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+          YES and NO are priced like real inventory.
+        </h2>
+        <p className="mt-5 max-w-2xl text-base leading-7 text-white/56">
+          The landing page should teach the core idea without sounding like a
+          manual. The pool is finite, large trades move price, and traders
+          introduce directional belief.
+        </p>
+        <div className="mt-8 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-3">
+          {AMM_ROWS.map(([label, value, before, after]) => (
+            <div key={label} className="bg-[#101010] p-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">{label}</p>
+              <p className="mt-3 font-mono text-xl text-white">{value}</p>
+              <p className="mt-2 font-mono text-xs text-white/44">
+                {before} / {after}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="mt-4 space-y-3 lg:mt-5 lg:space-y-4">
-        {MARKET_ROWS.map((row) => (
-          <div
-            key={row.label}
-            className="rounded-xl border border-white/10 bg-white/[0.025] p-3 lg:p-4"
-          >
-            <div className="flex items-baseline justify-between gap-4">
-              <span className="text-sm font-medium text-white/70">{row.label}</span>
-              <span className={`font-mono text-xl font-semibold tabular-nums sm:text-2xl ${row.tone}`}>
-                {row.price}
+      <div className="landing-depth">
+        <div className="flex items-center justify-between border-b border-white/10 p-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/34">
+              Reserve pressure
+            </p>
+            <p className="mt-1 text-sm text-white/62">A large YES buy moves the curve.</p>
+          </div>
+          <HugeiconsIcon icon={TradeUpIcon} size={22} strokeWidth={1.8} className="text-[#8b80ff]" aria-hidden="true" />
+        </div>
+        <div className="space-y-5 p-5">
+          <div>
+            <div className="mb-2 flex justify-between font-mono text-sm">
+              <span className="text-[#34d399]">YES</span>
+              <span className="text-white">$0.34 → $0.68</span>
+            </div>
+            <div className="h-3 border border-white/10 bg-white/[0.03]">
+              <span className="amm-yes block h-full bg-[#34d399]" />
+            </div>
+          </div>
+          <div>
+            <div className="mb-2 flex justify-between font-mono text-sm">
+              <span className="text-[#f87171]">NO</span>
+              <span className="text-white">$0.66 → $0.32</span>
+            </div>
+            <div className="h-3 border border-white/10 bg-white/[0.03]">
+              <span className="amm-no block h-full bg-[#f87171]" />
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-white/10 p-5">
+          <div className="landing-equation">
+            <span>YES</span>
+            <span>+</span>
+            <span>NO</span>
+            <span>=</span>
+            <span>$1.00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LedgerSection() {
+  return (
+    <section className="landing-scene flex items-center border-y border-white/10 bg-[#141414]">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.8fr_1fr] lg:px-8 lg:py-24">
+        <div>
+          <p className="eyebrow">Oracle Memory</p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            Every resolution leaves a trail a judge can inspect.
+          </h2>
+          <p className="mt-5 text-base leading-7 text-white/56">
+            Prophet is strongest when the oracle is not a black box. The
+            reasoning payload lives on 0G Storage, while the market contract
+            stores the hash.
+          </p>
+        </div>
+        <div className="ledger-surface">
+          <div className="grid grid-cols-[1fr_auto] border-b border-white/10 p-4">
+            <div className="flex items-center gap-3">
+              <HugeiconsIcon icon={Shield01Icon} size={20} strokeWidth={1.8} className="text-[#c8c2ff]" aria-hidden="true" />
+              <span className="font-mono text-xs uppercase tracking-[0.18em] text-white/52">
+                Resolution Packet
               </span>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="market-bar h-full rounded-full bg-white/75"
-                style={{ width: row.width }}
-              />
-            </div>
+            <span className="font-mono text-xs text-[#34d399]">verified</span>
           </div>
-        ))}
-      </div>
-
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center lg:mt-5">
-        {[
-          ["Pool", "$50.00"],
-          ["Fees", "1.00%"],
-          ["Slippage", "Live"],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-white/10 bg-[#111111] p-2.5 lg:p-3">
-            <p className="text-[11px] font-medium text-white/40">{label}</p>
-            <p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p>
+          <div className="divide-y divide-white/10">
+            {LEDGER_ROWS.map(([key, value, status]) => (
+              <div key={key} className="grid grid-cols-[5rem_1fr_auto] gap-3 px-4 py-3 text-sm">
+                <span className="font-mono text-white/34">{key}</span>
+                <span className="truncate text-white/78">{value}</span>
+                <span className="font-mono text-[11px] text-[#8b80ff]">{status}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#111111] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#101010] text-white">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="flex min-h-11 items-center gap-3 rounded-lg pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+          className="flex min-h-11 items-center gap-3 rounded-md pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]"
           aria-label="Prophet home"
         >
           <Image
@@ -174,278 +395,45 @@ export default function LandingPage() {
             className="rounded-full bg-white"
             priority
           />
-          <span className="text-sm font-semibold tracking-wide text-white">
-            Prophet
-          </span>
+          <div>
+            <span className="block text-sm font-semibold tracking-wide text-white">
+              Prophet
+            </span>
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/30 sm:block">
+              Autonomous markets on 0G
+            </span>
+          </div>
         </Link>
 
-
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
           <ConnectButton />
         </div>
       </header>
 
-      <section className="mx-auto grid min-h-[calc(100svh-84px)] max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.82fr)] lg:gap-10 lg:px-8 lg:py-12">
+      <section className="mx-auto grid min-h-[calc(100svh-84px)] max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[0.86fr_1fr] lg:px-8">
         <div className="max-w-3xl">
-          <h1 className="landing-reveal landing-reveal-1 max-w-4xl text-4xl font-semibold leading-[1.04] tracking-normal text-white sm:text-5xl lg:text-[clamp(3rem,5vw,4.25rem)]">
-            Autonomous prediction markets that feel calm, clear, and built to
-            settle.
+          <h1 className="landing-reveal landing-reveal-2 mt-6 max-w-4xl text-[clamp(2.7rem,7vw,5.8rem)] font-semibold leading-[0.93] tracking-[-0.035em] text-[#f5f2ea]">
+            Markets that operate themselves.
           </h1>
-
-          <p className="landing-reveal landing-reveal-2 mt-5 max-w-2xl text-base leading-7 text-white/60 sm:text-lg sm:leading-8">
-            Prophet turns real-world questions into YES/NO share markets. 0G
-            Chain executes the AMM, 0G Compute powers the agents, and 0G Storage
-            preserves the reasoning.
+          <p className="landing-reveal landing-reveal-3 mt-6 max-w-2xl text-base leading-8 text-white/58 sm:text-lg">
+            Prophet turns real-world questions into YES/NO share markets where
+            autonomous agents allocate liquidity, reason through outcomes, and
+            preserve the evidence trail on 0G.
           </p>
-
-          <div className="landing-reveal landing-reveal-3 mt-7 flex flex-col gap-3 sm:flex-row">
-            <PrimaryLink href="/dashboard">Explore markets</PrimaryLink>
+          <div className="landing-reveal landing-reveal-4 mt-8 flex flex-col gap-3 sm:flex-row">
+            <PrimaryLink href="/dashboard">Enter the market</PrimaryLink>
           </div>
         </div>
 
-        <MarketPreview />
+        <HeroTerminal />
       </section>
 
-      <section className="border-y border-white/10 bg-[#151515]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.78fr_1fr] lg:px-8 lg:py-20">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-              Why it exists
-            </p>
-            <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
-              Prediction markets should not depend on manual liquidity or opaque
-              resolution.
-            </h2>
-          </div>
+      <FlowRail />
+      <OgSection />
+      <AmmSection />
+      <LedgerSection />
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              [
-                "Oracle problem",
-                "Outcomes need clear reasoning that users can inspect after settlement.",
-              ],
-              [
-                "Liquidity problem",
-                "New markets need depth immediately, not only after human LPs arrive.",
-              ],
-              [
-                "Trust problem",
-                "Agents should leave permanent evidence, not private logs on a server.",
-              ],
-              [
-                "Solvency problem",
-                "Prices need slippage and bounded payouts so the AMM cannot be drained.",
-              ],
-            ].map(([title, body]) => (
-              <article
-                key={title}
-                className="rounded-2xl border border-white/10 bg-[#111111] p-5 transition-colors duration-150 ease-out hover:border-white/20"
-              >
-                <h3 className="text-base font-semibold text-white">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-white/60">{body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.9fr_1fr] lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-              Autonomous flow
-            </p>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-              From question to settlement, the system keeps moving.
-            </h2>
-            <p className="mt-5 max-w-xl text-base leading-7 text-white/60">
-              The landing experience should feel like the protocol itself:
-              steady, transparent, and deliberate. Every step has a role, and
-              every off-chain decision leaves a verifiable trail.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#151515] p-4 sm:p-5">
-            <ol className="relative space-y-3 overflow-hidden">
-              <span className="flow-tracer" aria-hidden="true" />
-              {FLOW.map((item, index) => (
-                <li
-                  key={item}
-                  className="flow-item grid grid-cols-[2.75rem_1fr] gap-4 rounded-xl border border-white/10 bg-[#111111] p-4"
-                >
-                  <div className="relative flex justify-center">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#8b80ff]/30 bg-[#8b80ff]/10 font-mono text-xs font-semibold text-[#c8c2ff]">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className="flow-step-pulse"
-                      style={{ animationDelay: `${index * 420}ms` }}
-                      aria-hidden="true"
-                    />
-                    {index < FLOW.length - 1 && (
-                      <span className="flow-line" aria-hidden="true" />
-                    )}
-                  </div>
-                  <div className="flex min-h-9 items-center">
-                    <p className="text-sm font-medium leading-6 text-white/80">
-                      {item}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-[#151515]">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-              Built on 0G
-            </p>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-              Compute, storage, and settlement working as one surface.
-            </h2>
-          </div>
-
-          <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-3">
-            {STACK.map((item, index) => (
-              <article key={item.title} className="bg-[#111111] p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-lg font-semibold text-white">
-                    {item.title}
-                  </h3>
-                  <span className="rounded-full border border-[#8b80ff]/20 bg-[#8b80ff]/10 px-2.5 py-1 text-[11px] font-medium text-[#c8c2ff]">
-                    {item.status}
-                  </span>
-                </div>
-                <p className="mt-4 text-sm leading-7 text-white/60">
-                  {item.body}
-                </p>
-                <div className="mt-6 overflow-hidden rounded-full bg-white/10">
-                  <span
-                    className="stack-signal block h-1.5 w-1/3 rounded-full bg-[#8b80ff]"
-                    style={{ animationDelay: `${index * 300}ms` }}
-                    aria-hidden="true"
-                  />
-                </div>
-                <div className="mt-4 grid grid-cols-6 gap-1" aria-hidden="true">
-                  {Array.from({ length: 6 }).map((_, cellIndex) => (
-                    <span
-                      key={cellIndex}
-                      className="stack-cell h-6 rounded-md border border-white/10 bg-white/[0.03]"
-                      style={{ animationDelay: `${index * 280 + cellIndex * 90}ms` }}
-                    />
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.82fr] lg:px-8 lg:py-24">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-            AMM principles
-          </p>
-          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            A market that moves because liquidity is real.
-          </h2>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/60">
-            Prophet shows share prices in dollars, not vague percentages. If
-            users push hard into YES, YES gets expensive and NO gets cheaper.
-            That movement is the point: it is how the market expresses belief
-            while protecting the pool.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-[#151515] p-5">
-          <div className="rounded-xl border border-white/10 bg-[#111111] p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-                  AMM motion
-                </p>
-                <p className="mt-1 text-sm text-white/60">
-                  Demand shifts reserves, so prices move.
-                </p>
-              </div>
-              <span className="rounded-full border border-[#34d399]/20 bg-[#34d399]/10 px-2.5 py-1 font-mono text-xs text-[#34d399]">
-                Live
-              </span>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium text-white/70">YES price</span>
-                  <span className="font-mono text-[#34d399]">$0.36 → $0.74</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <span className="amm-yes block h-full rounded-full bg-[#34d399]" />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium text-white/70">NO price</span>
-                  <span className="font-mono text-[#f87171]">$0.64 → $0.26</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <span className="amm-no block h-full rounded-full bg-[#f87171]" />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.025] p-3">
-              <span className="trade-packet h-2.5 w-2.5 rounded-full bg-[#8b80ff]" aria-hidden="true" />
-              <p className="text-xs leading-5 text-white/60">
-                A large YES buy makes YES scarce, pushes YES up, and pushes NO down.
-              </p>
-            </div>
-          </div>
-
-          <ul className="mt-5 space-y-3">
-            {PRINCIPLES.map((item) => (
-              <li
-                key={item}
-                className="flex gap-3 rounded-xl border border-white/10 bg-[#111111] p-4"
-              >
-                <span
-                  className="mt-2 h-1.5 w-1.5 rounded-full bg-[#8b80ff]"
-                  aria-hidden="true"
-                />
-                <span className="text-sm leading-6 text-white/70">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <section className="border-t border-white/10 bg-[#151515]">
-        <div className="mx-auto flex max-w-3xl flex-col items-center px-4 py-16 text-center sm:px-6 lg:px-8 lg:py-20">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
-            Ready to test it
-          </p>
-          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            Open Prophet and watch a YES/NO market behave like a real exchange.
-          </h2>
-          <p className="mt-5 max-w-xl text-base leading-7 text-white/60">
-            Claim testnet USDT, create a market, and see protocol-owned
-            liquidity, AMM prices, and agent infrastructure in the same flow.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <PrimaryLink href="/dashboard">Launch Prophet</PrimaryLink>
-            <SecondaryLink href="/dashboard/faucet">
-              Get test USDT
-            </SecondaryLink>
-          </div>
-        </div>
-      </section>
-
-      <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <footer className="mx-auto flex max-w-7xl flex-col gap-4 border-t border-white/10 px-4 py-6 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <span>© 2026 Prophet. Built on 0G Galileo.</span>
         <div className="flex items-center gap-4">
           {SOCIAL.map((item) => (
@@ -454,7 +442,7 @@ export default function LandingPage() {
               href={item.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-10 rounded-lg px-2 py-2 transition-colors duration-150 ease-out hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff]"
+              className="min-h-10 rounded-md px-2 py-2 transition-colors duration-150 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df]"
             >
               {item.label}
             </a>
