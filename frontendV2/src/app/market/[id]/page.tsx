@@ -19,10 +19,11 @@ import {
 } from "@/lib/hooks/use-market-detail";
 import { useOracleReasoning } from "@/lib/hooks/use-oracle-reasoning";
 import { useMarketMetadata } from "@/lib/hooks/use-market-metadata";
+import { marketStatusTone } from "@/lib/market-status";
 import { zeroGGalileo } from "@/lib/web3-config";
 
-const CandlestickChart = dynamic(
-  () => import("../../_components/candlestick-chart"),
+const PredictionMarketChart = dynamic(
+  () => import("../../_components/prediction-market-chart"),
   { ssr: false }
 );
 
@@ -189,8 +190,9 @@ export default function MarketDetailPage() {
                     <span
                       className="text-[10px] px-2 py-0.5 rounded"
                       style={{
-                        background: "rgba(123,110,244,0.15)",
-                        color: "rgba(167,159,250,0.95)",
+                        background: marketStatusTone(detail.statusLabel).background,
+                        color: marketStatusTone(detail.statusLabel).color,
+                        border: `1px solid ${marketStatusTone(detail.statusLabel).border}`,
                       }}
                     >
                       {detail.statusLabel}
@@ -301,11 +303,11 @@ export default function MarketDetailPage() {
                     className="text-[11px] font-semibold"
                     style={{ color: "rgba(255,255,255,0.5)" }}
                   >
-                    YES probability
+                    Share price history
                   </span>
                   {isPriceLive ? (
                     <span className="text-[11px] font-mono" style={{ color: "#34d399" }}>
-                      {impliedYesPct}¢
+                      YES ${(impliedYesPct / 100).toFixed(2)}
                     </span>
                   ) : (
                     <span className="text-[11px] italic" style={{ color: "rgba(255,255,255,0.2)" }}>
@@ -332,10 +334,12 @@ export default function MarketDetailPage() {
                 </div>
               </div>
               <div style={{ height: 280 }}>
-                {detail ? (
-                  <CandlestickChart
+                {detail && address ? (
+                  <PredictionMarketChart
+                    marketAddress={address}
                     yesPct={impliedYesPct}
-                    deadlineTs={Number(detail.deadline)}
+                    isPriceLive={isPriceLive}
+                    range={range}
                     height={280}
                   />
                 ) : (

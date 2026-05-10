@@ -113,6 +113,23 @@ export interface PricingResponse {
   rationale: string;
 }
 
+/**
+ * Structured response from the market maker 0G Compute allocation-risk call.
+ * Used to decide how much protocol-owned liquidity a new market deserves.
+ */
+export interface AllocationScoreResponse {
+  /** 0-100 overall score. Higher means safer/more attractive to allocate. */
+  score: number;
+  /** 0-100 estimate of how objectively resolvable the question is. */
+  resolvability: number;
+  /** 0-100 expected market interest / demand. */
+  demand: number;
+  /** 0-100 manipulation/adversarial risk. Higher means riskier. */
+  manipulationRisk: number;
+  /** One-line allocation rationale for logs/audits. */
+  rationale: string;
+}
+
 // ── Chain events ──────────────────────────────────────────────────────────────
 
 export interface MarketCreatedEvent {

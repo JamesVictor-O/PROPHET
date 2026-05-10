@@ -18,7 +18,7 @@
 import { createZGComputeNetworkBroker } from "@0glabs/0g-serving-broker";
 import OpenAI from "openai";
 import type { Wallet } from "ethers";
-import type { OracleResponse, PricingResponse } from "./types";
+import type { AllocationScoreResponse, OracleResponse, PricingResponse } from "./types";
 import { createLogger } from "./logger";
 import { cfg, cfgNum } from "./config";
 
@@ -217,6 +217,24 @@ Rules:
 - Base your estimate on current publicly known information about the topic.
 - Be calibrated: a 70% YES means you believe there is roughly a 70% chance the event occurs.
 - Respond ONLY in valid JSON. No preamble, no markdown.`;
+
+const LIQUIDITY_ALLOCATOR_SYSTEM_PROMPT = `You are a risk-aware autonomous liquidity allocator for a YES/NO prediction market AMM.
+
+Your job is to decide how much protocol-owned liquidity a new market deserves.
+
+Score higher when:
+- the question is objectively resolvable
+- the market likely has organic demand
+- the deadline is reasonable
+- the topic is understandable and not easy to manipulate
+
+Score lower when:
+- the wording is vague, subjective, or depends on private information
+- the deadline is too soon or too far away
+- the market can be manipulated by one person or a small group
+- the question is unlikely to attract traders
+
+Respond ONLY in valid JSON. No markdown.`;
 
 // ── Oracle inference ──────────────────────────────────────────────────────────
 
@@ -450,6 +468,104 @@ export async function callPricingInference(
   return parsed;
 }
 
+// ── Market maker liquidity allocation scoring ────────────────────────────────
+
+/**
+ * Call 0G Compute to score a market for autonomous liquidity allocation.
+ * The market-maker agent maps this score to a pool allocation BPS.
+ */
+export async function callAllocationScoring(
+  question: string,
+  category: string,
+  deadline: number,
+  signer:   Wallet
+): Promise<AllocationScoreResponse> {
+  const providerAddress = cfg("COMPUTE_PROVIDER_ADDRESS");
+
+  logger.info("Calling 0G Compute for liquidity allocation score...", { question, category });
+
+  const broker = await withTimeout(getBroker(signer), COMPUTE_TIMEOUT_MS, "broker-init");
+  await withTimeout(ensureAccountReady(broker, providerAddress), COMPUTE_TIMEOUT_MS, "account-ready");
+
+  const { endpoint, model } = await withTimeout(
+    broker.inference.getServiceMetadata(providerAddress) as Promise<{ endpoint: string; model: string }>,
+    COMPUTE_TIMEOUT_MS,
+    "service-metadata"
+  );
+
+  try {
+    await withTimeout(broker.inference.verifyService(providerAddress), COMPUTE_TIMEOUT_MS, "tee-verify");
+  } catch (err) {
+    if (cfgNum("COMPUTE_REQUIRE_TEE") > 0) {
+      throw new Error(`TEE verification failed for allocation provider ${providerAddress}: ${
+        err instanceof Error ? err.message : String(err)
+      }`);
+    }
+    logger.warn("TEE verification failed for allocation scoring (non-fatal on testnet)", err);
+  }
+
+  const deadlineDate = new Date(deadline * 1000).toISOString();
+  const userPrompt   = buildAllocationPrompt(question, category, deadlineDate);
+
+  const billingHeaders = await withTimeout(
+    broker.inference.getRequestHeaders(providerAddress, userPrompt) as Promise<Record<string, string>>,
+    COMPUTE_TIMEOUT_MS,
+    "billing-headers"
+  );
+
+  const client = new OpenAI({
+    baseURL:        endpoint,
+    apiKey:         "",
+    defaultHeaders: billingHeaders,
+  });
+
+  const response = await withRetry("0G allocation scoring", () =>
+    withTimeout(
+      client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: LIQUIDITY_ALLOCATOR_SYSTEM_PROMPT },
+          { role: "user",   content: userPrompt },
+        ],
+        temperature: 0.2,
+        max_tokens:  350,
+      }),
+      COMPUTE_TIMEOUT_MS,
+      "allocation-scoring"
+    )
+  );
+
+  const raw = response.choices[0]?.message?.content;
+  if (!raw) throw new Error("0G Compute returned empty allocation scoring response");
+
+  const cleaned = extractJsonObject(raw, "Allocation scoring");
+
+  let parsed: AllocationScoreResponse;
+  try {
+    parsed = JSON.parse(cleaned) as AllocationScoreResponse;
+  } catch {
+    throw new Error(`Allocation scoring returned invalid JSON:\n${cleaned}`);
+  }
+
+  parsed.score            = assertValidConfidence(parsed.score, "Allocation score");
+  parsed.resolvability    = assertValidConfidence(parsed.resolvability, "Allocation resolvability");
+  parsed.demand           = assertValidConfidence(parsed.demand, "Allocation demand");
+  parsed.manipulationRisk = assertValidConfidence(parsed.manipulationRisk, "Allocation manipulationRisk");
+
+  if (!parsed.rationale || typeof parsed.rationale !== "string") {
+    parsed.rationale = "0G Compute returned allocation factors without rationale.";
+  }
+
+  logger.info("Allocation scoring complete", {
+    score: parsed.score,
+    resolvability: parsed.resolvability,
+    demand: parsed.demand,
+    manipulationRisk: parsed.manipulationRisk,
+  });
+
+  return parsed;
+}
+
 // ── Question validation ───────────────────────────────────────────────────────
 
 export interface ValidationResponse {
@@ -541,7 +657,7 @@ function buildOraclePrompt(
   const minConfidence = cfgNum("ORACLE_MIN_CONFIDENCE");
   const sourceList    = sources.length > 0
     ? sources.map((s, i) => `${i + 1}. ${s}`).join("\n")
-    : "General web search and knowledge";
+    : "No approved evidence package was available. Use only widely known public facts and return INCONCLUSIVE if the outcome cannot be established safely.";
 
   return `Market Question: "${question}"
 
@@ -549,7 +665,7 @@ Resolution Deadline: ${deadlineIso}
 
 Resolution Criteria: The question resolves YES if the described event occurred before or by the deadline. It resolves NO if the event clearly did not occur. It resolves INCONCLUSIVE if insufficient evidence exists.
 
-Approved data sources to check:
+Approved evidence package:
 ${sourceList}
 
 Today's date: ${new Date().toISOString()}
@@ -567,6 +683,7 @@ Respond with this exact JSON structure:
 Rules:
 - verdict must be: true (YES), false (NO), or null (INCONCLUSIVE)
 - confidence must be 0–100
+- Do not claim to have checked a source unless it appears in the approved evidence package
 - If confidence is below ${minConfidence}, set verdict to null and explain in inconclusiveReason
 - Do not include any text outside the JSON object`;
 }
@@ -583,4 +700,31 @@ Respond with this exact JSON structure:
   "yesProbability": 55,
   "rationale": "One sentence explaining the pricing estimate"
 }`;
+}
+
+function buildAllocationPrompt(
+  question: string,
+  category: string,
+  deadlineIso: string
+): string {
+  return `Prediction Market Question: "${question}"
+Category: ${category || "custom"}
+Market closes: ${deadlineIso}
+Today's date: ${new Date().toISOString()}
+
+Evaluate this market for protocol-owned liquidity allocation.
+
+Respond with this exact JSON structure:
+{
+  "score": 62,
+  "resolvability": 75,
+  "demand": 55,
+  "manipulationRisk": 30,
+  "rationale": "One sentence explaining the allocation decision"
+}
+
+Rules:
+- score, resolvability, demand, and manipulationRisk must be numbers from 0 to 100
+- High manipulationRisk should reduce the final score
+- Do not include text outside the JSON object`;
 }

@@ -11,6 +11,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+const DEFAULT_OG_CHAIN_RPC = "https://evmrpc-testnet.0g.ai";
+const DEFAULT_COMPUTE_PROVIDER_ADDRESS = "0xa48f01287233509FD694a22Bf840225062E67836";
+
 async function getBrokerModule() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require("@0glabs/0g-serving-broker") as {
@@ -117,22 +120,23 @@ export async function POST(req: NextRequest) {
   }
 
   const privateKey      = process.env.PRIVATE_KEY_ORACLE;
-  const rpc             = process.env.OG_CHAIN_RPC ?? "https://evmrpc-testnet.0g.ai";
-  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
+  const rpc             = process.env.OG_CHAIN_RPC ?? DEFAULT_OG_CHAIN_RPC;
+  const providerAddress =
+    process.env.COMPUTE_PROVIDER_ADDRESS ??
+    process.env.NEXT_PUBLIC_COMPUTE_PROVIDER_ADDRESS ??
+    DEFAULT_COMPUTE_PROVIDER_ADDRESS;
 
   if (!privateKey) {
     return NextResponse.json(
-      { valid: false, error: "PRIVATE_KEY_ORACLE is not set on the server — 0G Compute validation is unavailable" },
-      { status: 503 }
+      {
+        valid: true,
+        warning: "PRIVATE_KEY_ORACLE is not set on the server — 0G Compute validation was skipped.",
+        detectedCategory: category,
+        suggestedSources: [],
+      },
+      { status: 200 }
     );
   }
-  if (!providerAddress) {
-    return NextResponse.json(
-      { valid: false, error: "COMPUTE_PROVIDER_ADDRESS is not set on the server — 0G Compute validation is unavailable" },
-      { status: 503 }
-    );
-  }
-
   try {
     const ethers = await getEthers();
     const { createZGComputeNetworkBroker } = await getBrokerModule();
@@ -219,8 +223,13 @@ Respond with this exact JSON (no markdown, no preamble):
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[validate-question] 0G Compute validation failed:", err);
     return NextResponse.json(
-      { valid: false, error: `0G Compute validation failed: ${msg}` },
-      { status: 502 }
+      {
+        valid: true,
+        warning: `0G Compute validation skipped: ${msg}`,
+        detectedCategory: category,
+        suggestedSources: [],
+      },
+      { status: 200 }
     );
   }
 }

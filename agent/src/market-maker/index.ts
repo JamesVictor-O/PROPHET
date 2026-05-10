@@ -18,10 +18,10 @@ import { ethers }             from "ethers";
 import { createLogger }       from "../shared/logger";
 import { createProvider, createWallet, getFactory, getMarket,
          listenForEvent, getMarketInfo, getAllActiveMarkets, getLiquidityPool } from "../shared/chain";
-import { callPricingInference }  from "../shared/compute";
+import { callAllocationScoring, callPricingInference }  from "../shared/compute";
 import { writeMarketPrices, writeMMState } from "../shared/storage";
 import { cfg, cfgNum } from "../shared/config";
-import type { MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types";
+import type { AllocationScoreResponse, MarketPrices, MarketMakerState, LiquidityTierString } from "../shared/types";
 
 const TIER_NAMES: LiquidityTierString[] = ["Seed", "Low", "Medium", "High"];
 
@@ -32,6 +32,7 @@ const logger = createLogger("market-maker");
 interface TrackedMarket {
   address:      string;
   question:     string;
+  category:     string;
   deadline:     number;
   yesPrice:     number;   // 1–99
   noPrice:      number;   // derived: 100 - yesPrice
@@ -82,6 +83,7 @@ function getRepricingInterval(tier: number): number {
 async function priceMarket(
   marketAddress: string,
   question:      string,
+  category:      string,
   deadline:      number,
   liquidityTier: number,
   mmWallet:      ReturnType<typeof createWallet>
@@ -131,10 +133,12 @@ async function priceMarket(
     existing.yesPrice   = yesProbability;
     existing.noPrice    = 100 - yesProbability;
     existing.lastPriced = Date.now();
+    existing.category   = category;
   } else {
     activeMarkets.set(marketAddress.toLowerCase(), {
       address:      marketAddress,
       question,
+      category,
       deadline,
       yesPrice:     yesProbability,
       noPrice:      100 - yesProbability,
@@ -234,17 +238,121 @@ function tierToBps(tier: number, minBps: bigint, maxBps: bigint): bigint {
   }
 }
 
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function localAllocationScore(
+  question: string,
+  category: string,
+  deadline: number,
+  tier: number,
+  totalCollateral: bigint
+): AllocationScoreResponse {
+  const normalized = question.trim().toLowerCase();
+  const hoursToDeadline = Math.max(0, (deadline * 1000 - Date.now()) / 3_600_000);
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+
+  let resolvability = 50;
+  if (normalized.endsWith("?")) resolvability += 8;
+  if (/\b(will|does|did|is|are|has|have|before|by|on or before)\b/.test(normalized)) resolvability += 12;
+  if (/\b(best|popular|important|successful|good|bad|major|significant)\b/.test(normalized)) resolvability -= 22;
+  if (wordCount >= 7 && wordCount <= 28) resolvability += 10;
+  if (wordCount < 5 || wordCount > 40) resolvability -= 12;
+
+  const categoryBase: Record<string, number> = {
+    crypto: 72,
+    sports: 70,
+    politics: 66,
+    finance: 64,
+    ai: 62,
+    custom: 52,
+  };
+  let demand = categoryBase[category.toLowerCase()] ?? categoryBase.custom;
+  if (tier >= 1) demand += 12;
+  if (tier >= 2) demand += 10;
+  if (totalCollateral >= BigInt(100e6)) demand += 8;
+
+  let deadlineScore = 58;
+  if (hoursToDeadline < 6) deadlineScore = 25;
+  else if (hoursToDeadline <= 24 * 14) deadlineScore = 76;
+  else if (hoursToDeadline <= 24 * 90) deadlineScore = 66;
+  else if (hoursToDeadline > 24 * 365) deadlineScore = 36;
+
+  let manipulationRisk = 34;
+  if (/\b(tweet|post|like|poll|price of|floor price|volume|followers)\b/.test(normalized)) manipulationRisk += 18;
+  if (/\b(my|our|this project|prophet)\b/.test(normalized)) manipulationRisk += 10;
+  if (resolvability < 45) manipulationRisk += 14;
+  if (tier >= 2) manipulationRisk -= 8;
+
+  resolvability = clampScore(resolvability);
+  demand = clampScore(demand);
+  manipulationRisk = clampScore(manipulationRisk);
+
+  const score = clampScore(
+    resolvability * 0.38 +
+    demand * 0.28 +
+    deadlineScore * 0.18 +
+    (100 - manipulationRisk) * 0.16
+  );
+
+  return {
+    score,
+    resolvability,
+    demand,
+    manipulationRisk,
+    rationale: "Local fallback scored resolvability, expected demand, deadline quality, and manipulation risk.",
+  };
+}
+
+function scoreToBps(score: number, minBps: bigint, maxBps: bigint): bigint {
+  const clamped = BigInt(clampScore(score));
+  const range = maxBps - minBps;
+  return minBps + (range * clamped) / BigInt(100);
+}
+
+function maxBigint(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
+async function getAllocationScore(
+  question: string,
+  category: string,
+  deadline: number,
+  tier: number,
+  totalCollateral: bigint,
+  mmWallet: ReturnType<typeof createWallet>
+): Promise<AllocationScoreResponse> {
+  try {
+    return await callAllocationScoring(question, category, deadline, mmWallet);
+  } catch (err) {
+    const fallback = localAllocationScore(question, category, deadline, tier, totalCollateral);
+    logger.warn("0G Compute allocation scoring failed — using local fallback", {
+      error: err instanceof Error ? err.message : String(err),
+      score: fallback.score,
+      resolvability: fallback.resolvability,
+      demand: fallback.demand,
+      manipulationRisk: fallback.manipulationRisk,
+    });
+    return fallback;
+  }
+}
+
 /**
- * Allocates (or tops up) pool liquidity for a market, scaled to its liquidity tier.
+ * Allocates initial pool liquidity for a market, scaled by market quality/risk.
  *
- * - First call: allocates tier-appropriate amount
- * - Subsequent calls (tier increase): tops up the difference so the total
- *   allocated matches what the new tier deserves
- * - Silently skips if pool has no funds or market is already at its target
+ * The pool is a neutral market initializer, not a directional trader. We only
+ * seed a market once; later top-ups would add complete sets after traders have
+ * moved the AMM and could pull price back toward 50/50.
  */
 async function allocateLiquidityToMarket(
   marketAddress: string,
+  question:      string,
+  category:      string,
+  deadline:      number,
   tier:          number,
+  totalCollateral: bigint,
   mmWallet:      ReturnType<typeof createWallet>
 ): Promise<void> {
   const pool = getLiquidityPool(mmWallet);
@@ -267,27 +375,33 @@ async function allocateLiquidityToMarket(
       return;
     }
 
-    const targetBps    = tierToBps(tier, minBps, maxBps);
-    const targetAmount = (poolValue * targetBps) / BigInt(10_000);
-
-    // Already at or above target — nothing to do
-    if (existing >= targetAmount) {
-      logger.info("Market allocation already at target for tier", {
+    const allocationScore = await getAllocationScore(
+      question,
+      category,
+      deadline,
+      tier,
+      totalCollateral,
+      mmWallet
+    );
+    if (existing > BigInt(0)) {
+      logger.info("Market already has initial pool liquidity — skipping top-up", {
         market: marketAddress,
-        tier:   TIER_NAMES[tier] ?? "Seed",
         existing: existing.toString(),
-        target:   targetAmount.toString(),
       });
       return;
     }
 
-    const topUp = targetAmount - existing;
-    const finalAmount = topUp > available ? available : topUp;
+    const tierFloorBps = tierToBps(tier, minBps, maxBps);
+    const scoreBps     = scoreToBps(allocationScore.score, minBps, maxBps);
+    const targetBps    = maxBigint(tierFloorBps, scoreBps);
+    const targetAmount = (poolValue * targetBps) / BigInt(10_000);
+
+    const finalAmount = targetAmount > available ? available : targetAmount;
 
     if (finalAmount === BigInt(0)) {
-      logger.warn("Pool has no available liquidity for top-up", {
+      logger.warn("Pool has no available liquidity for initial allocation", {
         market:    marketAddress,
-        needed:    topUp.toString(),
+        needed:    targetAmount.toString(),
         available: available.toString(),
       });
       return;
@@ -297,7 +411,12 @@ async function allocateLiquidityToMarket(
       market:    marketAddress,
       tier:      TIER_NAMES[tier] ?? "Seed",
       targetBps: targetBps.toString(),
-      topUp:     finalAmount.toString(),
+      score:     allocationScore.score,
+      resolvability: allocationScore.resolvability,
+      demand: allocationScore.demand,
+      manipulationRisk: allocationScore.manipulationRisk,
+      rationale: allocationScore.rationale,
+      amount:    finalAmount.toString(),
       existing:  existing.toString(),
     });
 
@@ -436,11 +555,19 @@ async function handleMarketCreated(
     const market = getMarket(marketAddress, provider);
     const tier   = Number(await market.liquidityTier()) as number;
 
-    // Run pricing and allocation in parallel — don't let a slow 0G Compute
-    // call block capital deployment (allocation has no dependency on pricing)
+    // Run pricing and allocation in parallel. Allocation now has its own
+    // risk score, so it no longer gives every Seed market the same amount.
     await Promise.all([
-      priceMarket(marketAddress, info.question, info.deadline, tier, mmWallet),
-      allocateLiquidityToMarket(marketAddress, tier, mmWallet),
+      priceMarket(marketAddress, info.question, info.category, info.deadline, tier, mmWallet),
+      allocateLiquidityToMarket(
+        marketAddress,
+        info.question,
+        info.category,
+        info.deadline,
+        tier,
+        info.totalCollateral,
+        mmWallet
+      ),
     ]);
 
     await persistMMState(mmWallet);
@@ -524,13 +651,22 @@ async function startRepricingLoop(
               newTier: TIER_NAMES[currentTier] ?? "Seed",
             });
             tracked.liquidityTier = currentTier;
-            await allocateLiquidityToMarket(tracked.address, currentTier, mmWallet);
+            await allocateLiquidityToMarket(
+              tracked.address,
+              tracked.question,
+              tracked.category,
+              tracked.deadline,
+              currentTier,
+              info.totalCollateral,
+              mmWallet
+            );
           }
 
           // Reprice
           await priceMarket(
             tracked.address,
             tracked.question,
+            tracked.category,
             tracked.deadline,
             tracked.liquidityTier,
             mmWallet
@@ -587,8 +723,16 @@ async function seedExistingMarkets(
       });
 
       await Promise.all([
-        priceMarket(addr, info.question, info.deadline, tier, mmWallet),
-        allocateLiquidityToMarket(addr, tier, mmWallet),
+        priceMarket(addr, info.question, info.category, info.deadline, tier, mmWallet),
+        allocateLiquidityToMarket(
+          addr,
+          info.question,
+          info.category,
+          info.deadline,
+          tier,
+          info.totalCollateral,
+          mmWallet
+        ),
       ]);
       attachSettlementListeners(addr, mmWallet, provider);
       attachTradingListeners(addr, provider);

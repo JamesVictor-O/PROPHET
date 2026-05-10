@@ -34,12 +34,12 @@ Prophet is already deployed on 0G Galileo testnet. Judges can inspect the core c
 
 | Contract | What It Does | 0G Scan |
 |---|---|---|
-| ProphetFactory | Deploys and registers new markets | [0x069e...Af7C](https://chainscan-galileo.0g.ai/address/0x069e6203ef2CEB6aB7eC23432f9693eADdE0Af7C) |
+| ProphetFactory | Deploys and registers new markets | [0xEd51...7bD4](https://chainscan-galileo.0g.ai/address/0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4) |
 | MarketContract | Per-market YES/NO AMM trading and settlement logic | Deployed per market by the factory |
-| LiquidityPool | Holds protocol-owned USDT liquidity for autonomous market making | [0xda95...B018](https://chainscan-galileo.0g.ai/address/0xda95ad4cA75eC78fE71D5Be970c8c3956E32B018) |
+| LiquidityPool | Holds protocol-owned USDT liquidity for autonomous market making | [0x13Ab...DA8e](https://chainscan-galileo.0g.ai/address/0x13AbE644693DA19f9A895C8c82Cf53879580DA8e) |
 | Mock USDT | Testnet collateral used for trading | [0xc2B0...7F49](https://chainscan-galileo.0g.ai/address/0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49) |
-| PositionVault | Sealed/private position infrastructure | [0xb941...72b9](https://chainscan-galileo.0g.ai/address/0xb941a917B0a345B87f30598589Cc71b5ff9b72b9) |
-| PayoutDistributor | Payout distribution support contract | [0x33a3...b405](https://chainscan-galileo.0g.ai/address/0x33a32264031c6CE010b200227aC8119E5156b405) |
+| PositionVault | Sealed/private position infrastructure | [0x89FA...794E](https://chainscan-galileo.0g.ai/address/0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E) |
+| PayoutDistributor | Payout distribution support contract | [0x238D...9740](https://chainscan-galileo.0g.ai/address/0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740) |
 
 ## Project Overview
 
@@ -490,10 +490,10 @@ The repo currently defaults to this 0G Galileo deployment:
 | Contract | Address | 0G Galileo Explorer |
 |---|---|---|
 | Mock USDT | `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49) |
-| ProphetFactory | `0x069e6203ef2CEB6aB7eC23432f9693eADdE0Af7C` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0x069e6203ef2CEB6aB7eC23432f9693eADdE0Af7C) |
-| PositionVault | `0xb941a917B0a345B87f30598589Cc71b5ff9b72b9` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0xb941a917B0a345B87f30598589Cc71b5ff9b72b9) |
-| PayoutDistributor | `0x33a32264031c6CE010b200227aC8119E5156b405` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0x33a32264031c6CE010b200227aC8119E5156b405) |
-| LiquidityPool | `0xda95ad4cA75eC78fE71D5Be970c8c3956E32B018` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0xda95ad4cA75eC78fE71D5Be970c8c3956E32B018) |
+| ProphetFactory | `0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4) |
+| PositionVault | `0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E) |
+| PayoutDistributor | `0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740) |
+| LiquidityPool | `0x13AbE644693DA19f9A895C8c82Cf53879580DA8e` | [View on 0G Scan](https://chainscan-galileo.0g.ai/address/0x13AbE644693DA19f9A895C8c82Cf53879580DA8e) |
 
 For judging the latest source, redeploy with the steps below and replace these addresses in `contracts/.env`, `agent/.env`, and `frontendV2/.env.local`.
 

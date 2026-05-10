@@ -263,6 +263,38 @@ contract MarketContractTest is Test {
     // YES/NO share AMM
     // ─────────────────────────────────────────────────────────────
 
+    function test_AmmSeedLiquidity_InitializesNeutralMarketWithoutUserShares() public {
+        _seedAmm(100e6);
+
+        (
+            uint256 yesReserve,
+            uint256 noReserve,
+            uint256 collateralBacking,
+            uint256 tradingFees,
+            uint256 aliceYes,
+            uint256 aliceNo,
+            uint256 yesPrice,
+            uint256 noPrice
+        ) = market.getAmmState(ALICE);
+
+        assertEq(yesReserve, 100e6);
+        assertEq(noReserve, 100e6);
+        assertEq(collateralBacking, 100e6);
+        assertEq(tradingFees, 0);
+        assertEq(aliceYes, 0);
+        assertEq(aliceNo, 0);
+        assertEq(yesPrice, 5_000);
+        assertEq(noPrice, 5_000);
+    }
+
+    function test_AmmSeedLiquidity_RevertsAfterInitialSeed() public {
+        _seedAmm(100e6);
+        usdt.mint(address(market), 50e6);
+
+        vm.expectRevert(IMarketContract.MarketContract__AmmAlreadySeeded.selector);
+        market.seedLiquidity(50e6);
+    }
+
     function test_AmmBuyYes_MovesPriceUpAndMintsShares() public {
         _seedAmm(20e6);
 

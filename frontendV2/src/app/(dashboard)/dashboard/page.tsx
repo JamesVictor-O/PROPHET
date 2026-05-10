@@ -10,6 +10,7 @@ import {
   ArrowUpRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { useMarkets } from "@/lib/hooks/use-markets";
+import { marketStatusTone } from "@/lib/market-status";
 
 function formatUsdt(raw: bigint): string {
   const n = Number(formatUnits(raw, 6));
@@ -17,16 +18,6 @@ function formatUsdt(raw: bigint): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
   return `$${n.toFixed(0)}`;
 }
-
-const STATUS_COLOR: Record<string, string> = {
-  Open:       "#34d399",
-  Resolved:   "#7B6EF4",
-  Pending:    "#fbbf24",
-  Resolving:  "#60a5fa",
-  Challenged: "#f97316",
-  Cancelled:  "#6b7280",
-  Archived:   "#4b5563",
-};
 
 export default function DashboardPage() {
   const { markets, totalCount, isLoading } = useMarkets();
@@ -142,8 +133,8 @@ export default function DashboardPage() {
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full"
                       style={{
-                        color: STATUS_COLOR[market.chainStatus ?? ""] ?? "#9ca3af",
-                        background: `${STATUS_COLOR[market.chainStatus ?? ""] ?? "#9ca3af"}18`,
+                        color: marketStatusTone(market.chainStatus).color,
+                        background: marketStatusTone(market.chainStatus).background,
                       }}
                     >
                       {market.chainStatus ?? "Unknown"}

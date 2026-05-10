@@ -13,6 +13,7 @@ import {
   PROPHET_FACTORY_ABI,
   PROPHET_FACTORY_ADDRESS,
 } from "@/lib/contracts";
+import { marketStatusTone } from "@/lib/market-status";
 
 type TabType = "Pos" | "Markets";
 
@@ -376,7 +377,10 @@ export default function PortfolioPage() {
                   <p className="col-span-3 text-sm font-semibold text-white pr-4 leading-snug">
                     {market.title}
                   </p>
-                  <span className="col-span-1 text-xs text-white/60">
+                  <span
+                    className="col-span-1 text-xs font-semibold"
+                    style={{ color: marketStatusTone(market.statusLabel).color }}
+                  >
                     {market.statusLabel}
                   </span>
                   <span className="col-span-1 text-xs font-semibold text-[#7B6EF4]">
@@ -434,7 +438,14 @@ export default function PortfolioPage() {
                     {market.volume}
                   </span>
                   <div className="col-span-1">
-                    <span className="px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-widest bg-[#7B6EF4]/10 text-[#7B6EF4]">
+                    <span
+                      className="px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-widest"
+                      style={{
+                        background: marketStatusTone(market.statusLabel).background,
+                        color: marketStatusTone(market.statusLabel).color,
+                        border: `1px solid ${marketStatusTone(market.statusLabel).border}`,
+                      }}
+                    >
                       {market.statusLabel}
                     </span>
                   </div>

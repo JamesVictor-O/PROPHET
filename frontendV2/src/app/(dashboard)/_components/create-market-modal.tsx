@@ -233,6 +233,7 @@ export default function CreateMarketModal({
         suggestedDeadlineReason?: string;
         suggestedSources?:        string[];
         aiOverview?:              object;
+        warning?:                 string;
       };
 
       try {
@@ -253,9 +254,20 @@ export default function CreateMarketModal({
       }
 
       if (!data.valid) {
-        // Non-blocking — show warning but let user proceed. The AI model can be wrong.
-        setValidationWarning(data.error ?? "0G Compute flagged this question. You can still proceed.");
-        return;
+        const message = data.error ?? "0G Compute flagged this question. You can still proceed.";
+        const isComputeUnavailable =
+          /0G Compute|COMPUTE_PROVIDER_ADDRESS|PRIVATE_KEY_ORACLE|validation is unavailable|validation failed/i
+            .test(message);
+
+        if (!isComputeUnavailable) {
+          setValidationWarning(message);
+          return;
+        }
+
+        setValidationWarning(`${message} Proceeding without AI validation.`);
+        data = { valid: true, suggestedSources: [] };
+      } else if (data.warning) {
+        setValidationWarning(data.warning);
       }
 
       // Capture sources and AI overview for 0G Storage write

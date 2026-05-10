@@ -15,6 +15,187 @@ import { cfg, cfgNum } from "../shared/config";
 import type { OracleResponse }  from "../shared/types";
 
 const logger = createLogger("oracle");
+const ZERO_HASH = `0x${"0".repeat(64)}`;
+const marketLocks = new Set<string>();
+
+async function withMarketLock(
+  marketAddress: string,
+  label: string,
+  fn: () => Promise<void>
+): Promise<void> {
+  const key = marketAddress.toLowerCase();
+  if (marketLocks.has(key)) {
+    logger.warn("Skipping duplicate oracle action — market already in flight", {
+      market: marketAddress,
+      action: label,
+    });
+    return;
+  }
+
+  marketLocks.add(key);
+  try {
+    await fn();
+  } finally {
+    marketLocks.delete(key);
+  }
+}
+
+function isBytes32Hash(value: string): boolean {
+  return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function decodeOracleSecretKey(): Uint8Array {
+  const secretKeyB64 = process.env.ORACLE_NACL_SECRET_KEY ?? "";
+  if (!secretKeyB64) {
+    throw new Error("Missing ORACLE_NACL_SECRET_KEY; cannot reveal sealed positions");
+  }
+
+  const secretKey = decodeBase64(secretKeyB64);
+  if (secretKey.length !== 32) {
+    throw new Error(`ORACLE_NACL_SECRET_KEY must decode to 32 bytes, got ${secretKey.length}`);
+  }
+  return secretKey;
+}
+
+function decodePositionDirection(
+  encryptedCommitment: string,
+  secretKey: Uint8Array,
+  index: number
+): boolean {
+  const packed = ethers.getBytes(encryptedCommitment);
+
+  if (packed.length > 56) {
+    const ephemeralPub = packed.slice(0, 32);
+    const nonce        = packed.slice(32, 56);
+    const ciphertext   = packed.slice(56);
+    const decrypted    = nacl.box.open(ciphertext, nonce, ephemeralPub, secretKey);
+
+    if (!decrypted) {
+      throw new Error(`TEE/Nacl decryption failed for position ${index}`);
+    }
+
+    const text = new TextDecoder().decode(decrypted).trim().toUpperCase();
+    if (text === "YES") return true;
+    if (text === "NO") return false;
+    throw new Error(`Invalid decrypted direction for position ${index}: ${text}`);
+  }
+
+  if (cfgNum("ORACLE_ALLOW_LEGACY_PLAINTEXT_COMMITMENTS") <= 0) {
+    throw new Error(`Position ${index} is not an encrypted commitment`);
+  }
+
+  const text = ethers.toUtf8String(encryptedCommitment).trim().toUpperCase();
+  if (text === "YES") return true;
+  if (text === "NO") return false;
+  throw new Error(`Invalid legacy plaintext direction for position ${index}: ${text}`);
+}
+
+function isPrivateOrLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+
+  const parts = host.split(".").map((p) => Number(p));
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
+    return false;
+  }
+
+  const [a, b] = parts;
+  return (
+    a === 10 ||
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function stripHtml(input: string): string {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function readResponseTextCapped(res: Response, maxBytes = 200_000): Promise<string> {
+  if (!res.body) return "";
+
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      break;
+    }
+    chunks.push(value);
+  }
+
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
+async function fetchSourceExcerpt(source: string, index: number): Promise<string> {
+  let url: URL;
+  try {
+    url = new URL(source);
+  } catch {
+    return `${index + 1}. ${source}\nEvidence excerpt: Source is a non-URL reference; no direct fetch performed.`;
+  }
+
+  if (!["https:", "http:"].includes(url.protocol) || isPrivateOrLocalHost(url.hostname)) {
+    return `${index + 1}. ${source}\nEvidence excerpt: Source skipped by oracle fetch policy.`;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "ProphetOracle/1.0 (+https://prophet.market)",
+        "Accept": "text/html,application/json,text/plain;q=0.9,*/*;q=0.1",
+      },
+    });
+
+    const contentType = res.headers.get("content-type") ?? "unknown";
+    const raw = await readResponseTextCapped(res);
+    const excerpt = stripHtml(raw).slice(0, 1_500);
+    return [
+      `${index + 1}. ${source}`,
+      `Fetch status: ${res.status}`,
+      `Content type: ${contentType}`,
+      `Evidence excerpt: ${excerpt || "No readable text extracted."}`,
+    ].join("\n");
+  } catch (err) {
+    return `${index + 1}. ${source}\nEvidence excerpt: Fetch failed: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function collectEvidence(sources: string[]): Promise<string[]> {
+  const cleanSources = sources
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  if (cleanSources.length === 0) return [];
+
+  logger.info("Collecting bounded evidence excerpts from approved sources", {
+    count: cleanSources.length,
+  });
+
+  return Promise.all(cleanSources.map((source, index) => fetchSourceExcerpt(source, index)));
+}
 
 // ── Resolve a market ──────────────────────────────────────────────────────────
 
@@ -33,12 +214,27 @@ async function resolveMarket(
   provider:      ReturnType<typeof createProvider>,
   isChallenge:   boolean = false
 ): Promise<void> {
+  await withMarketLock(marketAddress, isChallenge ? "challenge-resolution" : "resolution", async () => {
   logger.info(`${isChallenge ? "Challenge resolution" : "Resolution"} started`, {
     market: marketAddress,
   });
 
   // 1. Read market state
   const info = await getMarketInfo(marketAddress, provider);
+  if (!isChallenge && info.status !== "PendingResolution") {
+    logger.warn("Skipping resolution — market is not pending resolution", {
+      market: marketAddress,
+      status: info.status,
+    });
+    return;
+  }
+  if (isChallenge && info.status !== "Challenged") {
+    logger.warn("Skipping challenge resolution — market is not challenged", {
+      market: marketAddress,
+      status: info.status,
+    });
+    return;
+  }
 
   logger.info("Market info", {
     question:        info.question,
@@ -57,8 +253,7 @@ async function resolveMarket(
   // 3. Read approved sources from 0G Storage using resolutionSourcesHash
   //    This hash was written by the frontend at market creation and stored on-chain
   let sources: string[] = [];
-  const zeroHash = `0x${"0".repeat(64)}`;
-  if (info.resolutionSourcesHash && info.resolutionSourcesHash !== zeroHash) {
+  if (info.resolutionSourcesHash && info.resolutionSourcesHash !== ZERO_HASH) {
     try {
       const metadata = await readFromStorage<{ sources?: string[] }>(info.resolutionSourcesHash);
       sources = metadata.sources ?? [];
@@ -73,13 +268,20 @@ async function resolveMarket(
 
   // 4. Call 0G Compute — question + deadline + approved sources → verdict
   const minConfidence = cfgNum("ORACLE_MIN_CONFIDENCE");
+  const evidence = await collectEvidence(sources);
+  await writeOracleWorkingState(marketAddress, {
+    stage:            "inferring",
+    evidenceGathered: evidence,
+    sourcesChecked:   sources,
+    startedAt:        Date.now(),
+  }, oracleWallet).catch((e) => logger.warn("Storage write failed (non-fatal)", e));
 
   let oracleResponse: OracleResponse;
   try {
     oracleResponse = await callOracleInference(
       info.question,
       info.deadline,
-      sources,
+      evidence.length ? evidence : sources,
       oracleWallet
     );
   } catch (err) {
@@ -112,7 +314,11 @@ async function resolveMarket(
     );
     logger.info("Reasoning stored on 0G Storage", { rootHash: storageRootHash });
   } catch (err) {
-    logger.warn("0G Storage write failed (non-fatal — continuing with on-chain post)", err);
+    if (cfgNum("ORACLE_REQUIRE_STORAGE") > 0) {
+      logger.error("0G Storage write failed — refusing to post unverifiable verdict", err);
+      return;
+    }
+    logger.warn("0G Storage write failed (fallback mode enabled — continuing with hashed reasoning)", err);
   }
 
   // 5. Handle INCONCLUSIVE — cancel the market
@@ -138,9 +344,29 @@ async function resolveMarket(
 
   // 6. Post verdict on-chain
   //    reasoningHash links the on-chain record to the full reasoning in 0G Storage
+  if (storageRootHash && !isBytes32Hash(storageRootHash)) {
+    if (cfgNum("ORACLE_REQUIRE_STORAGE") > 0) {
+      logger.error("0G Storage returned non-bytes32 root hash — refusing to post unverifiable verdict", {
+        rootHash: storageRootHash,
+      });
+      return;
+    }
+    logger.warn("0G Storage root hash is not bytes32 — falling back to reasoning digest", {
+      rootHash: storageRootHash,
+    });
+    storageRootHash = "";
+  }
+
   const reasoningHash = storageRootHash || ethers.keccak256(
     ethers.toUtf8Bytes(oracleResponse.reasoning)
   );
+
+  await writeOracleWorkingState(marketAddress, {
+    stage:            "posting",
+    evidenceGathered: oracleResponse.sourcesChecked,
+    sourcesChecked:   oracleResponse.sourcesChecked,
+    startedAt:        Date.now(),
+  }, oracleWallet).catch((e) => logger.warn("Storage write failed (non-fatal)", e));
 
   let receipt;
   if (isChallenge) {
@@ -168,6 +394,13 @@ async function resolveMarket(
     confidence: oracleResponse.confidence,
     txHash:     receipt.hash,
   });
+  await writeOracleWorkingState(marketAddress, {
+    stage:            "done",
+    evidenceGathered: oracleResponse.sourcesChecked,
+    sourcesChecked:   oracleResponse.sourcesChecked,
+    startedAt:        Date.now(),
+  }, oracleWallet).catch((e) => logger.warn("Storage write failed (non-fatal)", e));
+  });
 }
 
 // ── Reveal positions ──────────────────────────────────────────────────────────
@@ -184,6 +417,7 @@ async function revealPositions(
   oracleWallet:  ReturnType<typeof createWallet>,
   provider:      ReturnType<typeof createProvider>
 ): Promise<void> {
+  await withMarketLock(marketAddress, "reveal", async () => {
   const vault    = getVault(provider);
   const count    = Number(await vault.positionCount(marketAddress));
   const revealed = await vault.hasRevealed(marketAddress) as boolean;
@@ -198,6 +432,7 @@ async function revealPositions(
   // Read each position directly from PositionVault — this is the source of truth.
   // BetPlaced events on MarketContract do NOT include the encryptedCommitment.
   const positions: Array<{ bettor: string; direction: boolean; collateralAmount: bigint }> = [];
+  const secretKey = decodeOracleSecretKey();
 
   for (let i = 0; i < count; i++) {
     const pos = await vault.getEncryptedPosition(marketAddress, i) as {
@@ -209,33 +444,11 @@ async function revealPositions(
 
     if (pos.revealed) continue;
 
-    // Decrypt commitment: NaCl box (ECDH + XSalsa20-Poly1305)
-    // Wire format: ephemeralPub(32) + nonce(24) + ciphertext
-    let direction = true;
-    try {
-      const secretKeyB64 = process.env.ORACLE_NACL_SECRET_KEY ?? "";
-      const secretKey    = decodeBase64(secretKeyB64);
-      const packed       = ethers.getBytes(pos.encryptedCommitment);
-
-      if (packed.length > 56) {
-        const ephemeralPub = packed.slice(0, 32);
-        const nonce        = packed.slice(32, 56);
-        const ciphertext   = packed.slice(56);
-        const decrypted    = nacl.box.open(ciphertext, nonce, ephemeralPub, secretKey);
-        if (decrypted) {
-          const text = new TextDecoder().decode(decrypted);
-          direction  = text.trim().toUpperCase() === "YES";
-        } else {
-          logger.warn("NaCl decryption failed for position — defaulting to YES", { index: i });
-        }
-      } else {
-        // Fallback: legacy plaintext UTF-8 commitment (pre-encryption bets)
-        const text = ethers.toUtf8String(pos.encryptedCommitment);
-        direction  = text.trim().toUpperCase() === "YES";
-      }
-    } catch {
-      logger.warn("Could not decrypt commitment for position — defaulting to YES", { market: marketAddress, index: i });
-    }
+    // Decrypt commitment: NaCl box (ECDH + XSalsa20-Poly1305).
+    // Wire format: ephemeralPub(32) + nonce(24) + ciphertext.
+    // Settlement must fail closed: if any position cannot be decrypted exactly,
+    // do not reveal a partial or guessed set of positions.
+    const direction = decodePositionDirection(pos.encryptedCommitment, secretKey, i);
 
     positions.push({
       bettor:           pos.bettor,
@@ -251,6 +464,7 @@ async function revealPositions(
 
   await revealPositionsOnChain(marketAddress, positions, oracleWallet);
   logger.info("Positions revealed", { market: marketAddress, count: positions.length });
+  });
 }
 
 // ── Startup scan ──────────────────────────────────────────────────────────────

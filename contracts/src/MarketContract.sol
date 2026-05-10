@@ -225,6 +225,9 @@ contract MarketContract is IMarketContract, ReentrancyGuard {
     /// @inheritdoc IMarketContract
     function seedLiquidity(uint256 collateralAmount) external override nonReentrant onlyWhenOpen {
         if (collateralAmount == 0) revert MarketContract__ZeroCollateral();
+        if (yesReserve != 0 || noReserve != 0 || ammCollateral != 0) {
+            revert MarketContract__AmmAlreadySeeded();
+        }
 
         uint256 accounted = creatorBond + sealedCollateral + ammCollateral + tradingFeesAccrued + challengeStake;
         uint256 bal = IERC20(USDT).balanceOf(address(this));

@@ -6,19 +6,19 @@ import LiquidityPoolArtifact from "./abis/LiquidityPool.json";
 
 // 0G Galileo testnet (chain 16602) — deployed with ECDSA attestation
 export const PROPHET_FACTORY_ADDRESS = (
-  process.env.NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS ?? "0x069e6203ef2CEB6aB7eC23432f9693eADdE0Af7C"
+  process.env.NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS ?? "0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4"
 ) as `0x${string}`;
 export const POSITION_VAULT_ADDRESS = (
-  process.env.NEXT_PUBLIC_POSITION_VAULT_ADDRESS ?? "0xb941a917B0a345B87f30598589Cc71b5ff9b72b9"
+  process.env.NEXT_PUBLIC_POSITION_VAULT_ADDRESS ?? "0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E"
 ) as `0x${string}`;
 export const PAYOUT_DISTRIBUTOR_ADDRESS = (
-  process.env.NEXT_PUBLIC_PAYOUT_DISTRIBUTOR_ADDRESS ?? "0x33a32264031c6CE010b200227aC8119E5156b405"
+  process.env.NEXT_PUBLIC_PAYOUT_DISTRIBUTOR_ADDRESS ?? "0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740"
 ) as `0x${string}`;
 export const MOCK_USDT_ADDRESS = (
   process.env.NEXT_PUBLIC_USDT_ADDRESS ?? "0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49"
 ) as `0x${string}`;
 export const LIQUIDITY_POOL_ADDRESS = (
-  process.env.NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS ?? "0xda95ad4cA75eC78fE71D5Be970c8c3956E32B018"
+  process.env.NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS ?? "0x13AbE644693DA19f9A895C8c82Cf53879580DA8e"
 ) as `0x${string}`;
 
 // Ensure we get the `abi` array from the Foundry compilation artifact

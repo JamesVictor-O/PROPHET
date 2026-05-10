@@ -124,21 +124,85 @@ export function getLiquidityPool(
 
 // ── Event listeners ───────────────────────────────────────────────────────────
 
+const LOG_POLL_INTERVAL_MS = 12_000;
+const activeListeners = new Set<string>();
+
 export function listenForEvent<T extends unknown[]>(
   contract: ethers.Contract,
   eventName: string,
   handler: (...args: T) => Promise<void>
 ): void {
-  contract.on(eventName, async (...args: unknown[]) => {
-    const event = args[args.length - 1] as { blockNumber: number };
-    logger.info(`Event: ${eventName}`, { block: event.blockNumber });
-    try {
-      await handler(...(args as T));
-    } catch (err) {
-      logger.error(`Handler for ${eventName} failed`, err);
+  void (async () => {
+    const provider = contract.runner?.provider;
+    if (!provider) {
+      logger.error(`Cannot listen for ${eventName}: contract has no provider`);
+      return;
     }
-  });
-  logger.info(`Listening for ${eventName}`);
+
+    const address = await contract.getAddress();
+    const eventFragment = contract.interface.getEvent(eventName);
+    if (!eventFragment) {
+      logger.error(`Cannot listen for unknown event ${eventName}`, { address });
+      return;
+    }
+
+    const listenerKey = `${address.toLowerCase()}:${eventName}`;
+    if (activeListeners.has(listenerKey)) {
+      logger.warn(`Listener already active for ${eventName}`, { address });
+      return;
+    }
+    activeListeners.add(listenerKey);
+
+    let fromBlock = (await provider.getBlockNumber()) + 1;
+    let isPolling = false;
+
+    logger.info(`Listening for ${eventName} via getLogs polling`, {
+      address,
+      fromBlock,
+      intervalMs: LOG_POLL_INTERVAL_MS,
+    });
+
+    const poll = async () => {
+      if (isPolling) return;
+      isPolling = true;
+
+      try {
+        const latest = await provider.getBlockNumber();
+        if (latest < fromBlock) return;
+
+        const logs = await provider.getLogs({
+          address,
+          topics: [eventFragment.topicHash],
+          fromBlock,
+          toBlock: latest,
+        });
+
+        fromBlock = latest + 1;
+
+        for (const log of logs) {
+          const parsed = contract.interface.parseLog(log);
+          if (!parsed) continue;
+
+          logger.info(`Event: ${eventName}`, {
+            block: log.blockNumber,
+            txHash: log.transactionHash,
+          });
+
+          try {
+            await handler(...([...parsed.args, log] as unknown as T));
+          } catch (err) {
+            logger.error(`Handler for ${eventName} failed`, err);
+          }
+        }
+      } catch (err) {
+        logger.error(`Log poll for ${eventName} failed`, err);
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    setInterval(poll, LOG_POLL_INTERVAL_MS);
+  })().catch((err) => logger.error(`Listener setup failed for ${eventName}`, err));
 }
 
 // ── Market info helpers ───────────────────────────────────────────────────────

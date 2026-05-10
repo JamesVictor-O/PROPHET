@@ -19,6 +19,8 @@ const STATUS_LABELS = [
   "Archived",
 ] as const;
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
 /** `MarketStatus.Open` — only status where bets are accepted */
 export const MARKET_STATUS_OPEN = 1;
 
@@ -128,17 +130,28 @@ export function useMarketDetail(routeId: string | undefined) {
     error: infoError,
     refetch,
   } = useReadContract({
-    address: address ?? "0x0000000000000000000000000000000000000000",
+    address: address ?? ZERO_ADDRESS,
     abi: MARKET_CONTRACT_ABI,
     functionName: "getMarketInfo",
     query: { enabled: !!address && isValid === true },
   });
 
   const { data: sourcesHashRaw } = useReadContract({
-    address: address ?? "0x0000000000000000000000000000000000000000",
+    address: address ?? ZERO_ADDRESS,
     abi: MARKET_CONTRACT_ABI,
     functionName: "resolutionSourcesHash",
     query: { enabled: !!address && isValid === true },
+  });
+
+  const { data: ammStateRaw } = useReadContract({
+    address: address ?? ZERO_ADDRESS,
+    abi: MARKET_CONTRACT_ABI,
+    functionName: "getAmmState",
+    args: address ? [ZERO_ADDRESS] : undefined,
+    query: {
+      enabled: !!address && isValid === true,
+      refetchInterval: 5_000,
+    },
   });
 
   const detail = useMemo(() => {
@@ -160,9 +173,10 @@ export function useMarketDetail(routeId: string | undefined) {
     !!address &&
     (loadingValid || (isValid === true && loadingInfo));
 
-  // Fetch live YES price from the price cache populated by the market-maker agent
-  const [yesPrice, setYesPrice] = useState<number>(50);
-  const [isPriceLive, setIsPriceLive] = useState<boolean>(false);
+  // Fallback cache populated by the market-maker agent. The canonical trading
+  // price comes from getAmmState() above so the chart matches the TradePanel.
+  const [cachedYesPrice, setCachedYesPrice] = useState<number>(50);
+  const [isCachePriceLive, setIsCachePriceLive] = useState<boolean>(false);
 
   useEffect(() => {
     if (!address) return;
@@ -175,10 +189,10 @@ export function useMarketDetail(routeId: string | undefined) {
         const data = await res.json() as { yesPrice: number; fallback?: boolean };
         if (cancelled) return;
         if (!data.fallback && typeof data.yesPrice === "number") {
-          setYesPrice(Math.min(99, Math.max(1, Math.round(data.yesPrice))));
-          setIsPriceLive(true);
+          setCachedYesPrice(Math.min(99, Math.max(1, Math.round(data.yesPrice))));
+          setIsCachePriceLive(true);
         } else {
-          setIsPriceLive(false);
+          setIsCachePriceLive(false);
         }
       } catch { /* non-fatal */ }
     }
@@ -188,6 +202,16 @@ export function useMarketDetail(routeId: string | undefined) {
     const id = setInterval(() => { void fetchPrice(); }, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [address]);
+
+  const ammState = Array.isArray(ammStateRaw)
+    ? (ammStateRaw as readonly bigint[])
+    : undefined;
+  const onchainYesPrice =
+    ammState?.[6] !== undefined
+      ? Math.min(99, Math.max(1, Math.round(Number(ammState[6]) / 100)))
+      : undefined;
+  const yesPrice = onchainYesPrice ?? cachedYesPrice;
+  const isPriceLive = onchainYesPrice !== undefined || isCachePriceLive;
 
   return {
     address,

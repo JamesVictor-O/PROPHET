@@ -191,7 +191,8 @@ contract LiquidityPool is ILiquidityPool, ReentrancyGuard, Ownable {
         uint256 maxAmt  = (poolVal * maxAllocationBps) / 10_000;
         uint256 minAmt  = (poolVal * minAllocationBps) / 10_000;
         uint256 existing = marketAllocation[market];
-        uint256 totalForMarket = existing + amount;
+        if (existing != 0) revert LiquidityPool__AlreadyAllocated(market);
+        uint256 totalForMarket = amount;
 
         if (totalForMarket > maxAmt) revert LiquidityPool__AllocationTooLarge(totalForMarket, maxAmt);
         if (totalForMarket < minAmt) revert LiquidityPool__AllocationTooSmall(totalForMarket, minAmt);

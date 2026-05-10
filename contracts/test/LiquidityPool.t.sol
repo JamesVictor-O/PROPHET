@@ -309,21 +309,24 @@ contract LiquidityPoolTest is Test {
         pool.allocateToMarket(address(0x1234), 500e6);
     }
 
-    function test_AllocateToMarket_AllowsTopUpWithinMaxAllocation() public {
+    function test_AllocateToMarket_RevertsOnSecondAllocation() public {
         _deposit(ALICE, 10_000e6);
         MarketContract market = _deployMarket();
 
         vm.startPrank(AGENT);
         pool.allocateToMarket(address(market), 300e6);
+        vm.expectRevert(
+            abi.encodeWithSelector(ILiquidityPool.LiquidityPool__AlreadyAllocated.selector, address(market))
+        );
         pool.allocateToMarket(address(market), 200e6);
         vm.stopPrank();
 
-        assertEq(pool.marketAllocation(address(market)), 500e6);
-        assertEq(pool.totalAllocated(), 500e6);
+        assertEq(pool.marketAllocation(address(market)), 300e6);
+        assertEq(pool.totalAllocated(), 300e6);
         assertEq(pool.totalMarketsAllocated(), 1);
     }
 
-    function test_AllocateToMarket_RevertsIfTopUpExceedsMaxBps() public {
+    function test_AllocateToMarket_RevertsRepeatAllocationBeforeMaxCheck() public {
         _deposit(ALICE, 10_000e6);
         MarketContract market = _deployMarket();
 
@@ -331,7 +334,7 @@ contract LiquidityPoolTest is Test {
         pool.allocateToMarket(address(market), 300e6);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ILiquidityPool.LiquidityPool__AllocationTooLarge.selector, 501e6, 500e6)
+            abi.encodeWithSelector(ILiquidityPool.LiquidityPool__AlreadyAllocated.selector, address(market))
         );
         pool.allocateToMarket(address(market), 201e6);
         vm.stopPrank();

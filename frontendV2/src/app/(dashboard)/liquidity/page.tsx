@@ -35,6 +35,7 @@ import {
   formatBps,
 } from "@/lib/hooks/use-liquidity-pool";
 import { LIQUIDITY_POOL_ADDRESS } from "@/lib/contracts";
+import { marketStatusColor } from "@/lib/market-status";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,15 +56,6 @@ function fmtSharePrice(raw: bigint): string {
   const n = Number(formatUnits(raw, 6));
   return n.toFixed(4);
 }
-
-const STATUS_COLOR: Record<string, string> = {
-  Open: "#34d399",
-  Resolved: "#7B6EF4",
-  Resolving: "#60a5fa",
-  Challenged: "#f97316",
-  Cancelled: "#6b7280",
-  Pending: "#fbbf24",
-};
 
 const POOL_CONFIGURED =
   !!LIQUIDITY_POOL_ADDRESS && LIQUIDITY_POOL_ADDRESS.length > 4;
@@ -624,7 +616,7 @@ export default function LiquidityPage() {
                     totalBettorLiquidity > BigInt(0)
                       ? Number((market.rawCollateral * BigInt(10000)) / totalBettorLiquidity) / 100
                       : 0;
-                  const color = STATUS_COLOR[market.chainStatus ?? ""] ?? "#6b7280";
+                  const color = marketStatusColor(market.chainStatus);
                   return (
                     <tr key={market.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm">
                       <td className="px-6 py-4 text-white font-medium max-w-xs">

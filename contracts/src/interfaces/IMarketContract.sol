@@ -161,6 +161,7 @@ interface IMarketContract {
     error MarketContract__SlippageExceeded(uint256 actual, uint256 minimum);
     error MarketContract__InsufficientShares(uint256 requested, uint256 available);
     error MarketContract__AlreadyRedeemed();
+    error MarketContract__AmmAlreadySeeded();
     // ─────────────────────────────────────────────────────────────
     // State Variable Getters
     // ─────────────────────────────────────────────────────────────

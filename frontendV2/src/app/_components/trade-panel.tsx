@@ -41,6 +41,9 @@ export default function TradePanel({
   const [mode, setMode] = useState<"BUY" | "SELL">("BUY");
   const [amountStr, setAmountStr] = useState("");
   const [txErrorMessage, setTxErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isRefreshingAfterTrade, setIsRefreshingAfterTrade] = useState(false);
+  const [lastTradeHash, setLastTradeHash] = useState<`0x${string}` | undefined>();
 
   const amountUnits = amountStr ? parseUnits(amountStr, 6) : BigInt(0);
   const isBuy = mode === "BUY";
@@ -206,6 +209,12 @@ export default function TradePanel({
   }, [approveError, approveReceiptError, isApproveReceiptError, isApproveReverted]);
 
   useEffect(() => {
+    if (!isApproveSuccess) return;
+    setTxErrorMessage(null);
+    setSuccessMessage("USDT approved. Review the quote, then buy your shares.");
+  }, [isApproveSuccess]);
+
+  useEffect(() => {
     if (isBetReverted) {
       setTxErrorMessage(
         isBuy
@@ -226,22 +235,44 @@ export default function TradePanel({
     isBuy,
   ]);
 
-  // After a successful bet, clear tx state after 3 s so the user can place another
+  // After a successful trade, lock the previous amount and refresh balances before
+  // the user can intentionally enter a new order. This prevents accidental doubles.
   useEffect(() => {
-    if (!isBetSuccess) return;
-    const timer = setTimeout(() => {
-      resetBet();
-      resetApprove();
-      setAmountStr("");
-      void refetchAllowance();
-      void refetchAmmState();
-      void refetchUsdtBalance();
-    }, 3000);
-    return () => clearTimeout(timer);
+    if (!isBetSuccess || betHash === lastTradeHash) return;
+
+    setLastTradeHash(betHash);
+    setTxErrorMessage(null);
+    setIsRefreshingAfterTrade(true);
+
+    const tradedSide = side;
+    const tradedMode = mode;
+    const quotedAmount = isBuy
+      ? Number(formatUnits(expectedShares, 6)).toFixed(2)
+      : `$${Number(formatUnits(expectedCollateral, 6)).toFixed(2)}`;
+
+    setAmountStr("");
+    setSuccessMessage(
+      tradedMode === "BUY"
+        ? `Bought about ${quotedAmount} ${tradedSide}. Balances are updating.`
+        : `Sold ${tradedSide} shares for about ${quotedAmount}. Balances are updating.`,
+    );
+
+    void Promise.all([
+      refetchAllowance(),
+      refetchAmmState(),
+      refetchUsdtBalance(),
+    ]).finally(() => {
+      setIsRefreshingAfterTrade(false);
+    });
   }, [
     isBetSuccess,
-    resetBet,
-    resetApprove,
+    betHash,
+    lastTradeHash,
+    side,
+    mode,
+    isBuy,
+    expectedShares,
+    expectedCollateral,
     refetchAllowance,
     refetchAmmState,
     refetchUsdtBalance,
@@ -249,10 +280,12 @@ export default function TradePanel({
 
   const handleAction = () => {
     if (!tradeEnabled || !marketAddress || amountUnits === BigInt(0)) return;
-    if (isInsufficientUsdt || isInsufficientShares || isQuoteLoading || hasNoExecutableQuote) return;
+    if (isInsufficientUsdt || isInsufficientShares || isQuoteLoading || hasNoExecutableQuote || isRefreshingAfterTrade) return;
     setTxErrorMessage(null);
+    setSuccessMessage(null);
 
     if (isBuy && needsApproval) {
+      resetApprove();
       writeApprove({
         address: MOCK_USDT_ADDRESS as `0x${string}`,
         abi: erc20Abi,
@@ -260,6 +293,7 @@ export default function TradePanel({
         args: [marketAddress as `0x${string}`, maxUint256],
       });
     } else if (isBuy) {
+      resetBet();
       writeBet({
         address: marketAddress as `0x${string}`,
         abi: MARKET_CONTRACT_ABI,
@@ -267,6 +301,7 @@ export default function TradePanel({
         args: [isYes, amountUnits, minSharesOut],
       });
     } else {
+      resetBet();
       writeBet({
         address: marketAddress as `0x${string}`,
         abi: MARKET_CONTRACT_ABI,
@@ -278,13 +313,25 @@ export default function TradePanel({
 
   const isWriting = isApprovePending || isBetPending;
   const isConfirming = isApproveConfirming || isBetConfirming;
-  const isProcessing = isWriting || isConfirming;
+  const isProcessing = isWriting || isConfirming || isRefreshingAfterTrade;
 
   let buttonText = isBuy ? `Buy ${side}` : `Sell ${side}`;
-  if (isConfirming) buttonText = "Confirming on Chain...";
-  else if (isWriting) buttonText = "Awaiting Wallet Signature...";
+  if (isRefreshingAfterTrade) buttonText = "Updating balances...";
+  else if (isBetConfirming) buttonText = "Buying on-chain...";
+  else if (isApproveConfirming) buttonText = "Approving USDT...";
+  else if (isBetPending) buttonText = "Confirm trade in wallet...";
+  else if (isApprovePending) buttonText = "Confirm approval in wallet...";
   else if (isQuoteLoading) buttonText = "Refreshing quote...";
-  else if (needsApproval) buttonText = "Approve USDT";
+  else if (needsApproval) buttonText = "Approve USDT first";
+
+  const txStatusLabel = (() => {
+    if (isApprovePending) return "Step 1 of 2: confirm USDT approval in your wallet.";
+    if (isApproveConfirming) return "Step 1 of 2: approval is confirming on 0G Chain.";
+    if (isBetPending) return `Step 2 of 2: confirm ${isBuy ? "buy" : "sell"} in your wallet.`;
+    if (isBetConfirming) return `Step 2 of 2: ${isBuy ? "buy" : "sell"} transaction is confirming on 0G Chain.`;
+    if (isRefreshingAfterTrade) return "Trade confirmed. Refreshing your USDT and share balances.";
+    return null;
+  })();
 
   return (
     <div
@@ -301,14 +348,24 @@ export default function TradePanel({
         style={{ border: "1px solid rgba(255,255,255,0.05)" }}
       >
         <button
-          onClick={() => setMode("BUY")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === "BUY" ? "bg-white/10 text-white" : "text-white/40 hover:text-white"}`}
+          onClick={() => {
+            setMode("BUY");
+            setTxErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          disabled={isProcessing}
+          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${mode === "BUY" ? "bg-white/10 text-white" : "text-white/40 hover:text-white"}`}
         >
           Buy
         </button>
         <button
-          onClick={() => setMode("SELL")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === "SELL" ? "bg-white/10 text-white" : "text-white/40 hover:text-white"}`}
+          onClick={() => {
+            setMode("SELL");
+            setTxErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          disabled={isProcessing}
+          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${mode === "SELL" ? "bg-white/10 text-white" : "text-white/40 hover:text-white"}`}
         >
           Sell
         </button>
@@ -328,14 +385,24 @@ export default function TradePanel({
         style={{ border: "1px solid rgba(255,255,255,0.05)" }}
       >
         <button
-          onClick={() => setSide("YES")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${side === "YES" ? "bg-[#34d399]/20 text-[#34d399]" : "text-white/40 hover:text-white"}`}
+          onClick={() => {
+            setSide("YES");
+            setTxErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          disabled={isProcessing}
+          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${side === "YES" ? "bg-[#34d399]/20 text-[#34d399]" : "text-white/40 hover:text-white"}`}
         >
           YES {isPriceLive ? formattedYesPrice : "—"}
         </button>
         <button
-          onClick={() => setSide("NO")}
-          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${side === "NO" ? "bg-[#f87171]/20 text-[#f87171]" : "text-white/40 hover:text-white"}`}
+          onClick={() => {
+            setSide("NO");
+            setTxErrorMessage(null);
+            setSuccessMessage(null);
+          }}
+          disabled={isProcessing}
+          className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all disabled:cursor-not-allowed disabled:opacity-50 ${side === "NO" ? "bg-[#f87171]/20 text-[#f87171]" : "text-white/40 hover:text-white"}`}
         >
           NO {isPriceLive ? formattedNoPrice : "—"}
         </button>
@@ -388,7 +455,12 @@ export default function TradePanel({
             {!isBuy && selectedShareBalance > BigInt(0) && (
               <button
                 type="button"
-                onClick={() => setAmountStr(formatUnits(selectedShareBalance, 6))}
+                onClick={() => {
+                  setAmountStr(formatUnits(selectedShareBalance, 6));
+                  setTxErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                disabled={isProcessing}
                 className="rounded px-2 py-1 text-[11px] font-bold text-white/80 bg-white/10 transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7B6EF4]"
               >
                 Max
@@ -403,11 +475,16 @@ export default function TradePanel({
           <input
             type="number"
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={(e) => {
+              setAmountStr(e.target.value);
+              setTxErrorMessage(null);
+              setSuccessMessage(null);
+            }}
             placeholder="0.00"
             min="0"
             step="any"
-            className="flex-1 bg-transparent border-none text-white text-lg font-mono outline-none placeholder-white/20"
+            disabled={isProcessing}
+            className="flex-1 bg-transparent border-none text-white text-lg font-mono outline-none placeholder-white/20 disabled:cursor-not-allowed disabled:opacity-45"
           />
           <span className="text-sm font-bold text-white/80 shrink-0 ml-2">
             {isBuy ? "USDT" : side}
@@ -444,11 +521,36 @@ export default function TradePanel({
         </div>
       </div>
 
-      {isBetSuccess && (
-        <div className="mb-4 p-3 bg-[#34d399]/10 border border-[#34d399]/20 rounded-lg flex items-center justify-center">
-          <span className="text-[#34d399] text-sm font-medium">
-            Position Secured Successfully!
+      {txStatusLabel && (
+        <div className="mb-4 rounded-lg border border-[#7B6EF4]/25 bg-[#7B6EF4]/10 px-3 py-3">
+          <div className="flex items-center gap-3">
+            <span
+              className="h-4 w-4 animate-spin rounded-full border-2 border-[#7B6EF4] border-t-transparent"
+              aria-hidden="true"
+            />
+            <span className="text-sm font-medium text-white/85">
+              {txStatusLabel}
+            </span>
+          </div>
+          {(approveHash || betHash) && (
+            <div className="mt-2 truncate font-mono text-[11px] text-white/35">
+              Tx: {(betHash ?? approveHash)?.slice(0, 10)}...
+              {(betHash ?? approveHash)?.slice(-8)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {successMessage && !txStatusLabel && (
+        <div className="mb-4 rounded-lg border border-[#34d399]/25 bg-[#34d399]/10 p-3">
+          <span className="text-[#34d399] text-sm font-semibold">
+            {successMessage}
           </span>
+          <p className="mt-1 text-xs text-white/45">
+            {successMessage.startsWith("USDT approved")
+              ? "The next click will place the trade; it will not approve again."
+              : "Enter a new amount when you want to place another trade."}
+          </p>
         </div>
       )}
 

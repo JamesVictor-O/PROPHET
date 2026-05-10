@@ -2,6 +2,7 @@
 
 import { formatUnits } from "viem";
 import type { ProphetMarket } from "@/lib/prophet-market";
+import { marketStatusColor } from "@/lib/market-status";
 
 // ── Probability view (per-market YES/NO split) ────────────────────────────────
 
@@ -55,16 +56,6 @@ function formatUsdt(raw: bigint): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
   return `$${n.toFixed(0)}`;
 }
-
-const STATUS_COLOR: Record<string, string> = {
-  Open:       "#34d399",
-  Resolved:   "#7B6EF4",
-  Pending:    "#fbbf24",
-  Resolving:  "#60a5fa",
-  Challenged: "#f97316",
-  Cancelled:  "#6b7280",
-  Archived:   "#4b5563",
-};
 
 function VolumeView({ markets }: { markets: ProphetMarket[] }) {
   if (!markets.length) {
@@ -121,7 +112,7 @@ function VolumeView({ markets }: { markets: ProphetMarket[] }) {
           <div key={status} className="flex items-center gap-3">
             <span
               className="text-[10px] w-20 text-right shrink-0"
-              style={{ color: STATUS_COLOR[status] ?? "#9ca3af" }}
+              style={{ color: marketStatusColor(status) }}
             >
               {status}
             </span>
@@ -130,7 +121,7 @@ function VolumeView({ markets }: { markets: ProphetMarket[] }) {
                 className="h-full rounded-full transition-all duration-700"
                 style={{
                   width: `${(count / maxCount) * 100}%`,
-                  background: STATUS_COLOR[status] ?? "#9ca3af",
+                  background: marketStatusColor(status),
                 }}
               />
             </div>
