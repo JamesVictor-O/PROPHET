@@ -1,627 +1,466 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, AiBrain01Icon } from "@hugeicons/core-free-icons";
 import Image from "next/image";
+import Link from "next/link";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { AiBrain01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
 const ConnectButton = dynamic(
   () => import("@rainbow-me/rainbowkit").then((mod) => mod.ConnectButton),
   { ssr: false }
 );
 
+const MARKET_ROWS = [
+  { label: "YES share", price: "$0.64", tone: "text-[#34d399]", width: "64%" },
+  { label: "NO share", price: "$0.36", tone: "text-[#f87171]", width: "36%" },
+];
+
+const FLOW = [
+  "Question validated by 0G Compute",
+  "Liquidity allocated from protocol pool",
+  "YES/NO AMM prices move with demand",
+  "Reasoning stored on 0G Storage",
+  "Settlement enforced on 0G Chain",
+];
+
+const STACK = [
+  {
+    title: "0G Chain",
+    status: "Settlement",
+    body: "Smart contracts execute market creation, AMM trades, redemption, and liquidity return.",
+  },
+  {
+    title: "0G Compute",
+    status: "Inference",
+    body: "Agents validate markets, reason about outcomes, and support autonomous market operations.",
+  },
+  {
+    title: "0G Storage",
+    status: "Memory",
+    body: "Market metadata, oracle reasoning, and agent state become durable audit trails.",
+  },
+];
+
+const PRINCIPLES = [
+  "YES and NO shares trade between $0 and $1",
+  "Large trades create real slippage",
+  "Liquidity is finite and protected",
+  "Winning shares redeem deterministically",
+];
+
 const SOCIAL = [
-  { label: "X (Twitter)", href: "https://x.com/prophet" },
+  { label: "X", href: "https://x.com/prophet" },
   { label: "Discord", href: "https://discord.gg/prophet" },
   { label: "GitHub", href: "https://github.com/prophet" },
 ];
 
-const PROBLEMS = [
-  {
-    number: "01",
-    title: "Centralization",
-    body: "Existing prediction markets arbitrarily censor or filter what you can trade. We believe any verifiable event should be tradable.",
-  },
-  {
-    number: "02",
-    title: "Front-Running",
-    body: "Positions on current protocols are fully public. The moment you place a large bet, sophisticated players monitor the mempool to trade against you.",
-  },
-  {
-    number: "03",
-    title: "Cold Liquidity",
-    body: "Anyone can create a market, but nobody provides liquidity. Without market makers, new markets sit with zero volume and die out before gaining traction.",
-  },
-];
+function PrimaryLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b80ff] px-5 py-3 text-sm font-semibold text-[#101010] transition-colors duration-150 ease-out hover:bg-[#a39aff] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c8c2ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+    >
+      {children}
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        size={16}
+        strokeWidth={2.25}
+        aria-hidden="true"
+        className="motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out group-hover:translate-x-0.5"
+      />
+    </Link>
+  );
+}
 
-const PIPELINE = [
-  {
-    step: "01",
-    label: "Permissionless Creation",
-    desc: "Any user, any question. A lightweight LLM classifies if your event is unambiguous and resolvable. Approved markets deploy instantly via factory contracts.",
-  },
-  {
-    step: "02",
-    label: "Continuous Liquidity",
-    desc: "Our Agent ID-powered Market Maker automatically seeds initial liquidity and continually adjusts pricing based on 0G Compute insights and aggregate market activity.",
-  },
-  {
-    step: "03",
-    label: "Sealed Inference",
-    desc: "When you place a position, it's encrypted inside a Trusted Execution Environment (TEE). We eliminate front-running and MEV entirely. Your moves belong to you.",
-  },
-  {
-    step: "04",
-    label: "AI Oracle Resolution",
-    desc: "At market deadline, the AI Oracle reads trusted sources to resolve outcomes. Full reasoning chains are stored permanently in 0G Storage — fully verifiable.",
-  },
-];
+function SecondaryLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 ease-out hover:border-white/25 hover:bg-white/[0.04] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+    >
+      {children}
+    </Link>
+  );
+}
 
-const CHAIN_STEPS = [
-  {
-    label: "0G Chain (EVM)",
-    sub: "11k TPS",
-    note: "Lightning-fast settlement",
-  },
-  {
-    label: "0G Compute",
-    sub: "LLM Execution",
-    note: "Powers our AI Oracle and Market Maker agents",
-  },
-  {
-    label: "0G Storage",
-    sub: "Decentralized Memory",
-    note: "Permanent audit log of all market definitions and AI decisions",
-  },
-  {
-    label: "0G TEE",
-    sub: "Confidential Compute",
-    note: "Locks user commitments; releases upon resolution",
-  },
-];
+function MarketPreview() {
+  return (
+    <div className="landing-reveal landing-reveal-2 w-full rounded-2xl border border-white/10 bg-[#171717] p-3 sm:p-4 lg:p-5">
+      <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 lg:pb-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+            Live market
+          </p>
+          <h2 className="mt-2 max-w-sm text-base font-semibold leading-snug text-white sm:text-lg">
+            Will autonomous agents become core DeFi infrastructure in 2026?
+          </h2>
+        </div>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#8b80ff]/30 bg-[#8b80ff]/10">
+          <HugeiconsIcon
+            icon={AiBrain01Icon}
+            size={21}
+            strokeWidth={1.8}
+            className="text-[#c8c2ff]"
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3 lg:mt-5 lg:space-y-4">
+        {MARKET_ROWS.map((row) => (
+          <div
+            key={row.label}
+            className="rounded-xl border border-white/10 bg-white/[0.025] p-3 lg:p-4"
+          >
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="text-sm font-medium text-white/70">{row.label}</span>
+              <span className={`font-mono text-xl font-semibold tabular-nums sm:text-2xl ${row.tone}`}>
+                {row.price}
+              </span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="market-bar h-full rounded-full bg-white/75"
+                style={{ width: row.width }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center lg:mt-5">
+        {[
+          ["Pool", "$50.00"],
+          ["Fees", "1.00%"],
+          ["Slippage", "Live"],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-white/10 bg-[#111111] p-2.5 lg:p-3">
+            <p className="text-[11px] font-medium text-white/40">{label}</p>
+            <p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function LandingPage() {
-  const router = useRouter();
-
   return (
-    <div
-      className="relative flex flex-col min-h-screen overflow-x-hidden"
-      style={{
-        background: "#161616",
-        fontFamily: "var(--font-barlow, sans-serif)",
-      }}
-    >
-      {/* Top glow */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0"
-        style={{
-          height: 600,
-          background:
-            "radial-gradient(ellipse 60% 40% at 50% -10%, rgba(123,110,244,0.12) 0%, transparent 70%)",
-          zIndex: 0,
-        }}
-      />
-
-      {/* ── TOP BAR ───────────────────────────────────────── */}
-      <div className="relative z-10 flex items-center justify-between px-8 pt-7">
-        <div className="flex items-center gap-2">
+    <main className="min-h-screen overflow-x-hidden bg-[#111111] text-white">
+      <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+        <Link
+          href="/"
+          className="flex min-h-11 items-center gap-3 rounded-lg pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]"
+          aria-label="Prophet home"
+        >
           <Image
             src="/ProphateLogo1.png"
-            alt="Prophet"
-            width={28}
-            height={28}
-            className="rounded object-full bg-white"
+            alt=""
+            width={34}
+            height={34}
+            className="rounded-full bg-white"
+            priority
           />
-          <span className="text-[16px] font-semibold tracking-wide text-white">
+          <span className="text-sm font-semibold tracking-wide text-white">
             Prophet
           </span>
-        </div>
-        <div className="flex items-center gap-4">
+        </Link>
+
+
+        <div className="flex items-center">
           <ConnectButton />
         </div>
-      </div>
+      </header>
 
-      {/* ── HERO ──────────────────────────────────────────── */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[85vh] gap-7 px-6 text-center">
-        <div className="flex flex-col items-center gap-4 max-w-2xl">
-          <h1 className="text-[52px] font-bold leading-[1.05] text-white tracking-tight">
-            Trade your opinions. Autonomously
-            <span style={{ color: "rgba(255,255,255,0.25)" }}></span>
+      <section className="mx-auto grid min-h-[calc(100svh-84px)] max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.82fr)] lg:gap-10 lg:px-8 lg:py-12">
+        <div className="max-w-3xl">
+          <h1 className="landing-reveal landing-reveal-1 max-w-4xl text-4xl font-semibold leading-[1.04] tracking-normal text-white sm:text-5xl lg:text-[clamp(3rem,5vw,4.25rem)]">
+            Autonomous prediction markets that feel calm, clear, and built to
+            settle.
           </h1>
-          <p
-            className="text-[16px] leading-relaxed mt-4"
-            style={{ color: "rgba(255,255,255,0.35)", maxWidth: 500 }}
-          >
-            The AI-Native Prediction Market. No centralized authorities. No
-            human resolution committees. No front-running.
+
+          <p className="landing-reveal landing-reveal-2 mt-5 max-w-2xl text-base leading-7 text-white/60 sm:text-lg sm:leading-8">
+            Prophet turns real-world questions into YES/NO share markets. 0G
+            Chain executes the AMM, 0G Compute powers the agents, and 0G Storage
+            preserves the reasoning.
           </p>
-        </div>
 
-        <div className="flex flex-col items-center gap-3 mt-4">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="group flex items-center gap-2.5 px-8 py-4 text-[15px] font-bold transition-all"
-            style={{
-              background: "rgba(123,110,244,0.9)",
-              color: "#0a0a0a",
-              clipPath:
-                "polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)",
-            }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLElement).style.background = "#7B6EF4")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLElement).style.background =
-                "rgba(123,110,244,0.9)")
-            }
-          >
-            Launch Market
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              size={14}
-              color="#0a0a0a"
-              strokeWidth={2.5}
-            />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4 mt-8" style={{ width: 320 }}>
-          <div
-            className="flex-1 h-px"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          />
-          <span
-            className="text-[10px] uppercase tracking-widest"
-            style={{ color: "rgba(248, 244, 244, 0.87)" }}
-          >
-            100% Autonomous
-          </span>
-          <span
-            className="text-[10px] font-medium uppercase tracking-widest"
-            style={{ color: "rgba(123,110,244,0.85)" }}
-          >
-            Built on 0G Labs
-          </span>
-          <div
-            className="flex-1 h-px"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          />
-        </div>
-      </div>
-
-      {/* ── SECTION: THE PROBLEM ──────────────────────────── */}
-      <section
-        className="relative z-10 px-8 py-28"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-      >
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col items-center text-center gap-3 mb-16">
-            <span
-              className="text-[10px] uppercase tracking-widest font-medium"
-              style={{ color: "#7B6EF4" }}
-            >
-              The Flaws
-            </span>
-            <h2 className="text-[32px] font-bold text-white leading-tight">
-              Prediction markets are broken.
-              <br />
-              <span style={{ color: "rgba(255,255,255,0.3)" }}>
-                We fixed the infrastructure.
-              </span>
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {PROBLEMS.map(({ number, title, body }) => (
-              <div
-                key={number}
-                className="flex flex-col gap-4 p-6 transition-all"
-                style={{
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(255,255,255,0.02)",
-                  clipPath:
-                    "polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%)",
-                }}
-              >
-                <span
-                  className="text-[11px] font-bold tracking-widest"
-                  style={{ color: "rgba(123,110,244,0.5)" }}
-                >
-                  {number}
-                </span>
-                <h3 className="text-[16px] font-semibold text-white">
-                  {title}
-                </h3>
-                <p
-                  className="text-[13px] leading-relaxed"
-                  style={{ color: "rgba(255,255,255,0.3)" }}
-                >
-                  {body}
-                </p>
-                <div
-                  className="mt-auto h-px"
-                  style={{ background: "rgba(123,110,244,0.2)" }}
-                />
-              </div>
-            ))}
+          <div className="landing-reveal landing-reveal-3 mt-7 flex flex-col gap-3 sm:flex-row">
+            <PrimaryLink href="/dashboard">Explore markets</PrimaryLink>
           </div>
         </div>
+
+        <MarketPreview />
       </section>
 
-      {/* ── SECTION: THE PIPELINE ─────────────────────────── */}
-      <section
-        className="relative z-10 px-8 py-28"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-      >
-        {/* section glow */}
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0"
-          style={{
-            height: 400,
-            background:
-              "radial-gradient(ellipse 50% 30% at 50% 0%, rgba(123,110,244,0.07) 0%, transparent 70%)",
-          }}
-        />
-
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col items-center text-center gap-3 mb-16">
-            <span
-              className="text-[10px] uppercase tracking-widest font-medium"
-              style={{ color: "#7B6EF4" }}
-            >
-              The Architecture
-            </span>
-            <h2 className="text-[32px] font-bold text-white leading-tight">
-              An agentic network.
-              <br />
-              <span style={{ color: "rgba(255,255,255,0.3)" }}>
-                Working seamlessly on 0G Labs.
-              </span>
-            </h2>
-            <p
-              className="text-[14px] leading-relaxed max-w-md"
-              style={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              A fully automated pipeline manages everything from the moment you
-              initiate a market to the sub-second settlement of winnings.
+      <section className="border-y border-white/10 bg-[#151515]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.78fr_1fr] lg:px-8 lg:py-20">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+              Why it exists
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {PIPELINE.map(({ step, label, desc }, i) => (
-              <div key={step} className="flex flex-col gap-3">
-                {/* connector line */}
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex items-center justify-center w-8 h-8 shrink-0"
-                    style={{
-                      background: "rgba(123,110,244,0.12)",
-                      border: "1px solid rgba(123,110,244,0.3)",
-                      clipPath:
-                        "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
-                    }}
-                  >
-                    <span
-                      className="text-[10px] font-bold"
-                      style={{ color: "#7B6EF4" }}
-                    >
-                      {step}
-                    </span>
-                  </div>
-                  {i < PIPELINE.length - 1 && (
-                    <div
-                      className="hidden md:block flex-1 h-px"
-                      style={{ background: "rgba(255,255,255,0.08)" }}
-                    />
-                  )}
-                </div>
-                <div className="flex flex-col gap-2 pt-1">
-                  <span className="text-[14px] font-semibold text-white">
-                    {label}
-                  </span>
-                  <p
-                    className="text-[12px] leading-relaxed"
-                    style={{ color: "rgba(255,255,255,0.3)" }}
-                  >
-                    {desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Sample brief preview */}
-          <div
-            className="mt-14 p-6"
-            style={{
-              border: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(255,255,255,0.015)",
-              fontFamily: "monospace",
-            }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: "#7B6EF4" }}
-              />
-              <span
-                className="text-[10px] uppercase tracking-widest"
-                style={{ color: "rgba(255,255,255,0.2)" }}
-              >
-                Sample Oracle Resolution — 0G Compute
-              </span>
-            </div>
-            <div
-              className="flex flex-col gap-2"
-              style={{
-                color: "rgba(255,255,255,0.5)",
-                fontSize: 13,
-                lineHeight: 1.7,
-              }}
-            >
-              <div>
-                <span style={{ color: "rgba(255,255,255,0.2)" }}>MARKET </span>
-                <span style={{ color: "rgba(255,255,255,0.8)" }}>
-                  Will an autonomous agent write the best 0G hackathon project?
-                </span>
-              </div>
-              <div
-                style={{
-                  borderTop: "1px solid rgba(255,255,255,0.05)",
-                  paddingTop: 8,
-                }}
-              >
-                <span style={{ color: "rgba(255,255,255,0.2)" }}>SOURCES </span>
-                [GitHub API, 0G Analytics, Agent Logs]
-              </div>
-              <div>
-                <span style={{ color: "rgba(255,255,255,0.2)" }}>OUTCOME </span>
-                <span style={{ color: "#34d399", fontWeight: "bold" }}>
-                  YES (Confidence: 99.9%)
-                </span>
-              </div>
-              <div
-                style={{
-                  borderTop: "1px solid rgba(255,255,255,0.05)",
-                  paddingTop: 8,
-                }}
-              >
-                <span style={{ color: "rgba(255,255,255,0.2)" }}>
-                  REASONING{" "}
-                </span>
-                <div
-                  className="mt-1 flex flex-col gap-1 pl-4"
-                  style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}
-                >
-                  <div>
-                    Evaluating sources based on pre-approved registry...
-                  </div>
-                  <div>
-                    <span style={{ color: "rgba(123,110,244,0.7)" }}>
-                      [EVIDENCE]
-                    </span>{" "}
-                    GitHub commit history shows 100% automated agentic
-                    contributions.
-                  </div>
-                  <div>
-                    <span style={{ color: "rgba(123,110,244,0.7)" }}>
-                      [VERDICT LOGGED TO 0G STORAGE]
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION: EXECUTION LAYER ──────────────────────── */}
-      <section
-        className="relative z-10 px-8 py-28"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-      >
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col items-center text-center gap-3 mb-16">
-            <span
-              className="text-[10px] uppercase tracking-widest font-medium"
-              style={{ color: "#7B6EF4" }}
-            >
-              The Engine
-            </span>
-            <h2 className="text-[32px] font-bold text-white leading-tight">
-              Prophet could not exist
-              <br />
-              <span style={{ color: "rgba(255,255,255,0.3)" }}>
-                on any other chain.
-              </span>
+            <h2 className="mt-4 max-w-xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
+              Prediction markets should not depend on manual liquidity or opaque
+              resolution.
             </h2>
-            <p
-              className="text-[14px] leading-relaxed max-w-md"
-              style={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              0G Labs provides the 5 pillars essential to a true agentic
-              prediction market. We leverage every piece of the tech stack to
-              decentralize and secure your predictions.
-            </p>
           </div>
 
-          {/* Chain flow */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-3 mb-14">
-            {CHAIN_STEPS.map(({ label, sub, note }, i) => (
-              <div key={label} className="flex items-center gap-3">
-                <div
-                  className="flex flex-col gap-1 px-5 py-4 text-center min-h-[140px] justify-center"
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.02)",
-                    minWidth: 160,
-                    maxWidth: 160,
-                    clipPath:
-                      "polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)",
-                  }}
-                >
-                  <span className="text-[13px] font-semibold text-white">
-                    {label}
-                  </span>
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "rgba(123,110,244,0.6)" }}
-                  >
-                    {sub}
-                  </span>
-                  <span
-                    className="text-[10px] mt-2"
-                    style={{ color: "rgba(255,255,255,0.2)" }}
-                  >
-                    {note}
-                  </span>
-                </div>
-                {i < CHAIN_STEPS.length - 1 && (
-                  <div className="flex flex-col items-center gap-0.5 shrink-0">
-                    <div
-                      className="hidden md:block w-8 h-px"
-                      style={{ background: "rgba(123,110,244,0.4)" }}
-                    />
-                    <span
-                      className="hidden md:block text-[8px]"
-                      style={{ color: "rgba(123,110,244,0.4)" }}
-                    >
-                      ▶
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Stats row */}
-          <div
-            className="grid grid-cols-2 md:grid-cols-4 gap-px"
-            style={{
-              border: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(255,255,255,0.06)",
-            }}
-          >
+          <div className="grid gap-3 sm:grid-cols-2">
             {[
-              { value: "0", label: "Human Intervention" },
-              { value: "0", label: "Front Running" },
-              { value: "100%", label: "Verifiable" },
-              { value: "sub-1s", label: "Finality" },
-            ].map(({ value, label }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center justify-center gap-1 py-8"
-                style={{ background: "#161616" }}
+              [
+                "Oracle problem",
+                "Outcomes need clear reasoning that users can inspect after settlement.",
+              ],
+              [
+                "Liquidity problem",
+                "New markets need depth immediately, not only after human LPs arrive.",
+              ],
+              [
+                "Trust problem",
+                "Agents should leave permanent evidence, not private logs on a server.",
+              ],
+              [
+                "Solvency problem",
+                "Prices need slippage and bounded payouts so the AMM cannot be drained.",
+              ],
+            ].map(([title, body]) => (
+              <article
+                key={title}
+                className="rounded-2xl border border-white/10 bg-[#111111] p-5 transition-colors duration-150 ease-out hover:border-white/20"
               >
-                <span className="text-[28px] font-bold text-white">
-                  {value}
-                </span>
-                <span
-                  className="text-[11px]"
-                  style={{ color: "rgba(255,255,255,0.3)" }}
-                >
-                  {label}
-                </span>
-              </div>
+                <h3 className="text-base font-semibold text-white">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-white/60">{body}</p>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── SECTION: FINAL CTA ────────────────────────────── */}
-      <section
-        className="relative z-10 px-8 py-28 overflow-hidden"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-      >
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 50% 60% at 50% 100%, rgba(123,110,244,0.08) 0%, transparent 70%)",
-          }}
-        />
-        <div className="max-w-2xl mx-auto flex flex-col items-center text-center gap-7">
-          <h2 className="text-[36px] font-bold text-white leading-tight">
-            Stop giving up your edge.
-          </h2>
-          <p
-            className="text-[15px] leading-relaxed"
-            style={{ color: "rgba(255,255,255,0.35)", maxWidth: 450 }}
-          >
-            Put your knowledge to the test on a market built for deep liquidity,
-            private positioning, and fast execution.
-          </p>
-          <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="flex items-center gap-2.5 px-8 py-4 text-[14px] font-semibold transition-all"
-              style={{
-                background: "rgba(123,110,244,0.9)",
-                color: "#0a0a0a",
-                clipPath:
-                  "polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)",
-              }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLElement).style.background = "#7B6EF4")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLElement).style.background =
-                  "rgba(123,110,244,0.9)")
-              }
-            >
-              Enter the App
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                size={13}
-                color="#0a0a0a"
-                strokeWidth={2}
-              />
-            </button>
-            <span
-              className="text-[11px]"
-              style={{ color: "rgba(255,255,255,0.18)" }}
-            >
-              No credit card required · Demo on Galileo Testnet
-            </span>
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="grid gap-10 lg:grid-cols-[0.9fr_1fr] lg:items-start">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+              Autonomous flow
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+              From question to settlement, the system keeps moving.
+            </h2>
+            <p className="mt-5 max-w-xl text-base leading-7 text-white/60">
+              The landing experience should feel like the protocol itself:
+              steady, transparent, and deliberate. Every step has a role, and
+              every off-chain decision leaves a verifiable trail.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#151515] p-4 sm:p-5">
+            <ol className="relative space-y-3 overflow-hidden">
+              <span className="flow-tracer" aria-hidden="true" />
+              {FLOW.map((item, index) => (
+                <li
+                  key={item}
+                  className="flow-item grid grid-cols-[2.75rem_1fr] gap-4 rounded-xl border border-white/10 bg-[#111111] p-4"
+                >
+                  <div className="relative flex justify-center">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#8b80ff]/30 bg-[#8b80ff]/10 font-mono text-xs font-semibold text-[#c8c2ff]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span
+                      className="flow-step-pulse"
+                      style={{ animationDelay: `${index * 420}ms` }}
+                      aria-hidden="true"
+                    />
+                    {index < FLOW.length - 1 && (
+                      <span className="flow-line" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex min-h-9 items-center">
+                    <p className="text-sm font-medium leading-6 text-white/80">
+                      {item}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ────────────────────────────────────────── */}
-      <div
-        className="relative z-10 flex items-center justify-between px-8 pb-7 pt-5"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-      >
-        <span
-          className="text-[11px]"
-          style={{ color: "rgba(255,255,255,0.15)" }}
-        >
-          © 2026 Prophet
-        </span>
-        <div className="flex items-center gap-5">
-          {SOCIAL.map(({ label, href }) => (
+      <section className="border-y border-white/10 bg-[#151515]">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+              Built on 0G
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+              Compute, storage, and settlement working as one surface.
+            </h2>
+          </div>
+
+          <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 lg:grid-cols-3">
+            {STACK.map((item, index) => (
+              <article key={item.title} className="bg-[#111111] p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="text-lg font-semibold text-white">
+                    {item.title}
+                  </h3>
+                  <span className="rounded-full border border-[#8b80ff]/20 bg-[#8b80ff]/10 px-2.5 py-1 text-[11px] font-medium text-[#c8c2ff]">
+                    {item.status}
+                  </span>
+                </div>
+                <p className="mt-4 text-sm leading-7 text-white/60">
+                  {item.body}
+                </p>
+                <div className="mt-6 overflow-hidden rounded-full bg-white/10">
+                  <span
+                    className="stack-signal block h-1.5 w-1/3 rounded-full bg-[#8b80ff]"
+                    style={{ animationDelay: `${index * 300}ms` }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-6 gap-1" aria-hidden="true">
+                  {Array.from({ length: 6 }).map((_, cellIndex) => (
+                    <span
+                      key={cellIndex}
+                      className="stack-cell h-6 rounded-md border border-white/10 bg-white/[0.03]"
+                      style={{ animationDelay: `${index * 280 + cellIndex * 90}ms` }}
+                    />
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.82fr] lg:px-8 lg:py-24">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+            AMM principles
+          </p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            A market that moves because liquidity is real.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/60">
+            Prophet shows share prices in dollars, not vague percentages. If
+            users push hard into YES, YES gets expensive and NO gets cheaper.
+            That movement is the point: it is how the market expresses belief
+            while protecting the pool.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#151515] p-5">
+          <div className="rounded-xl border border-white/10 bg-[#111111] p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+                  AMM motion
+                </p>
+                <p className="mt-1 text-sm text-white/60">
+                  Demand shifts reserves, so prices move.
+                </p>
+              </div>
+              <span className="rounded-full border border-[#34d399]/20 bg-[#34d399]/10 px-2.5 py-1 font-mono text-xs text-[#34d399]">
+                Live
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium text-white/70">YES price</span>
+                  <span className="font-mono text-[#34d399]">$0.36 → $0.74</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <span className="amm-yes block h-full rounded-full bg-[#34d399]" />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium text-white/70">NO price</span>
+                  <span className="font-mono text-[#f87171]">$0.64 → $0.26</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <span className="amm-no block h-full rounded-full bg-[#f87171]" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.025] p-3">
+              <span className="trade-packet h-2.5 w-2.5 rounded-full bg-[#8b80ff]" aria-hidden="true" />
+              <p className="text-xs leading-5 text-white/60">
+                A large YES buy makes YES scarce, pushes YES up, and pushes NO down.
+              </p>
+            </div>
+          </div>
+
+          <ul className="mt-5 space-y-3">
+            {PRINCIPLES.map((item) => (
+              <li
+                key={item}
+                className="flex gap-3 rounded-xl border border-white/10 bg-[#111111] p-4"
+              >
+                <span
+                  className="mt-2 h-1.5 w-1.5 rounded-full bg-[#8b80ff]"
+                  aria-hidden="true"
+                />
+                <span className="text-sm leading-6 text-white/70">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#151515]">
+        <div className="mx-auto flex max-w-3xl flex-col items-center px-4 py-16 text-center sm:px-6 lg:px-8 lg:py-20">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b80ff]">
+            Ready to test it
+          </p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+            Open Prophet and watch a YES/NO market behave like a real exchange.
+          </h2>
+          <p className="mt-5 max-w-xl text-base leading-7 text-white/60">
+            Claim testnet USDT, create a market, and see protocol-owned
+            liquidity, AMM prices, and agent infrastructure in the same flow.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <PrimaryLink href="/dashboard">Launch Prophet</PrimaryLink>
+            <SecondaryLink href="/dashboard/faucet">
+              Get test USDT
+            </SecondaryLink>
+          </div>
+        </div>
+      </section>
+
+      <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <span>© 2026 Prophet. Built on 0G Galileo.</span>
+        <div className="flex items-center gap-4">
+          {SOCIAL.map((item) => (
             <a
-              key={label}
-              href={href}
+              key={item.href}
+              href={item.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] transition-colors"
-              style={{ color: "rgba(255,255,255,0.2)" }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLElement).style.color =
-                  "rgba(255,255,255,0.6)")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLElement).style.color =
-                  "rgba(255,255,255,0.2)")
-              }
+              className="min-h-10 rounded-lg px-2 py-2 transition-colors duration-150 ease-out hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b80ff]"
             >
-              {label}
+              {item.label}
             </a>
           ))}
         </div>
-      </div>
-    </div>
+      </footer>
+    </main>
   );
 }

@@ -41,3 +41,246 @@ body {
     opacity: 0.9;
   }
 }
+
+.landing-reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.market-bar {
+  transform-origin: left center;
+}
+
+.flow-line {
+  position: absolute;
+  top: 2.25rem;
+  bottom: -1.75rem;
+  width: 1px;
+  background: rgba(139, 128, 255, 0.24);
+}
+
+.flow-tracer {
+  position: absolute;
+  left: 1.75rem;
+  top: 0.75rem;
+  z-index: 2;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #c8c2ff;
+  opacity: 0;
+  transform: translate(-50%, 0);
+}
+
+.flow-step-pulse {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgba(139, 128, 255, 0.34);
+  border-radius: 9999px;
+  opacity: 0;
+}
+
+.stack-signal {
+  transform: translateX(-120%);
+}
+
+.stack-cell {
+  opacity: 0.32;
+}
+
+.amm-yes,
+.amm-no {
+  transform-origin: left center;
+}
+
+.amm-yes {
+  width: 74%;
+}
+
+.amm-no {
+  width: 26%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-reveal {
+    animation: landing-reveal 360ms cubic-bezier(0, 0, 0.2, 1) both;
+  }
+
+  .landing-reveal-1 {
+    animation-delay: 70ms;
+  }
+
+  .landing-reveal-2 {
+    animation-delay: 140ms;
+  }
+
+  .landing-reveal-3 {
+    animation-delay: 210ms;
+  }
+
+  .landing-reveal-4 {
+    animation-delay: 280ms;
+  }
+
+  .market-pulse {
+    animation: market-pulse 1600ms ease-in-out infinite;
+  }
+
+  .market-bar {
+    animation: market-bar 900ms cubic-bezier(0, 0, 0.2, 1) both;
+  }
+
+  .flow-tracer {
+    animation: flow-tracer 5200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .flow-step-pulse {
+    animation: flow-step-pulse 2100ms ease-out infinite;
+  }
+
+  .stack-signal {
+    animation: stack-signal 2600ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .stack-cell {
+    animation: stack-cell 1800ms ease-in-out infinite;
+  }
+
+  .amm-yes {
+    animation: amm-yes 4200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .amm-no {
+    animation: amm-no 4200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .trade-packet {
+    animation: trade-packet 1400ms ease-in-out infinite;
+  }
+}
+
+@keyframes landing-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes market-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes market-bar {
+  from {
+    transform: scaleX(0.72);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes flow-tracer {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  9% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, 19.4rem);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 19.4rem);
+  }
+}
+
+@keyframes flow-step-pulse {
+  0% {
+    opacity: 0.42;
+    transform: scale(0.8);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+@keyframes stack-signal {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  16%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(320%);
+    opacity: 0;
+  }
+}
+
+@keyframes stack-cell {
+  0%,
+  100% {
+    opacity: 0.28;
+    background: rgba(255, 255, 255, 0.03);
+  }
+  50% {
+    opacity: 1;
+    background: rgba(139, 128, 255, 0.16);
+  }
+}
+
+@keyframes amm-yes {
+  0%,
+  100% {
+    transform: scaleX(0.48);
+  }
+  48%,
+  68% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes amm-no {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  48%,
+  68% {
+    transform: scaleX(0.42);
+  }
+}
+
+@keyframes trade-packet {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateX(0) scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0.35rem) scale(1);
+  }
+}
