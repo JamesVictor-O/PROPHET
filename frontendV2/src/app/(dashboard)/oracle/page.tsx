@@ -153,11 +153,51 @@ function ResolvedRow({ market }: { market: ProphetMarket }) {
   );
 }
 
+function OracleStatusRow({ market }: { market: ProphetMarket }) {
+  const isCancelled = market.chainStatus === "Cancelled";
+  const tone = isCancelled
+    ? { label: "INCONCLUSIVE", color: "#f87171", bg: "rgba(248,113,113,0.08)", border: "rgba(248,113,113,0.18)" }
+    : { label: market.chainStatus ?? "PENDING", color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.18)" };
+
+  return (
+    <div
+      className="flex items-center justify-between gap-4 rounded-xl p-4"
+      style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${tone.border}` }}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className="w-28 rounded px-2 py-1 text-center text-[10px] font-bold"
+          style={{ background: tone.bg, color: tone.color }}
+        >
+          {tone.label}
+        </span>
+        <div className="min-w-0">
+          <p className="line-clamp-1 text-sm font-semibold text-white/85">
+            {market.title}
+          </p>
+          <p className="mt-0.5 text-[11px] text-white/30">
+            {isCancelled
+              ? "Oracle could not safely post a conclusive YES/NO verdict, so the market was refunded."
+              : "Oracle agent is collecting evidence and preparing a 0G Compute verdict."}
+          </p>
+        </div>
+      </div>
+      <Link
+        href={`/market/${market.id}`}
+        className="shrink-0 text-white/25 transition-colors hover:text-[#7B6EF4]"
+      >
+        <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
+      </Link>
+    </div>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function OracleDashboardPage() {
   const { markets, isLoading } = useMarkets();
 
   const resolved   = markets.filter((m) => m.chainStatus === "Resolved");
+  const resolving  = markets.filter((m) => m.chainStatus === "Resolving");
   const challenged = markets.filter((m) => m.chainStatus === "Challenged");
   const cancelled  = markets.filter((m) => m.chainStatus === "Cancelled");
 
@@ -261,13 +301,29 @@ export default function OracleDashboardPage() {
           {!isLoading && resolved.length === 0 && (
             <div className="py-8 text-center border border-dashed border-white/10 rounded-xl">
               <p className="text-sm text-white/30">No resolved markets yet.</p>
-              <p className="text-xs text-white/20 mt-1">Create a market and let the oracle resolve it.</p>
+              <p className="text-xs text-white/20 mt-1">
+                Resolved YES/NO verdicts will appear here after the challenge window closes.
+              </p>
             </div>
           )}
 
           {resolved.map((market) => (
             <ResolvedRow key={market.id} market={market} />
           ))}
+
+          {cancelled.length > 0 && (
+            <div className="mt-5 flex flex-col gap-3">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="text-sm font-bold text-white">Inconclusive / Refunded</span>
+                <span className="text-[11px] uppercase tracking-widest text-white/25">
+                  Safety fallback
+                </span>
+              </div>
+              {cancelled.map((market) => (
+                <OracleStatusRow key={market.id} market={market} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Active challenge window */}
@@ -338,6 +394,21 @@ export default function OracleDashboardPage() {
                 View Market & Challenge
               </Link>
             </div>
+          ))}
+
+          <div className="mt-4 flex items-center justify-between pb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <span className="text-sm font-bold text-white">Oracle Queue</span>
+            <span className="text-[11px] text-white/30 uppercase tracking-widest">PendingResolution</span>
+          </div>
+
+          {!isLoading && resolving.length === 0 && (
+            <div className="py-6 text-center border border-dashed border-white/10 rounded-xl">
+              <p className="text-sm text-white/30">No markets waiting on oracle</p>
+            </div>
+          )}
+
+          {resolving.map((market) => (
+            <OracleStatusRow key={market.id} market={market} />
           ))}
         </div>
       </div>

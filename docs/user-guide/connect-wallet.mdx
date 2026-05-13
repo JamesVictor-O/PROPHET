@@ -1,0 +1,145 @@
+---
+title: "Connect Your Wallet"
+description: "Add 0G Galileo to MetaMask and connect to Prophet to start trading."
+icon: "wallet"
+---
+
+## What You Need
+
+To use Prophet, you need:
+1. A browser wallet (MetaMask recommended)
+2. The 0G Galileo testnet added to that wallet
+3. 0G tokens for gas (free from faucet)
+4. Mock USDT for trading (free from Prophet's in-app faucet)
+
+---
+
+## Step 1: Install MetaMask
+
+If you do not have MetaMask installed:
+
+1. Go to [metamask.io](https://metamask.io) and download the browser extension
+2. Follow the setup wizard to create a new wallet
+3. Save your seed phrase securely — you will need it to recover your wallet
+
+You can also use any EVM-compatible wallet (Coinbase Wallet, Rainbow, etc.) — Prophet supports all wallets that work with the 0G Galileo network.
+
+---
+
+## Step 2: Add 0G Galileo to MetaMask
+
+### Option A: Add Automatically via Prophet
+
+When you click "Connect Wallet" on Prophet and your wallet does not have 0G Galileo configured, the app will prompt MetaMask to add the network automatically. Click "Add Network" and "Switch to Network" in the MetaMask popup.
+
+### Option B: Add Manually
+
+1. Open MetaMask and click the network selector at the top (shows "Ethereum Mainnet" by default)
+2. Click "Add Network"
+3. Click "Add a network manually"
+4. Fill in these details exactly:
+
+| Field | Value |
+|---|---|
+| Network Name | 0G Galileo Testnet |
+| New RPC URL | `https://evmrpc-testnet.0g.ai` |
+| Chain ID | `16602` |
+| Currency Symbol | `0G` |
+| Block Explorer URL | `https://chainscan-galileo.0g.ai` |
+
+5. Click "Save"
+6. MetaMask will switch to the new network
+
+<Warning>
+  Make sure the Chain ID is `16602` (Galileo testnet), not `16600` (mainnet) or `16601` (another testnet configuration). Using the wrong Chain ID will cause transactions to fail.
+</Warning>
+
+---
+
+## Step 3: Get 0G Gas Tokens
+
+Every transaction on 0G Chain costs a small amount of 0G (the native gas token). You need 0G to buy shares, create markets, and redeem payouts.
+
+1. Go to [faucet.0g.ai](https://faucet.0g.ai)
+2. Connect your wallet or paste your address
+3. Click "Request Tokens"
+4. Wait ~30 seconds for the transaction to confirm
+5. You should see 0G tokens appear in your MetaMask balance
+
+<Tip>
+  The faucet gives enough 0G for dozens of transactions. If you run low, just request more — there is no limit for testnet tokens.
+</Tip>
+
+---
+
+## Step 4: Connect to Prophet
+
+1. Open the Prophet app at [http://localhost:3000](http://localhost:3000) (or the live URL)
+2. Click "Connect Wallet" in the top-right corner
+3. Select MetaMask (or your preferred wallet)
+4. Approve the connection in your wallet popup
+5. If prompted, switch to 0G Galileo network
+
+Once connected, you will see your wallet address in the top-right corner and a wallet icon will turn green.
+
+---
+
+## Step 5: Get Mock USDT
+
+All trading on Prophet uses USDT (6 decimal places). On the testnet, this is a mock USDT contract that you can mint freely.
+
+1. Navigate to the Faucet page in the Prophet app: click the faucet icon in the navigation or go to `/faucet`
+2. Click "Get 1000 USDT"
+3. Approve the transaction in MetaMask
+4. Wait for confirmation (~2–3 seconds on 0G Chain)
+5. Your wallet now has 1000 mock USDT ready for trading
+
+The mock USDT contract is at `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49` on 0G Galileo. You can call the faucet multiple times if you need more.
+
+---
+
+## Verify Connection
+
+After connecting, you should see:
+
+- Your wallet address (e.g., `0x1234...5678`) in the header
+- Your 0G balance (for gas)
+- Your USDT balance (after faucet)
+- The network badge showing "0G Galileo"
+
+If any of these are missing, try:
+1. Refreshing the page
+2. Ensuring MetaMask is on the 0G Galileo network (check the network selector)
+3. Disconnecting and reconnecting your wallet
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MetaMask shows the wrong network">
+    Click the network selector in MetaMask (top of the popup) and choose "0G Galileo Testnet". If it is not in the list, add it manually using the steps above.
+  </Accordion>
+  <Accordion title="Transaction fails with 'insufficient funds'">
+    You need 0G tokens for gas. Go to [faucet.0g.ai](https://faucet.0g.ai) and request tokens.
+  </Accordion>
+  <Accordion title="USDT balance shows 0 after faucet">
+    Add the mock USDT token to MetaMask manually: open MetaMask → "Import tokens" → paste `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49`. The symbol is "USDT" and decimals is 6.
+  </Accordion>
+  <Accordion title="Wallet won't connect to the app">
+    Make sure MetaMask is unlocked (enter your password if prompted). Then try clicking "Connect Wallet" again. If using a hardware wallet, approve the connection on the device.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Start Trading" icon="arrow-trend-up" href="/user-guide/trading">
+    Buy and sell YES/NO shares on open markets
+  </Card>
+  <Card title="Create a Market" icon="plus-circle" href="/user-guide/create-market">
+    Permissionlessly deploy a new prediction market
+  </Card>
+</CardGroup>

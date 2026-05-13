@@ -1,0 +1,174 @@
+---
+title: "Redeeming After Resolution"
+description: "How to collect your USDT after a market resolves — winning redemption, cancelled markets, and fee breakdowns."
+icon: "coins"
+---
+
+## Overview
+
+After a market resolves, participants with winning positions can redeem their shares for USDT. The entire process is on-chain — the oracle agent handles position reveal, and you trigger your own redemption with a single transaction.
+
+---
+
+## The Resolution to Redemption Timeline
+
+```
+Market deadline passes
+       │
+       ▼ (~2 minutes)
+Oracle posts verdict on 0G Chain
+       │
+       ▼ (24 hours)
+Challenge window expires
+       │
+       ▼ (~1 minute)
+finalizeResolution called
+       │
+       ▼ (~2 minutes)
+Oracle reveals all positions
+       │
+       ▼ (immediately)
+Winners can redeem
+```
+
+Total time from deadline to redemption availability: **~24 hours** (dominated by the challenge window). The challenge window exists to allow challenges to incorrect oracle verdicts — it cannot be skipped.
+
+---
+
+## Redeeming Winning Shares
+
+<Steps>
+  <Step title="Wait for Resolved status">
+    Navigate to your market. The status badge shows the current phase: Open → PendingResolution → Challenged → Resolved.
+
+    When the status is **Resolved**, redemption is available.
+  </Step>
+  <Step title="Check your position">
+    The trade panel shows:
+    - Your YES shares (if you bought YES)
+    - Your NO shares (if you bought NO)
+    - The final outcome (YES or NO)
+    - Your estimated payout
+  </Step>
+  <Step title="Click Redeem">
+    If you have winning shares, a "Redeem Winnings" button appears. Click it and confirm the transaction in MetaMask.
+
+    The contract calls `redeemWinningShares()` which transfers your USDT directly to your wallet.
+  </Step>
+  <Step title="Confirm receipt">
+    After the transaction confirms, check your USDT balance — it should have increased by your payout amount.
+  </Step>
+</Steps>
+
+### redeemWinningShares Function
+
+```solidity
+// MarketContract.sol
+function redeemWinningShares() external nonReentrant;
+```
+
+This function:
+1. Verifies the market is `Resolved`
+2. Reads your winning share balance from the PositionVault reveal data
+3. Calculates your payout: `(your winning shares / total winning shares) * (pool - fees)`
+4. Transfers USDT to your wallet
+5. Burns your winning shares (prevents double redemption)
+
+---
+
+## What Happens If You Hold Losing Shares
+
+Losing shares (YES shares on a NO resolution, or NO shares on a YES resolution) are worth $0.00. You do not need to do anything with them. They remain in your balance as zero-value tokens.
+
+You cannot redeem losing shares — `redeemWinningShares()` checks your revealed position and only pays out if you were on the winning side.
+
+---
+
+## Cancelled Markets: redeemCancelledShares
+
+If a market is **cancelled** (not resolved YES or NO, but cancelled due to an unresolvable question or oracle failure), every participant gets their USDT back regardless of which side they were on.
+
+```solidity
+// MarketContract.sol
+function redeemCancelledShares() external nonReentrant;
+```
+
+A cancelled redemption returns:
+- Your original USDT deposit into the AMM
+- Minus any fees already collected at trade time
+
+This is the safety net for edge cases. A cancelled market is one where the AI oracle could not determine the outcome with sufficient confidence and no second inference changed that.
+
+---
+
+## Fee Deductions
+
+Your payout is the winning pool minus protocol fees. The fee structure:
+
+| Fee | Who Receives It | What It Funds |
+|---|---|---|
+| Oracle fee | Oracle agent wallet | 0G Compute inference costs |
+| Market-maker fee | LiquidityPool | Protocol-owned liquidity replenishment |
+| Protocol fee | Treasury address | Protocol development and operations |
+
+Fees are taken at the distribution level, not per-trade. The exact fee percentages and amounts are shown in the trade panel's "Fee breakdown" before you trade.
+
+**Example payout calculation:**
+
+```
+Pool at resolution: 10,000 USDT
+Outcome: YES
+Total YES shares outstanding: 5,000 shares
+Your YES shares: 500 shares
+
+Total fees: 200 USDT (2%)
+Distributable pool: 9,800 USDT
+
+Your payout: (500 / 5,000) * 9,800 = 980 USDT
+Your profit: 980 - 500 = 480 USDT (cost was 500 USDT to buy the shares)
+```
+
+---
+
+## Reading the Oracle's Reasoning
+
+After resolution, the oracle's full reasoning is permanently stored on 0G Storage and accessible through the market page.
+
+1. Navigate to the resolved market
+2. Click "View Oracle Reasoning"
+3. The app fetches the reasoning blob from 0G Storage via `/api/og-storage?hash=0x...`
+4. You see the model's full chain-of-thought: what evidence it found, what sources it checked, its confidence score, and why it chose YES or NO
+
+This reasoning is immutable. The root hash stored in the contract commits to this exact content — if anyone modifies the content, the hash will not match. Permanent, tamper-proof oracle accountability.
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The Redeem button is grayed out">
+    The market is not yet in `Resolved` status. Check the status badge — if it shows `Challenged`, the 24-hour challenge window has not expired yet. Wait for it to expire and for `finalizeResolution` to be called.
+  </Accordion>
+  <Accordion title="I have winning shares but the payout shows $0">
+    Your position may not have been revealed yet. The oracle reveals positions after `ResolutionFinalized` — this can take 1–2 minutes. Refresh the page and check again.
+  </Accordion>
+  <Accordion title="My USDT balance did not increase after redemption">
+    Check the transaction on 0G ChainScan. If the transaction succeeded, your balance should have updated. You may need to add the USDT token to MetaMask manually (token address: `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49`, decimals: 6).
+  </Accordion>
+  <Accordion title="The market shows Cancelled — can I get my money back?">
+    Yes. Click "Redeem Cancelled Shares" (instead of "Redeem Winnings"). You will receive your original USDT back minus any fees taken at trade time.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Another Market" icon="plus-circle" href="/user-guide/create-market">
+    Deploy a new prediction market on any topic
+  </Card>
+  <Card title="Understand Resolution" icon="cpu" href="/concepts/resolution">
+    Deep dive into how the AI oracle determines outcomes
+  </Card>
+</CardGroup>

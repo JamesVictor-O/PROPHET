@@ -1,0 +1,193 @@
+---
+title: "Trading YES/NO Shares"
+description: "How to buy and sell shares on Prophet — understanding prices, slippage, and what happens at resolution."
+icon: "arrow-trend-up"
+---
+
+## Overview
+
+Every Prophet market has two tradable assets: **YES shares** and **NO shares**. Each trades between $0.00 and $1.00 USDT. The price at any moment represents the market's implied probability of that outcome.
+
+If you think an event will happen, buy YES. If you think it will not happen, buy NO. If you change your mind, sell your shares back to the AMM before the market closes.
+
+---
+
+## Finding a Market
+
+1. Open the Prophet app and navigate to the Markets page
+2. Browse open markets by category (Sports, Finance, Politics, Crypto, Other)
+3. Each market card shows:
+   - The market question
+   - Current YES price (left) and NO price (right)
+   - Time remaining until the deadline
+   - Total liquidity in the AMM pool
+4. Click a market card to open the full trading view
+
+---
+
+## Understanding the Price Display
+
+Prices are shown as dollar amounts between $0.00 and $1.00:
+
+```
+YES: $0.63   |   NO: $0.37
+```
+
+This means:
+- The market implies a **63% probability** the event occurs
+- The market implies a **37% probability** the event does not occur
+- YES price + NO price always equals $1.00
+
+**Why this matters for trading:**
+- If you believe the probability is higher than the displayed price, buying that share is positive expected value
+- If you believe the probability is lower, buying the opposite share is positive expected value
+
+---
+
+## Buying YES Shares
+
+<Steps>
+  <Step title="Open the trade panel">
+    On any market page, the trade panel is on the right side. Click the "YES" tab.
+  </Step>
+  <Step title="Enter your amount">
+    Type the USDT amount you want to spend (e.g., 50 USDT). The panel shows:
+    - Estimated shares you will receive
+    - Expected price per share after your trade
+    - Price impact (how much your trade moves the price)
+  </Step>
+  <Step title="Check slippage tolerance">
+    The default slippage tolerance is 1%. This means the transaction will revert if the actual price is more than 1% worse than displayed. Increase this for large trades on thin markets.
+  </Step>
+  <Step title="Approve USDT (first time only)">
+    If this is your first trade on Prophet, MetaMask will ask you to approve the contract to spend your USDT. Click "Approve" and confirm the transaction. This is a one-time step.
+  </Step>
+  <Step title="Click Buy YES">
+    Click "Buy YES" and confirm the transaction in MetaMask. The transaction submits to 0G Chain and confirms in ~1–2 seconds.
+  </Step>
+  <Step title="Confirm receipt">
+    After the transaction confirms, your YES share balance updates in the trade panel. You now own shares that pay $1.00 each if the market resolves YES.
+  </Step>
+</Steps>
+
+### What Happens On-Chain
+
+When you buy YES shares:
+1. Your USDT enters the MarketContract
+2. The AMM mints complete sets (YES + NO) from the USDT
+3. The YES shares go to your wallet
+4. The NO shares increase the pool's NO reserve (making YES more expensive)
+5. The AMM state updates: YES price rises, NO price falls
+
+---
+
+## Buying NO Shares
+
+The process is identical to buying YES, but click the "NO" tab instead.
+
+When you buy NO shares:
+1. Your USDT enters the MarketContract
+2. The AMM mints complete sets (YES + NO) from the USDT
+3. The NO shares go to your wallet
+4. The YES shares increase the pool's YES reserve (making NO more expensive)
+5. YES price falls, NO price rises
+
+---
+
+## Selling Shares
+
+You can sell your shares back to the AMM at any time while the market is Open.
+
+<Steps>
+  <Step title="Switch to the Sell tab">
+    In the trade panel, click "Sell" (instead of "Buy").
+  </Step>
+  <Step title="Select share type and enter amount">
+    Choose YES or NO, then enter the number of shares you want to sell. The panel shows estimated USDT you will receive.
+  </Step>
+  <Step title="Review the sell price">
+    The sell quote takes current AMM prices into account. Large sells move the price against you — check the price impact displayed.
+  </Step>
+  <Step title="Confirm the sale">
+    Click "Sell" and confirm in MetaMask. Your shares leave your wallet; USDT enters your wallet.
+  </Step>
+</Steps>
+
+### Sell Equation
+
+Selling uses a different mathematical formula than buying to protect AMM solvency:
+
+```
+(sameReserve + sharesIn - collateralOut) * (oppositeReserve - collateralOut) 
+    = sameReserve * oppositeReserve
+```
+
+This means large sells receive progressively worse prices (more slippage) — a feature, not a bug. It prevents the AMM from being drained by a single large sell.
+
+---
+
+## Reading Your Position
+
+The trade panel shows your current position for any connected market:
+
+- **Your YES balance**: shares owned that pay $1.00 if YES
+- **Your NO balance**: shares owned that pay $1.00 if NO
+- **Current value**: your shares × current price (mark-to-market)
+- **P&L**: difference from what you paid
+
+<Note>
+  The "current value" shown is what you would receive if you sold now (after slippage). Your actual payout at resolution depends entirely on the outcome — not on the current price.
+</Note>
+
+---
+
+## Price Impact for Large Trades
+
+The AMM has finite liquidity. Large trades move prices significantly:
+
+| Trade Size vs. Pool | Expected Price Impact |
+|---|---|
+| < 1% of pool | < 0.01% — negligible |
+| 5% of pool | ~5% — noticeable |
+| 20% of pool | ~25% — significant |
+| 50% of pool | ~100% — extreme |
+
+For large trades, consider splitting into smaller transactions over time to reduce average price impact.
+
+---
+
+## What Happens When the Market Resolves
+
+When the market's deadline passes:
+
+1. **Trading stops** — `buyShares` and `sellShares` revert
+2. **Oracle triggers resolution** — verdict is posted on-chain with reasoning hash
+3. **24-hour challenge window** — anyone can challenge the verdict
+4. **Positions revealed** — oracle decrypts all sealed positions atomically
+5. **Winners can redeem** — call `redeemWinningShares()` or use the "Redeem" button in the app
+
+Losers receive $0.00 per share. Winners receive their share of the pool minus fees.
+
+<Tip>
+  You do not need to do anything during the resolution process. The oracle and market-maker agents handle it automatically. Just wait for the "Resolved" status and then click "Redeem."
+</Tip>
+
+---
+
+## Fees
+
+All trades incur a fee taken from the collateral:
+
+- **Oracle fee**: funds the AI oracle's 0G Compute usage
+- **Market-maker fee**: compensates the LiquidityPool for seeding liquidity
+- **Protocol fee**: goes to the Prophet treasury
+
+The total fee percentage is displayed in the trade panel before you confirm. Fees are deducted from the USDT going into (for buys) or out of (for sells) the AMM.
+
+---
+
+## Next: Redeeming After Resolution
+
+<Card title="Redeem Winnings" icon="coins" href="/user-guide/redeem">
+  How to collect your USDT after a market resolves — winning redemption, cancelled markets, and fee deductions.
+</Card>

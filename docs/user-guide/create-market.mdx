@@ -1,0 +1,183 @@
+---
+title: "Creating a Market"
+description: "How to permissionlessly create a new prediction market on Prophet — from question to live AMM in under a minute."
+icon: "plus-circle"
+---
+
+## Overview
+
+Anyone can create a prediction market on Prophet. There is no whitelist, no application form, and no human approval. The AI oracle validates your question at creation time — if it passes, the market deploys and the market-maker agent seeds it with liquidity automatically.
+
+---
+
+## What Makes a Good Question
+
+Your market question must be:
+
+**Binary** — exactly one of YES or NO is the outcome. Not "who will win?" (multiple outcomes) but "Will X win?" (yes or no).
+
+**Specific** — no ambiguity about what counts as YES. "Will Apple stock rise?" is ambiguous. "Will Apple (AAPL) close above $200 on May 15, 2026?" is specific.
+
+**Verifiable** — the oracle must be able to confirm the outcome from public sources. Private or unverifiable events cannot be resolved.
+
+**Time-bounded** — you must set a resolution deadline. The question resolves based on what happens before that deadline.
+
+### Good Question Examples
+
+| Question | Why it works |
+|---|---|
+| "Will Arsenal win the Premier League 2025/26 season?" | Binary, specific team, clear competition, verifiable via official sources |
+| "Will BTC close above $100,000 on June 1, 2026?" | Binary, specific price, specific date, verifiable on any exchange |
+| "Will the US Federal Reserve cut rates in July 2026?" | Binary, specific institution, specific time period, verifiable via official Fed announcement |
+| "Will OpenAI release GPT-5 before September 1, 2026?" | Binary, specific event, specific deadline, verifiable via official announcement |
+
+### Bad Question Examples
+
+| Question | Why it fails |
+|---|---|
+| "Will Arsenal do well this season?" | "Do well" is ambiguous — not binary |
+| "Who will win the US election?" | Multiple outcomes — needs to be "Will X win?" |
+| "Is AI dangerous?" | Opinion, not verifiable as YES/NO fact |
+| "Will my startup succeed?" | Private, not publicly verifiable |
+
+---
+
+## Step-by-Step: Create a Market
+
+<Steps>
+  <Step title="Navigate to Create Market">
+    Click "Create Market" in the Prophet app navigation bar. Connect your wallet if not already connected.
+  </Step>
+  <Step title="Enter your question">
+    Type your market question in the text field. Be as specific as possible.
+
+    The frontend sends your question to `/api/validate-question` as you type (with debouncing). This calls 0G Compute to validate in real time.
+
+    You will see one of:
+    - Green checkmark: question is valid — you can proceed
+    - Yellow warning: question is valid but could be more specific — consider refining
+    - Red X: question is rejected — a reason is shown explaining why
+  </Step>
+  <Step title="Set the resolution deadline">
+    Use the date/time picker to set when the market closes. The oracle will resolve the market after this deadline passes.
+
+    Guidelines:
+    - Give enough time for the event to occur and be publicly confirmed
+    - Avoid deadlines in the immediate future — trades need time to accumulate
+    - Be specific: "June 1, 2026 at 23:59 UTC" not "end of May"
+  </Step>
+  <Step title="Select a category">
+    Choose from: Sports, Finance, Crypto, Politics, Science, Entertainment, Other.
+
+    Category is used for filtering and browsing — it does not affect the oracle's resolution.
+  </Step>
+  <Step title="Add resolution sources (optional)">
+    You can specify up to 5 approved data sources the oracle should check. Examples:
+    - `https://premierleague.com` for football results
+    - `https://coinmarketcap.com` for crypto prices
+    - `https://federalreserve.gov` for Fed decisions
+
+    If you leave this blank, the oracle uses its general knowledge and common public sources.
+  </Step>
+  <Step title="Review and submit">
+    Review all details. Click "Create Market". MetaMask asks you to sign two transactions:
+    1. USDT approval (if not already approved)
+    2. `ProphetFactory.createMarket()` — deploys the market on 0G Chain
+  </Step>
+  <Step title="Wait for setup">
+    After your transaction confirms (1–2 seconds), the following happens automatically:
+    1. ProphetFactory deploys a new MarketContract
+    2. The frontend stores market metadata to 0G Storage
+    3. The market-maker agent detects the new market via `MarketCreated` event
+    4. The agent allocates USDT from LiquidityPool and calls `seedLiquidity`
+    5. The market appears on the markets dashboard with live YES/NO prices
+
+    Total time from transaction confirmation to live market: ~30 seconds.
+  </Step>
+</Steps>
+
+---
+
+## What Happens Under the Hood
+
+### Question Validation (0G Compute)
+
+Before creating the market on-chain, the frontend validates your question via the `/api/validate-question` API route. This calls 0G Compute (Qwen 2.5 7B on testnet) with a validation prompt:
+
+```
+Is this a valid binary prediction market question?
+- Must have exactly one of YES or NO as outcome
+- Must be specific and unambiguous
+- Must be verifiable from public sources
+- Must have a clear resolution criterion
+
+Question: "..."
+
+Respond with: { valid: bool, reason: string, suggestedSources: string[] }
+```
+
+This prevents unresolvable markets from entering the system — saving gas and protecting the oracle's integrity.
+
+### Market Metadata → 0G Storage
+
+After the on-chain transaction confirms, the frontend calls `/api/store-metadata`:
+
+```json
+{
+  "marketAddress": "0x...",
+  "question": "Will Arsenal win the Premier League 2025/26?",
+  "deadline": "2026-05-20T23:59:00Z",
+  "category": "Sports",
+  "sources": ["https://premierleague.com", "https://bbc.co.uk/sport"],
+  "createdAt": "2026-05-01T10:00:00Z",
+  "creatorAddress": "0x..."
+}
+```
+
+This is uploaded to 0G Storage. The root hash is stored in `MarketContract.metadataHash`. When the oracle resolves the market, it reads this metadata to know the question, sources, and deadline.
+
+### Market Maker Seeding
+
+The market-maker agent receives the `MarketCreated` event and immediately queues a seeding operation:
+
+1. Gets an initial price estimate from 0G Compute (what probability does the AI assign to this question?)
+2. Allocates USDT from LiquidityPool (amount based on available pool balance)
+3. Calls `MarketContract.seedLiquidity()` — AMM is now live
+4. The initial seed starts at 50/50 (or uses the AI price estimate if available)
+
+---
+
+## Creator Bond
+
+When you create a market, a small bond is taken from your USDT balance. This is returned to you when the market resolves cleanly.
+
+The bond is forfeited if:
+- The market question is later determined to be ambiguous by the oracle
+- The market is cancelled due to an unresolvable question
+
+This discourages creating frivolous or intentionally ambiguous markets.
+
+---
+
+## After Your Market is Created
+
+Once your market is live:
+- Anyone can trade YES or NO shares
+- The AMM price will evolve as trades come in
+- The market-maker agent will monitor and may adjust liquidity
+- When your deadline passes, the oracle automatically resolves it
+
+You can track your market from the Markets page — use the "Created by me" filter to find it quickly.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Trade on Your Market" icon="arrow-trend-up" href="/user-guide/trading">
+    Buy the first shares on your newly created market
+  </Card>
+  <Card title="How Resolution Works" icon="cpu" href="/concepts/resolution">
+    Understand what the oracle does when your deadline passes
+  </Card>
+</CardGroup>

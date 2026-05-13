@@ -1,0 +1,352 @@
+---
+title: "Agent Development"
+description: "How to extend, test, and debug Prophet's oracle and market-maker agents."
+icon: "robot"
+---
+
+## Agent Entry Points
+
+```
+agent/
+└── src/
+    ├── oracle/
+    │   └── index.ts        ← Oracle agent entry point
+    ├── market-maker/
+    │   └── index.ts        ← Market maker entry point
+    ├── shared/
+    │   ├── compute.ts      ← 0G Compute helpers
+    │   ├── storage.ts      ← 0G Storage helpers
+    │   ├── chain.ts        ← Contract interaction helpers
+    │   ├── config.ts       ← Env var management
+    │   ├── logger.ts       ← Structured logging
+    │   └── types.ts        ← Shared TypeScript interfaces
+    └── scripts/
+        ├── test-compute.ts ← 0G Compute connectivity test
+        └── test-storage.ts ← 0G Storage connectivity test
+```
+
+### Starting Agents
+
+```bash
+cd agent
+
+npm run start           # both agents concurrently
+npm run oracle          # oracle only
+npm run market-maker    # market-maker only
+npm run test:storage    # 0G Storage integration test
+npm run test:compute    # 0G Compute integration test
+```
+
+---
+
+## Startup Flow
+
+Both agents follow the same startup pattern:
+
+```typescript
+async function main() {
+  // 1. Load and validate config
+  const config = loadConfig();
+  
+  // 2. Connect to 0G Chain
+  const provider = new ethers.JsonRpcProvider(config.ogChainRpc);
+  const block = await provider.getBlockNumber();
+  logger.info({ block }, 'Connected to 0G Chain');
+  
+  // 3. Initialize wallets
+  const wallet = new ethers.Wallet(config.privateKey, provider);
+  
+  // 4. Initialize contract handles
+  const factory = getFactoryContract(wallet);
+  
+  // 5. Catch-up scan (handles missed events from downtime)
+  await catchUpOnPendingMarkets();
+  
+  // 6. Attach event listeners
+  attachEventListeners();
+  
+  // 7. Start periodic maintenance loops
+  startPeriodicScans();
+  
+  logger.info('Agent started successfully');
+}
+
+main().catch(err => {
+  logger.fatal(err, 'Agent crashed — restarting');
+  process.exit(1);
+});
+```
+
+The catch-up scan ensures the agent is stateless — it can restart from any point without losing track of markets.
+
+---
+
+## Event Listener Pattern
+
+All event listeners follow a safe wrapper that prevents unhandled rejections from crashing the agent:
+
+```typescript
+// agent/src/shared/chain.ts
+export function listenForEvents(
+  contract: ethers.Contract,
+  eventName: string,
+  handler: (...args: any[]) => Promise<void>
+): void {
+  contract.on(eventName, async (...args) => {
+    const event = args[args.length - 1]; // ethers v6: event is always last arg
+    
+    logger.info({ 
+      event: eventName, 
+      block: event.blockNumber,
+      tx: event.transactionHash 
+    }, 'Event received');
+
+    try {
+      await handler(...args);
+    } catch (err) {
+      // NEVER crash the listener — log and continue
+      logger.error({ err, event: eventName }, 'Event handler failed');
+    }
+  });
+
+  logger.info({ event: eventName }, 'Listening');
+}
+
+// Usage:
+listenForEvents(factory, 'MarketCreated', async (marketAddress, creator) => {
+  await handleMarketCreated(marketAddress);
+});
+```
+
+---
+
+## Transaction Queue Pattern
+
+The market-maker uses a FIFO transaction queue to prevent nonce collisions when multiple events arrive simultaneously:
+
+```typescript
+// agent/src/market-maker/index.ts
+type Task = () => Promise<void>;
+
+const queue: Task[] = [];
+let processing = false;
+
+export async function enqueue(task: Task): Promise<void> {
+  queue.push(task);
+  if (!processing) {
+    processing = true;
+    while (queue.length > 0) {
+      const next = queue.shift()!;
+      try {
+        await next();
+      } catch (err) {
+        logger.error(err, 'Queue task failed — continuing');
+      }
+    }
+    processing = false;
+  }
+}
+```
+
+All market-maker transactions go through `enqueue()`. The oracle has fewer concurrent operations but uses the same pattern for safety.
+
+---
+
+## Adding a New Oracle Data Source
+
+To add a new approved data source that the oracle can reference:
+
+### 1. Update the validation prompt in compute.ts
+
+```typescript
+// agent/src/shared/compute.ts
+const APPROVED_SOURCES = [
+  'BBC News (https://bbc.co.uk/news)',
+  'Reuters (https://reuters.com)',
+  'CoinMarketCap (https://coinmarketcap.com)',
+  'Premier League (https://premierleague.com)',
+  'YOUR_NEW_SOURCE_HERE',
+];
+
+function buildValidationPrompt(question: string): string {
+  return `
+Available resolution sources:
+${APPROVED_SOURCES.map(s => `- ${s}`).join('\n')}
+
+Is this question resolvable using these sources?
+Question: "${question}"
+  `;
+}
+```
+
+### 2. Include it in market metadata at creation
+
+The frontend already allows market creators to specify up to 5 custom sources. These get stored in the 0G Storage metadata blob and are read by the oracle at resolution time.
+
+### 3. No contract changes needed
+
+Sources are entirely off-chain data stored in 0G Storage. The contracts only store the metadata root hash.
+
+---
+
+## Testing Compute and Storage Integrations
+
+### Manual testing with test scripts
+
+```bash
+cd agent
+
+# Verify 0G Storage: upload, download, verify checksum
+npm run test:storage
+
+# Verify 0G Compute: broker init, TEE verify, test inference
+npm run test:compute
+```
+
+### Unit testing agent logic
+
+Agent logic (excluding 0G dependencies) can be tested with mocks:
+
+```typescript
+// test/oracle.test.ts
+import { vi } from 'vitest';
+import { handleResolutionTriggered } from '../src/oracle/index';
+import * as compute from '../src/shared/compute';
+import * as storage from '../src/shared/storage';
+
+vi.mock('../src/shared/compute');
+vi.mock('../src/shared/storage');
+
+describe('Oracle resolution', () => {
+  it('posts verdict after successful inference', async () => {
+    vi.mocked(compute.callOracleInference).mockResolvedValue({
+      verdict: true,
+      confidence: 88,
+      reasoning: 'Arsenal won the league',
+      evidenceSummary: '89 points, confirmed by official sources',
+      sourcesChecked: ['Premier League official'],
+    });
+    
+    vi.mocked(storage.uploadToStorage).mockResolvedValue('0xrootHash');
+    
+    // ... test that postResolution is called with correct args
+  });
+});
+```
+
+---
+
+## Logging Format
+
+All log output uses structured JSON via the `logger` module. Every entry includes:
+
+```typescript
+// Standard fields
+{
+  "level": "info",
+  "time": "2026-05-13T10:00:00.000Z",
+  "component": "oracle",
+  "msg": "Resolution posted"
+}
+
+// With context
+{
+  "level": "info",
+  "time": "2026-05-13T10:00:00.000Z",
+  "component": "oracle",
+  "marketAddress": "0x1234...",
+  "verdict": true,
+  "confidence": 88,
+  "reasoningHash": "0xabc...",
+  "txHash": "0xdef...",
+  "msg": "Resolution posted"
+}
+
+// Error
+{
+  "level": "error",
+  "time": "2026-05-13T10:00:01.000Z",
+  "component": "compute",
+  "err": { "message": "Inference timeout", "stack": "..." },
+  "attempt": 2,
+  "msg": "0G Compute inference failed"
+}
+```
+
+Control log level via environment variable:
+```bash
+LOG_LEVEL=debug npm run oracle  # show all logs including debug
+LOG_LEVEL=error npm run oracle  # only errors
+```
+
+---
+
+## Config System
+
+The `cfg()` helper in `agent/src/shared/config.ts` provides typed, validated env var access:
+
+```typescript
+// Load a required env var (throws if missing)
+const rpc = cfg('OG_CHAIN_RPC');
+
+// Load with default (no throw if missing)
+const interval = parseInt(cfg('REPRICE_INTERVAL_MS', false) || '60000');
+
+// Load boolean flag
+const requireTee = cfg('COMPUTE_REQUIRE_TEE', false) === '1';
+```
+
+All configuration is loaded at startup and validated before any connections are made. A missing required variable causes the agent to exit immediately with a clear error message, rather than failing silently later.
+
+---
+
+## Common Development Tasks
+
+### Add a new event handler to the oracle
+
+```typescript
+// 1. Define the handler function
+async function handleNewEvent(marketAddress: string, extraArg: string): Promise<void> {
+  logger.info({ marketAddress, extraArg }, 'New event received');
+  // ... your logic
+}
+
+// 2. Register in the event listener setup
+listenForEvents(factory, 'NewEventName', async (marketAddress, extraArg) => {
+  await handleNewEvent(marketAddress, extraArg);
+});
+
+// 3. Add to the catch-up scan if the event can be missed during downtime
+async function catchUpOnPendingMarkets() {
+  // ... existing logic
+  // add your new case here
+}
+```
+
+### Add a new market-maker strategy
+
+```typescript
+// agent/src/market-maker/strategies/rebalance.ts
+export async function rebalanceMarket(
+  marketAddress: string,
+  wallet: ethers.Wallet
+): Promise<void> {
+  const market = getMarketContract(marketAddress, wallet);
+  const { yesPrice, noPrice } = await market.getAmmState(ethers.ZeroAddress);
+  
+  // Your rebalancing logic here
+  // Use enqueue() to schedule any transactions
+  await enqueue(() => market.seedLiquidity(additionalLiquidity));
+}
+```
+
+### Extend the storage schema
+
+If you need to store new data in 0G Storage, just add fields to the JSON object. There is no schema enforcement — 0G Storage stores arbitrary bytes.
+
+```typescript
+await uploadToStorage({
+  ...existingFields,
+  newField: 'new value',  // backward compatible — old readers ignore unknown fields
+}, signer);
+```

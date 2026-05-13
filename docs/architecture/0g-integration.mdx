@@ -1,0 +1,368 @@
+---
+title: "0G Integration Depth"
+description: "A technical audit of every 0G module integration in Prophet — for judges and engineers evaluating the depth of 0G use."
+icon: "layer-group"
+---
+
+<Info>
+  This page is written for 0G Labs judges evaluating Track 2 (Agentic Trading Arena). It documents every 0G module Prophet uses, the specific SDK calls, the implementation files, and why each integration is non-superficial.
+</Info>
+
+## Integration Summary
+
+Prophet integrates three distinct 0G modules. Each module is used because the product cannot work without it — removing any one of them makes the system either centralized, unverifiable, or non-functional.
+
+| 0G Module | SDK | Use Cases | Required for |
+|---|---|---|---|
+| 0G Chain | ethers v6, viem, wagmi | All contract state | Market creation, trading, resolution, payouts |
+| 0G Compute | `@0glabs/0g-serving-broker` | AI inference | Question validation, oracle resolution, market pricing |
+| 0G Storage | `@0gfoundation/0g-storage-ts-sdk` | Permanent data | Market metadata, oracle reasoning, agent state |
+
+---
+
+## 0G Chain
+
+### Why 0G Chain Specifically
+
+Ethereum is economically infeasible for Prophet. The oracle agent submits multiple transactions per market resolution (postResolution, revealPositions). At Ethereum L1 gas prices, a single resolution cycle would cost $50–$200. This makes the oracle economically unviable for any market under $10,000 in volume.
+
+0G Chain provides:
+- **11,000 TPS** — high enough to handle many concurrent market resolutions
+- **Sub-second finality** — oracle reads resolution events quickly
+- **Low gas cost** — oracle can submit transactions economically
+- **EVM-compatible** — all existing Solidity tooling works without modification
+- **Chain ID 16602** (Galileo testnet) / **16600** (mainnet)
+
+### What Runs on 0G Chain
+
+Every contract in Prophet lives on 0G Chain:
+- `ProphetFactory.sol` — market registry and factory
+- `MarketContract.sol` — per-market AMM and lifecycle
+- `LiquidityPool.sol` — protocol-owned liquidity
+- `PositionVault.sol` — encrypted position storage
+- `PayoutDistributor.sol` — payout calculation and distribution
+
+Every user transaction is on-chain:
+- `createMarket()` — ProphetFactory
+- `buyShares()`, `sellShares()` — MarketContract
+- `commitPosition()` — PositionVault
+- `triggerResolution()`, `postResolution()`, `finalizeResolution()` — MarketContract
+- `revealPositions()` — PositionVault
+- `redeemWinningShares()` — MarketContract
+
+### Client SDKs
+
+**Frontend**: wagmi v2 + viem configured for 0G Chain:
+```typescript
+// frontendV2/src/lib/wagmi.ts
+import { defineChain } from 'viem';
+
+export const ogGalileo = defineChain({
+  id: 16602,
+  name: '0G Galileo Testnet',
+  nativeCurrency: { name: '0G', symbol: '0G', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://evmrpc-testnet.0g.ai'] }
+  },
+  blockExplorers: {
+    default: {
+      name: '0G ChainScan',
+      url: 'https://chainscan-galileo.0g.ai'
+    }
+  },
+  testnet: true
+});
+```
+
+**Agents**: ethers v6 with provider and wallet:
+```typescript
+// agent/src/shared/chain.ts
+import { ethers } from 'ethers';
+
+const provider = new ethers.JsonRpcProvider(process.env.OG_CHAIN_RPC);
+const oracleWallet = new ethers.Wallet(process.env.PRIVATE_KEY_ORACLE, provider);
+const mmWallet    = new ethers.Wallet(process.env.PRIVATE_KEY_MM, provider);
+```
+
+---
+
+## 0G Compute
+
+### The Problem It Solves
+
+Prophet's oracle is only trustworthy if it is decentralized. A centralized AI backend (OpenAI, Anthropic API) would make the oracle dependent on a single company's uptime, pricing, and content policies. A single API key could be revoked, censored, or rate-limited — killing every market resolution simultaneously.
+
+0G Compute provides **decentralized, pay-per-use AI inference** with TEE attestation — no single company controls it, and the inference provider cannot fake results without the TEE attestation being invalidated.
+
+### SDK and Implementation
+
+```
+npm package: @0glabs/0g-serving-broker
+```
+
+**Primary implementation files:**
+- `agent/src/shared/compute.ts` — broker initialization, provider management, inference function
+- `agent/src/scripts/test-compute.ts` — integration test script
+- `frontendV2/src/app/api/validate-question/route.ts` — server-side question validation endpoint
+
+### Use Case 1: Question Validation at Market Creation
+
+When a user creates a market, the frontend sends the question to `/api/validate-question`. This Next.js API route calls 0G Compute to determine if the question:
+- Is binary (can only resolve YES or NO)
+- Is specific and unambiguous
+- Has a clear resolution criterion
+- Is verifiable by public evidence
+
+The model returns a JSON response: `{ valid: bool, reason: string, suggestedSources: string[] }`.
+
+Invalid questions are rejected before the market is created — saving gas and preventing unresolvable markets from entering the system.
+
+### Use Case 2: Oracle Resolution at Deadline
+
+The primary use. After `triggerResolution` is called, the oracle agent:
+
+```typescript
+// agent/src/shared/compute.ts
+import { createZGServingNetworkBroker } from '@0glabs/0g-serving-broker';
+import OpenAI from 'openai';
+
+export async function callOracleInference(
+  question: string,
+  sources: string[],
+  deadline: string,
+  signer: ethers.Wallet
+): Promise<OracleResponse> {
+  // Step 1: Initialize broker
+  const broker = await createZGServingNetworkBroker(signer);
+
+  // Step 2: Get provider endpoint
+  const providerAddress = process.env.COMPUTE_PROVIDER_ADDRESS;
+  const { endpoint, model } = await broker.getServiceMetadata(providerAddress);
+
+  // Step 3: Verify TEE attestation (configurable strict mode)
+  if (process.env.COMPUTE_REQUIRE_TEE === '1') {
+    await broker.verifyService(providerAddress);
+  }
+
+  // Step 4: Acknowledge provider (required before first call in session)
+  await broker.acknowledgeProviderSigner(providerAddress);
+
+  // Step 5: Call inference (OpenAI-compatible API)
+  const client = new OpenAI({ baseURL: endpoint, apiKey: '' });
+  
+  const response = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: ORACLE_SYSTEM_PROMPT },
+      { role: 'user',   content: buildResolutionPrompt(question, sources, deadline) }
+    ],
+    temperature: 0.1,
+    max_tokens: 1000
+  });
+
+  // Step 6: Extract and parse JSON (with retry on malformed response)
+  return extractJSON(response.choices[0].message.content);
+}
+```
+
+### Use Case 3: Market Pricing Inference
+
+The market-maker agent calls 0G Compute to get an initial price estimate for each new market — before any trades have occurred. The model assesses the market question and returns a starting YES probability, which the agent uses to set the initial AMM seed ratio.
+
+### Provider Details
+
+| Parameter | Testnet | Mainnet |
+|---|---|---|
+| Provider address | `0xa48f01287233509FD694a22Bf840225062E67836` | `0x1B3AAe...` |
+| Model | `qwen-2.5-7b-instruct` | `deepseek-chat-v3-0324` |
+| Inference latency | 45–90 seconds | ~10 seconds |
+
+### TEE Attestation
+
+`broker.verifyService(providerAddress)` checks that the inference provider is running inside a TEE and that the TEE environment matches the published configuration. With `COMPUTE_REQUIRE_TEE=1`, the oracle will refuse to post a verdict if TEE verification fails.
+
+### Billing Headers
+
+The 0G Compute SDK handles billing automatically via payment headers attached to each API request. The oracle agent's wallet funds the ledger; the SDK deducts per-token costs. This means the oracle pays for its own compute in $0G — no monthly API bills, no vendor relationship.
+
+### Reliability Design
+
+The compute integration includes:
+- **Retry on timeout**: inference calls retry up to 3 times with exponential backoff
+- **JSON extraction**: if the model returns markdown-wrapped JSON, the parser strips the fences before parsing
+- **Confidence threshold**: responses below 70% confidence trigger a second pass rather than posting a low-confidence verdict
+
+---
+
+## 0G Storage
+
+### The Problem It Solves
+
+Prediction markets live and die on oracle credibility. If the oracle posts a verdict but no one can verify why, the market is no more trustworthy than a human committee.
+
+0G Storage provides **permanent, decentralized, tamper-proof storage** where the oracle's full reasoning chain can live forever. The root hash stored on-chain commits to the exact content — anyone can download it and verify independently.
+
+### SDK and Implementation
+
+```
+npm package: @0gfoundation/0g-storage-ts-sdk
+```
+
+**Critical note on indexers:**
+- Standard indexer (`https://indexer-storage-testnet-standard.0g.ai`) returns 503 intermittently
+- **Always use turbo indexer: `https://indexer-storage-testnet-turbo.0g.ai`**
+
+**Primary implementation files:**
+- `agent/src/shared/storage.ts` — upload/download helpers with retry and checksum verification
+- `frontendV2/src/lib/server/og-storage.ts` — server-side storage client for API routes
+- `frontendV2/src/app/api/og-storage/route.ts` — API route that proxies storage reads to the frontend
+- `agent/src/scripts/test-storage.ts` — integration test script
+
+### Upload with Retry and Verification
+
+```typescript
+// agent/src/shared/storage.ts
+import { Indexer, MemData } from '@0gfoundation/0g-storage-ts-sdk';
+
+export async function uploadToStorage(
+  data: object,
+  signer: ethers.Wallet,
+  maxRetries = 3
+): Promise<string> {
+  const indexer = new Indexer(process.env.OG_INDEXER_URL);
+  const buffer  = Buffer.from(JSON.stringify(data));
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const memData = new MemData(buffer);
+      const [tx, err] = await indexer.upload(memData, signer);
+      
+      if (err) throw new Error(`Upload error: ${err}`);
+
+      // Read-after-write verification
+      const rootHash = tx;
+      const downloaded = await downloadFromStorage(rootHash);
+      const checksum    = JSON.stringify(downloaded) === JSON.stringify(data);
+      if (!checksum) throw new Error('Read-after-write checksum mismatch');
+
+      return rootHash;
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      await sleep(2000 * attempt); // exponential backoff
+    }
+  }
+}
+```
+
+### Download with Retry
+
+```typescript
+export async function downloadFromStorage(
+  rootHash: string,
+  maxRetries = 3
+): Promise<object> {
+  const indexer = new Indexer(process.env.OG_INDEXER_URL);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const [buffer, err] = await indexer.download(rootHash);
+      if (err) throw new Error(`Download error: ${err}`);
+      return JSON.parse(buffer.toString());
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      await sleep(2000 * attempt);
+    }
+  }
+}
+```
+
+### Storage Key Patterns
+
+Every piece of data stored in 0G Storage is a JSON blob. The root hash from the upload is what gets stored on-chain (in contract state or emitted as an event). The "key" is the root hash itself — there is no separate key-value layer.
+
+What Prophet stores and when:
+
+| Data | Stored by | When | Root hash location |
+|---|---|---|---|
+| Market metadata | Frontend (via API route) | At market creation | `MarketContract.metadataHash` |
+| Oracle reasoning | Oracle agent | Before `postResolution` | `MarketContract.reasoningHash` |
+| Resolution sources | Oracle agent | Before `postResolution` | Included in reasoning blob |
+| Agent state | Market-maker agent | After repricing | Ephemeral (not on-chain) |
+| Price snapshots | Market-maker agent | Periodic | Frontend cache via API |
+
+### Oracle Reasoning Object Structure
+
+```json
+{
+  "marketAddress": "0x...",
+  "question": "Will Arsenal win the Premier League 2025/26?",
+  "deadline": "2026-05-15T00:00:00Z",
+  "verdict": true,
+  "confidence": 88,
+  "reasoning": "Arsenal clinched the Premier League title on May 11, 2026, with a 3-1 victory against Manchester United. Multiple primary sources confirm this result including BBC Sport, the Premier League official website, and ESPN. The question resolves YES.",
+  "evidenceSummary": "Arsenal won the league with 89 points, 4 points ahead of Manchester City.",
+  "sourcesChecked": ["BBC Sport", "Premier League official", "ESPN", "The Guardian"],
+  "timestamp": "2026-05-12T14:23:00Z",
+  "modelUsed": "qwen-2.5-7b-instruct",
+  "providerAddress": "0xa48f01..."
+}
+```
+
+### Frontend Storage Access
+
+The frontend reads oracle reasoning via a server-side proxy to avoid CORS issues with the indexer:
+
+```
+Browser → /api/og-storage?hash=0xabc123 → frontendV2/src/lib/server/og-storage.ts → 0G Storage
+```
+
+This keeps the indexer URL server-side only and allows caching of reasoning results.
+
+---
+
+## Diagnostics
+
+Prophet ships two diagnostic scripts to verify 0G connectivity:
+
+### npm run test:storage
+
+Located at `agent/src/scripts/test-storage.ts`. It:
+1. Connects to 0G Storage via turbo indexer
+2. Uploads a timestamped JSON payload
+3. Downloads it back using the returned root hash
+4. Verifies the content matches exactly (checksum)
+5. Reports latency and pass/fail status
+
+```bash
+cd agent && npm run test:storage
+# Expected: [storage] 0G Storage: PASS
+```
+
+### npm run test:compute
+
+Located at `agent/src/scripts/test-compute.ts`. It:
+1. Initializes the `@0glabs/0g-serving-broker` with the oracle wallet
+2. Gets service metadata for the configured provider
+3. Verifies TEE attestation (if `COMPUTE_REQUIRE_TEE=1`)
+4. Sends a minimal test prompt asking for a simple JSON response
+5. Verifies the response is valid JSON with expected fields
+6. Reports latency and pass/fail status
+
+```bash
+cd agent && npm run test:compute
+# Expected: [compute] 0G Compute: PASS
+```
+
+These scripts are the fastest way to diagnose connectivity issues before running the full agent stack.
+
+---
+
+## What Would Break Without Each 0G Module
+
+| Remove this | What breaks |
+|---|---|
+| 0G Chain | Everything — no contracts, no state, no transactions |
+| 0G Compute | Oracle cannot resolve markets — all markets stuck at PendingResolution forever |
+| 0G Storage | Oracle reasoning has no permanent home — on-chain hash points to nothing — no verifiability |
+
+This is not a superficial integration. Prophet is architecturally dependent on all three 0G modules.

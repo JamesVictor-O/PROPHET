@@ -1,0 +1,261 @@
+---
+title: "Local Development Setup"
+description: "Complete guide to setting up the Prophet development environment from scratch."
+icon: "terminal"
+---
+
+## Overview
+
+Prophet has three codebases: Solidity contracts (Foundry), TypeScript agents (Node.js), and a Next.js frontend. This guide walks through setting up all three from scratch.
+
+---
+
+## System Requirements
+
+| Tool | Minimum Version | Install |
+|---|---|---|
+| Node.js | 20.0.0 | [nodejs.org](https://nodejs.org) |
+| npm | 10.0.0 | Included with Node.js |
+| Foundry | Latest | `curl -L https://foundry.paradigm.xyz \| bash && foundryup` |
+| Git | Any recent | System package manager |
+
+Verify your setup:
+```bash
+node --version   # >= 20.0.0
+forge --version  # Foundry 0.2.x or later
+cast --version
+```
+
+---
+
+## Clone and Install
+
+```bash
+# Clone the repository
+git clone https://github.com/JamesVictor-O/Prophet.git
+cd Prophet
+
+# Install Foundry contract dependencies
+cd contracts
+forge install
+
+# Install agent dependencies  
+cd ../agent
+npm install
+
+# Install frontend dependencies
+cd ../frontendV2
+npm install
+```
+
+---
+
+## Environment Variables
+
+### contracts/.env
+
+Only needed if you are deploying contracts. Skip if using the live deployment.
+
+```bash
+# contracts/.env
+PRIVATE_KEY=0x_your_deployer_wallet_private_key
+ORACLE_AGENT_ADDRESS=0x_oracle_wallet_address
+MM_AGENT_ADDRESS=0x_market_maker_wallet_address
+TREASURY_ADDRESS=0x_treasury_wallet_address
+OG_TESTNET_RPC=https://evmrpc-testnet.0g.ai
+OG_MAINNET_RPC=https://evmrpc.0g.ai
+```
+
+### agent/.env
+
+```bash
+# Wallet private keys (fund from faucet.0g.ai)
+PRIVATE_KEY_ORACLE=0x_oracle_agent_private_key
+PRIVATE_KEY_MM=0x_market_maker_private_key
+
+# 0G Chain (Galileo testnet)
+OG_CHAIN_RPC=https://evmrpc-testnet.0g.ai
+CHAIN_ID=16602
+
+# 0G Storage — IMPORTANT: use turbo indexer, not standard
+# Standard indexer returns 503; turbo is reliable
+OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+
+# 0G Compute — Qwen 2.5 7B instruct on testnet
+COMPUTE_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
+
+# TEE enforcement: set to 1 for production, 0 for easier local dev
+COMPUTE_REQUIRE_TEE=0
+
+# Deployed contracts (live on 0G Galileo)
+PROPHET_FACTORY_ADDRESS=0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4
+LIQUIDITY_POOL_ADDRESS=0x13AbE644693DA19f9A895C8c82Cf53879580DA8e
+MOCK_USDT_ADDRESS=0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49
+POSITION_VAULT_ADDRESS=0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E
+PAYOUT_DISTRIBUTOR_ADDRESS=0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740
+
+# Agent behavior
+REPRICE_INTERVAL_MS=60000
+LOG_LEVEL=info
+```
+
+### frontendV2/.env.local
+
+```bash
+# 0G Chain
+NEXT_PUBLIC_CHAIN_ID=16602
+NEXT_PUBLIC_RPC_URL=https://evmrpc-testnet.0g.ai
+
+# Contract addresses (public — used client-side)
+NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS=0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4
+NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS=0x13AbE644693DA19f9A895C8c82Cf53879580DA8e
+NEXT_PUBLIC_MOCK_USDT_ADDRESS=0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49
+NEXT_PUBLIC_POSITION_VAULT_ADDRESS=0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E
+NEXT_PUBLIC_PAYOUT_DISTRIBUTOR_ADDRESS=0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740
+
+# 0G Storage (server-side only)
+OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+
+# 0G Compute (server-side)
+COMPUTE_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
+
+# Optional: WalletConnect Project ID (for RainbowKit modal)
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+```
+
+---
+
+## Run the Test Suite
+
+```bash
+cd contracts
+
+# All 232 tests (recommended — offline avoids Etherscan network calls)
+forge test --offline
+
+# Verbose output (shows traces on failures)
+forge test --offline -vvv
+
+# Specific test file
+forge test --match-path test/MarketContract.t.sol --offline -vvv
+
+# Specific test function
+forge test --match-test testBuyShares_YES --offline -vvv
+
+# Gas report
+forge test --gas-report --offline
+```
+
+---
+
+## Run 0G Diagnostics
+
+```bash
+cd agent
+
+# Test 0G Storage connectivity
+npm run test:storage
+# Expected: [storage] 0G Storage: PASS
+
+# Test 0G Compute connectivity  
+npm run test:compute
+# Expected: [compute] 0G Compute: PASS
+```
+
+If `test:storage` fails: check that `OG_INDEXER_URL` points to the turbo indexer.
+
+If `test:compute` fails: 
+- Check that `COMPUTE_PROVIDER_ADDRESS` is set correctly
+- Verify your oracle wallet has enough 0G tokens (the broker needs to submit billing transactions)
+- Testnet inference can time out under load — retry
+
+---
+
+## Start the Frontend
+
+```bash
+cd frontendV2
+npm run dev
+# → http://localhost:3000
+```
+
+Type check without running:
+```bash
+npm run type-check
+```
+
+Build for production:
+```bash
+npm run build
+```
+
+---
+
+## Start the Agents
+
+```bash
+cd agent
+
+# Start both agents
+npm run start
+
+# Start oracle agent only
+npm run oracle
+
+# Start market-maker agent only  
+npm run market-maker
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="0G Storage returns 503">
+    You are hitting the standard indexer. Change `OG_INDEXER_URL` to:
+    ```
+    https://indexer-storage-testnet-turbo.0g.ai
+    ```
+    The standard indexer is unreliable on testnet. Always use turbo.
+  </Accordion>
+  <Accordion title="0G Compute inference hangs">
+    Testnet inference via Qwen 2.5 7B takes 45–90 seconds normally. It can hang if the provider is overloaded. The agent has a timeout and retry — wait for the retry, or restart the agent. This is a testnet reliability issue, not a code bug.
+  </Accordion>
+  <Accordion title="forge test fails with 'file not found'">
+    Run `forge install` from the `contracts/` directory to download OpenZeppelin and forge-std dependencies.
+  </Accordion>
+  <Accordion title="Agent fails with 'insufficient funds for gas'">
+    Both agent wallets need 0G tokens. Get them from [faucet.0g.ai](https://faucet.0g.ai). The oracle wallet also needs to top up the 0G Compute billing ledger.
+  </Accordion>
+  <Accordion title="USDT amounts look wrong">
+    All USDT uses 6 decimal places. If you see amounts 10^12 times too large, you are passing amounts formatted for 18 decimals. Always use `ethers.parseUnits("100", 6)` — never `ethers.parseEther("100")`.
+  </Accordion>
+  <Accordion title="Frontend shows 'no markets found'">
+    Check that `NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS` in `frontendV2/.env.local` matches the deployed factory address. If using a fresh deployment, ensure the market-maker has seeded at least one market.
+  </Accordion>
+  <Accordion title="MetaMask transaction fails with 'wrong network'">
+    Ensure MetaMask is connected to 0G Galileo (Chain ID 16602). The frontend will prompt you to switch if you are on the wrong network, but sometimes the prompt is missed.
+  </Accordion>
+  <Accordion title="COMPUTE_REQUIRE_TEE=1 but TEE verification fails">
+    On testnet, the Qwen provider may not always pass TEE attestation under high load. Set `COMPUTE_REQUIRE_TEE=0` for local development. Enable it for production/mainnet only.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contract Development" icon="file-code" href="/developer/contracts">
+    Foundry commands, test patterns, and deployment guide
+  </Card>
+  <Card title="Agent Development" icon="robot" href="/developer/agents">
+    How to extend the oracle and market-maker agents
+  </Card>
+  <Card title="Frontend Development" icon="monitor" href="/developer/frontend">
+    Next.js structure, hooks, and API routes
+  </Card>
+  <Card title="Deployment" icon="server" href="/deployment">
+    Deploy a fresh contract instance to 0G Galileo
+  </Card>
+</CardGroup>

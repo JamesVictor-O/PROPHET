@@ -1,0 +1,271 @@
+---
+title: "Deployment"
+description: "Deploy Prophet contracts to 0G Galileo testnet or 0G mainnet from scratch."
+icon: "server"
+---
+
+## Overview
+
+Prophet's smart contracts are already live on 0G Galileo. Use this guide if you need to deploy a fresh instance — for your own fork, a new environment, or mainnet deployment.
+
+<Info>
+  **Current live deployment (0G Galileo, chain ID 16602):**
+  - ProphetFactory: `0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4`
+  - LiquidityPool: `0x13AbE644693DA19f9A895C8c82Cf53879580DA8e`
+  - Mock USDT: `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49`
+  - PositionVault: `0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E`
+  - PayoutDistributor: `0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740`
+</Info>
+
+---
+
+## Prerequisites
+
+- Foundry installed (`forge --version`)
+- Deployer wallet funded with 0G gas (get from [faucet.0g.ai](https://faucet.0g.ai))
+- Oracle agent wallet address (can be the same as deployer for testing)
+- Market-maker agent wallet address
+
+---
+
+## 1. Configure the Deploy Script
+
+The deploy script lives at `contracts/script/Deploy.s.sol`. It reads from environment variables. Set up your `contracts/.env`:
+
+```bash
+# contracts/.env
+PRIVATE_KEY=0x...your_deployer_private_key
+ORACLE_AGENT_ADDRESS=0x...oracle_wallet_address
+MM_AGENT_ADDRESS=0x...market_maker_wallet_address
+TREASURY_ADDRESS=0x...treasury_wallet_address  # where protocol fees go
+
+# RPC endpoints
+OG_TESTNET_RPC=https://evmrpc-testnet.0g.ai
+OG_MAINNET_RPC=https://evmrpc.0g.ai
+```
+
+The `foundry.toml` already has the 0G network profiles:
+
+```toml
+[rpc_endpoints]
+og_testnet = "${OG_TESTNET_RPC}"
+og_mainnet = "${OG_MAINNET_RPC}"
+```
+
+---
+
+## 2. Build Contracts
+
+Always build cleanly before deploying. This catches compilation errors early.
+
+```bash
+cd contracts
+forge build
+```
+
+Expected output:
+```
+Compiling 22 files with 0.8.20
+Compilation succeeded!
+```
+
+Check contract sizes (must all be under 24KB):
+```bash
+forge build --sizes
+```
+
+---
+
+## 3. Dry Run First
+
+Run without `--broadcast` to simulate the deployment and catch any errors without spending gas:
+
+```bash
+cd contracts
+forge script script/Deploy.s.sol:DeployProphet \
+  --rpc-url og_testnet \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+```
+
+Inspect the simulation output. You should see 5 contract deployments in sequence with their constructor arguments.
+
+---
+
+## 4. Deploy to 0G Galileo Testnet
+
+When the dry run looks correct, add `--broadcast` to execute:
+
+```bash
+cd contracts
+forge script script/Deploy.s.sol:DeployProphet \
+  --rpc-url og_testnet \
+  --broadcast \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+```
+
+<Warning>
+  The `--legacy` flag is required for 0G Chain — it does not support EIP-1559 transactions. Omitting it will cause deployment to fail with a transaction type error.
+</Warning>
+
+The script deploys in this order (the order matters due to contract dependencies):
+
+<Steps>
+  <Step title="Deploy MockUSDT">
+    Mints 10,000,000 USDT to the deployer. Only used on testnet — on mainnet, point to real USDT.
+  </Step>
+  <Step title="Deploy ProphetFactory">
+    Constructor arguments: USDT address, oracle agent address, market-maker agent address, treasury address.
+  </Step>
+  <Step title="Deploy LiquidityPool">
+    Constructor arguments: ProphetFactory address, USDT address, market-maker agent address.
+  </Step>
+  <Step title="Deploy PositionVault">
+    Constructor arguments: ProphetFactory address, oracle agent address, USDT address, PayoutDistributor address (set to zero address initially — updated in step 6).
+  </Step>
+  <Step title="Deploy PayoutDistributor">
+    Constructor arguments: ProphetFactory address, PositionVault address, oracle agent address, market-maker agent address, treasury address, USDT address.
+  </Step>
+  <Step title="Wire contracts together">
+    Calls `factory.setVaultAndDistributor(vaultAddress, distributorAddress)` and `positionVault.setPayoutDistributor(distributorAddress)` to complete the dependency cycle.
+  </Step>
+</Steps>
+
+---
+
+## 5. Copy Deployed Addresses
+
+After deployment succeeds, Foundry prints all deployed addresses. Copy them from the terminal output:
+
+```
+== Return ==
+ProphetFactory deployed at: 0x...
+LiquidityPool deployed at: 0x...
+MockUSDT deployed at: 0x...
+PositionVault deployed at: 0x...
+PayoutDistributor deployed at: 0x...
+```
+
+Update all three environment files with these addresses:
+
+<CodeGroup>
+```bash agent/.env
+PROPHET_FACTORY_ADDRESS=0x...
+LIQUIDITY_POOL_ADDRESS=0x...
+MOCK_USDT_ADDRESS=0x...
+POSITION_VAULT_ADDRESS=0x...
+PAYOUT_DISTRIBUTOR_ADDRESS=0x...
+```
+
+```bash frontendV2/.env.local
+NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS=0x...
+NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS=0x...
+NEXT_PUBLIC_MOCK_USDT_ADDRESS=0x...
+NEXT_PUBLIC_POSITION_VAULT_ADDRESS=0x...
+NEXT_PUBLIC_PAYOUT_DISTRIBUTOR_ADDRESS=0x...
+```
+</CodeGroup>
+
+---
+
+## 6. Regenerate Frontend ABIs
+
+The frontend reads contract ABIs from JSON files in `frontendV2/src/lib/abis/`. After deploying new contracts, regenerate them from the compiled artifacts:
+
+```bash
+# From the project root
+node scripts/copy-abis.js
+```
+
+Or manually copy from Foundry's output:
+
+```bash
+cp contracts/out/ProphetFactory.sol/ProphetFactory.json frontendV2/src/lib/abis/
+cp contracts/out/MarketContract.sol/MarketContract.json frontendV2/src/lib/abis/
+cp contracts/out/LiquidityPool.sol/LiquidityPool.json frontendV2/src/lib/abis/
+cp contracts/out/PositionVault.sol/PositionVault.json frontendV2/src/lib/abis/
+cp contracts/out/PayoutDistributor.sol/PayoutDistributor.json frontendV2/src/lib/abis/
+```
+
+---
+
+## 7. Verify Contracts on 0G Explorer
+
+Verifying source code lets anyone read the contract on the block explorer. 0G Galileo uses a Blockscout-compatible explorer.
+
+```bash
+forge verify-contract \
+  --chain-id 16602 \
+  --verifier blockscout \
+  --verifier-url https://chainscan-galileo.0g.ai/api \
+  <DEPLOYED_ADDRESS> \
+  src/ProphetFactory.sol:ProphetFactory
+```
+
+Repeat for each contract. Verified contracts show a green checkmark on [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai).
+
+---
+
+## 8. Fund Agent Wallets
+
+Both agents need 0G gas to submit transactions. Get tokens from [faucet.0g.ai](https://faucet.0g.ai) for both wallet addresses.
+
+The market-maker agent also needs USDT in the LiquidityPool to seed markets. Transfer USDT to the LiquidityPool contract address, or call `deposit()` on LiquidityPool from the deployer wallet.
+
+---
+
+## 9. Start Agents
+
+```bash
+cd agent
+npm run start
+```
+
+On startup, both agents:
+1. Verify they can connect to 0G Chain (reads current block)
+2. Verify 0G Storage connectivity (test upload/download)
+3. Scan for existing markets to catch up on missed events
+4. Begin listening for new events
+
+---
+
+## Live Deployment Reference
+
+| Contract | Address | Explorer |
+|---|---|---|
+| ProphetFactory | `0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4` | [View](https://chainscan-galileo.0g.ai/address/0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4) |
+| LiquidityPool | `0x13AbE644693DA19f9A895C8c82Cf53879580DA8e` | [View](https://chainscan-galileo.0g.ai/address/0x13AbE644693DA19f9A895C8c82Cf53879580DA8e) |
+| Mock USDT | `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49` | [View](https://chainscan-galileo.0g.ai/address/0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49) |
+| PositionVault | `0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E` | [View](https://chainscan-galileo.0g.ai/address/0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E) |
+| PayoutDistributor | `0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740` | [View](https://chainscan-galileo.0g.ai/address/0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740) |
+
+**Network details:**
+- Chain ID: `16602`
+- RPC: `https://evmrpc-testnet.0g.ai`
+- Explorer: `https://chainscan-galileo.0g.ai`
+- Native token: `0G` (for gas)
+- Collateral: Mock USDT at address above (6 decimals)
+
+---
+
+## Deploying to 0G Mainnet
+
+For mainnet deployment, change the RPC and use real USDT:
+
+```bash
+forge script script/Deploy.s.sol:DeployProphetMainnet \
+  --rpc-url og_mainnet \
+  --broadcast \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+```
+
+<Warning>
+  On mainnet, do **not** deploy MockUSDT. Point contracts to the official USDT address on 0G Chain. Ensure USDT addresses use 6 decimal places throughout.
+</Warning>
+
+The mainnet compute provider for DeepSeek V3 is at `0x1B3AAe...` — update `COMPUTE_PROVIDER_ADDRESS` in `agent/.env` accordingly.

@@ -1,0 +1,244 @@
+---
+title: "Oracle Resolution"
+description: "How Prophet's AI oracle resolves markets using 0G Compute — the full lifecycle from deadline to payout."
+icon: "cpu"
+---
+
+## The Resolution Problem
+
+Every prediction market must answer one question at deadline: did the event happen or not? The quality of this answer determines whether the market produced a useful signal or a worthless one.
+
+Prophet delegates resolution to an **AI oracle agent** that runs on **0G Compute** — a decentralized GPU inference network. The oracle uses DeepSeek V3 (testnet: Qwen 2.5 7B) to reason about the outcome, writes its full chain-of-thought to **0G Storage**, and posts only the verdict on-chain. Anyone can verify the reasoning independently.
+
+---
+
+## Market Lifecycle
+
+```
+Open
+  │
+  │ (deadline passes, anyone calls triggerResolution)
+  ▼
+PendingResolution
+  │
+  │ (oracle agent runs inference, calls postResolution)
+  ▼
+Challenged
+  │                │
+  │ (no challenge  │ (someone files challenge within 24h)
+  │  window closes)│
+  ▼                ▼
+finalizeResolution  Second inference
+       │                 │
+       ▼                 ▼
+    Resolved          Resolved
+       │
+       │ (oracle calls revealPositions)
+       ▼
+   Payouts Distributed
+```
+
+---
+
+## Step 1: Open → PendingResolution
+
+When a market's `deadline` timestamp passes, the market is eligible for resolution. Any address (not just the oracle) can call:
+
+```solidity
+function triggerResolution() external;
+```
+
+This emits a `ResolutionTriggered` event and sets the market status to `PendingResolution`. This open-trigger design ensures markets resolve even if the oracle is temporarily offline — anyone can initiate the process.
+
+The oracle agent listens for `ResolutionTriggered` events. It also runs a periodic scan every 5 minutes to catch any expired markets it may have missed.
+
+---
+
+## Step 2: Oracle Agent Runs Inference
+
+When the oracle receives a resolution trigger, it executes the following sequence:
+
+<Steps>
+  <Step title="Read metadata from 0G Storage">
+    The oracle fetches the market's metadata (question, resolution criteria, approved sources, deadline) from 0G Storage using the root hash stored in the market contract.
+  </Step>
+  <Step title="Call 0G Compute (inference)">
+    The oracle calls the 0G Compute endpoint with a structured prompt. It uses the `@0glabs/0g-serving-broker` SDK to get the provider's endpoint, verify TEE attestation, and send the inference request.
+
+    ```typescript
+    const prompt = `
+    Market Question: "${question}"
+    Resolution Deadline: ${deadline}
+    Resolution Criteria: The question resolves YES if the described event occurred before the deadline.
+
+    Approved data sources to check:
+    ${sources.join('\n')}
+
+    Today's date: ${new Date().toISOString()}
+
+    Respond with this exact JSON structure:
+    {
+      "verdict": true or false,
+      "confidence": 0-100,
+      "reasoning": "Full explanation of your decision",
+      "evidenceSummary": "Brief summary of evidence found",
+      "sourcesChecked": ["source1", "source2"],
+      "inconclusiveReason": "Only if verdict is INCONCLUSIVE"
+    }
+
+    If you cannot determine the outcome with >70% confidence, set verdict to null.
+    `;
+    ```
+  </Step>
+  <Step title="Check confidence threshold">
+    If the model returns confidence below 70%, the oracle marks the result as inconclusive and may extend the resolution window or trigger a second inference pass. A market is never resolved on a low-confidence reading.
+  </Step>
+  <Step title="Write reasoning to 0G Storage">
+    Before posting anything on-chain, the oracle uploads the full reasoning object to 0G Storage:
+
+    ```json
+    {
+      "verdict": true,
+      "confidence": 88,
+      "reasoning": "Arsenal clinched the Premier League title on May 11, 2026...",
+      "evidenceSummary": "Multiple primary sources confirm Arsenal's title win.",
+      "sourcesChecked": ["BBC Sport", "Premier League official site", "ESPN"],
+      "timestamp": "2026-05-12T14:23:00Z"
+    }
+    ```
+
+    The upload returns a root hash (e.g., `0xabc123...`).
+  </Step>
+  <Step title="Post verdict on-chain">
+    The oracle calls `postResolution(verdict, reasoningHash)` where `reasoningHash` is the 0G Storage root hash. This permanently links the on-chain verdict to the off-chain reasoning.
+
+    ```solidity
+    function postResolution(bool verdict, bytes32 reasoningHash) external onlyOracle;
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Step 3: The Challenge Window (Challenged Status)
+
+After `postResolution` is called, the market enters `Challenged` status with a 24-hour challenge window. During this window:
+
+- The market is **not yet finalized** — no payouts distributed, no positions revealed
+- Anyone can file a challenge by calling `fileChallenge()` and posting a bond
+- If no challenge is filed, the window expires and the verdict is accepted
+
+The challenge window is a safety valve. It allows the community to flag a clearly incorrect oracle verdict before it becomes permanent.
+
+### Filing a Challenge
+
+```solidity
+function fileChallenge() external payable;
+```
+
+Requirements:
+- Bond must be at least 5% of the total pool or 50 USDT minimum (whichever is larger)
+- Only one challenge per market
+- Bond is returned if the challenge is upheld, forfeited if the oracle's original verdict is confirmed
+
+When a challenge is filed, the contract records the challenger's address. The oracle agent detects this via the `ResolutionChallenged` event.
+
+---
+
+## Step 4a: No Challenge → finalizeResolution
+
+If the 24-hour window expires with no challenger (contract's `challenger` field remains the zero address), anyone can call:
+
+```solidity
+function finalizeResolution() external;
+```
+
+This sets the market status to `Resolved` and emits `ResolutionFinalized`. The oracle agent listens for this event and proceeds to reveal positions and distribute payouts.
+
+---
+
+## Step 4b: Challenge Filed → Second Inference
+
+If a challenge is filed, the oracle agent runs a second, independent inference pass — potentially with additional context or a different prompt structure. The result of the second inference determines the final verdict:
+
+- If the second inference **confirms the original verdict**: challenge is rejected, challenger's bond is forfeited to the protocol
+- If the second inference **overturns the original verdict**: challenge is upheld, challenger receives their bond back plus a portion of the forfeited oracle fee
+
+After the challenge is resolved, `finalizeResolution` is called and the market moves to `Resolved`.
+
+---
+
+## Step 5: Position Reveal and Payout
+
+After `ResolutionFinalized` is emitted, the oracle agent calls:
+
+```solidity
+function revealPositions(
+    address[] calldata traders,
+    bool[] calldata isYes,
+    uint256[] calldata amounts,
+    bytes[] calldata signatures
+) external onlyOracle;
+```
+
+This decrypts the sealed positions (the oracle holds the decryption key) and records each trader's actual position. After reveal, traders can call `redeemWinningShares()` on MarketContract to collect their payout.
+
+---
+
+## Why Reasoning Is Stored on 0G Storage
+
+The reasoning hash in the contract is not just a convenience — it is a **commitment to accountability**.
+
+- **Permanent**: 0G Storage Log layer is immutable. The reasoning cannot be deleted or altered.
+- **Verifiable**: Anyone with the root hash can download the exact JSON the oracle submitted.
+- **Tamper-proof**: The hash stored on-chain must match the content in 0G Storage. If they disagree, the resolution is fraudulent — detectable by anyone.
+- **Complete**: The full reasoning, not a summary, is stored. Every source the model considered, every piece of evidence, every confidence estimate.
+
+This creates an **oracle track record** that any user can audit. Over time, this record is the oracle's reputation — markets where the oracle performed poorly are visible to everyone.
+
+---
+
+## Confidence Threshold
+
+The oracle will not post a verdict if its confidence is below 70%. In these cases:
+
+1. The market may extend its resolution window if the contract supports it
+2. The oracle logs the inconclusive result to 0G Storage
+3. A second inference pass is triggered with a longer reasoning budget
+
+Markets that are genuinely unresolvable (e.g., the question turned out to be ambiguous) can be cancelled via `cancelMarket()`, which enables `redeemCancelledShares()` for all participants.
+
+---
+
+## Oracle Prompt Design
+
+The oracle uses a fixed system prompt and a structured user prompt. Temperature is set to 0.1 for deterministic, consistent reasoning. The model is instructed to respond only in valid JSON — no preamble, no markdown.
+
+```
+System: You are a decentralized prediction market oracle. Your job is to determine the 
+outcome of prediction markets based on evidence. You must be objective, cite your sources, 
+and provide a confidence score. Respond ONLY in valid JSON.
+
+User: Market Question: "..."
+      Resolution Criteria: The question resolves YES if the described event occurred...
+      Approved data sources: [...]
+      Today's date: ...
+      
+      Respond with: { verdict, confidence, reasoning, evidenceSummary, sourcesChecked }
+```
+
+The structured format ensures the oracle response can be parsed programmatically and stored consistently across all markets.
+
+---
+
+## Challenge Economics
+
+The challenge bond mechanism is designed to align incentives:
+
+| Scenario | Challenger outcome | Oracle outcome |
+|---|---|---|
+| Challenge filed, original verdict confirmed | Bond forfeited | Reputation maintained, fee kept |
+| Challenge filed, original verdict overturned | Bond returned + bonus | Reputation damaged, fee forfeited |
+| No challenge filed | N/A | Verdict finalized normally |
+
+The bond requirement (5% of pool or 50 USDT minimum) ensures that challenges are only filed by participants with genuine conviction — random challenges are economically irrational.

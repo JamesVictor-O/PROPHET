@@ -1,0 +1,179 @@
+---
+title: "Privacy & Sealed Positions"
+description: "How Prophet seals bet directions using NaCl encryption and the path to full hardware TEE integration via 0G."
+icon: "lock"
+---
+
+## The Front-Running Problem
+
+On Polymarket, every bet is visible on-chain the moment it is submitted. A whale placing a large YES position on a breaking news event broadcasts their information advantage to the entire market — sophisticated bots and traders can front-run the position before it confirms, extracting value from the informed trader.
+
+This discourages exactly the participants prediction markets need most: people with real information advantages who are willing to back their convictions with capital.
+
+Prophet seals bet positions until market resolution. Direction (YES or NO) and amount are invisible on-chain from bet placement to reveal. All positions are revealed simultaneously in a single atomic transaction after the oracle posts its verdict.
+
+---
+
+## How PositionVault Works
+
+The `PositionVault` contract stores **encrypted commitments** rather than plaintext positions.
+
+### Bet Placement Flow
+
+1. The user specifies their direction (YES/NO) and amount in the frontend
+2. The frontend encrypts the position data using **NaCl box encryption** before it ever leaves the browser
+3. The encrypted ciphertext is submitted to `PositionVault.commitPosition()`
+4. On-chain, only the hash of the commitment is stored — never the plaintext direction or amount
+
+```solidity
+function commitPosition(
+    address market,
+    bytes calldata encryptedPosition,
+    bytes32 commitmentHash
+) external;
+```
+
+The contract stores:
+- `commitmentHash`: hash of the encrypted position (verifiable later)
+- `encryptedPosition`: the ciphertext (unreadable without the decryption key)
+- `trader`: the participant's address
+- `hasRevealed`: whether this position has been revealed (false until oracle reveal)
+
+### What Is Visible On-Chain
+
+During an active market, on-chain observers can see:
+- That `trader` has a position in `market` (address-level participation is public)
+- The number of positions (total count)
+- The commitment hash
+
+What is **not** visible:
+- Whether the position is YES or NO
+- The size (amount) of the position
+- Any other position details
+
+---
+
+## Encryption: NaCl Box
+
+The frontend uses **NaCl box encryption** — specifically, the `tweetnacl` library implementing ECDH + XSalsa20-Poly1305.
+
+```typescript
+// Simplified from frontendV2/src/lib/bet-encryption.ts
+import nacl from 'tweetnacl';
+import { encodeUTF8, encodeBase64 } from 'tweetnacl-util';
+
+function encryptPosition(
+  direction: 'YES' | 'NO',
+  amount: bigint,
+  oraclePublicKey: Uint8Array
+): { ciphertext: Uint8Array; nonce: Uint8Array } {
+  // Generate ephemeral keypair for this position
+  const ephemeralKeyPair = nacl.box.keyPair();
+  
+  const message = encodeUTF8(JSON.stringify({ direction, amount: amount.toString() }));
+  const nonce = nacl.randomBytes(nacl.box.nonceLength);
+
+  // Encrypt: only oracle's private key can decrypt
+  const ciphertext = nacl.box(
+    message,
+    nonce,
+    oraclePublicKey,          // oracle's public key (from contract)
+    ephemeralKeyPair.secretKey  // ephemeral private key (discarded after)
+  );
+
+  return { ciphertext, nonce };
+}
+```
+
+**Why NaCl box?**
+- **ECDH key exchange**: The ephemeral private key is generated fresh for each position and discarded. Only the oracle's private key (held by the oracle agent) can decrypt.
+- **Authenticated encryption**: XSalsa20-Poly1305 provides both confidentiality and integrity — the oracle knows whether the ciphertext has been tampered with.
+- **Stateless on the user side**: Users do not need to manage keys. Their wallet signs the commitment transaction; the encryption is handled transparently by the frontend.
+
+---
+
+## Reveal: Simultaneous Decryption
+
+After market resolution, the oracle agent holds the private key corresponding to the public key used at encryption time. It decrypts all committed positions and calls:
+
+```solidity
+function revealPositions(
+    address[] calldata traders,
+    bool[] calldata isYes,
+    uint256[] calldata amounts,
+    bytes[] calldata signatures
+) external onlyOracle;
+```
+
+Key properties of the reveal:
+- **Simultaneous**: All positions are revealed in a single transaction (or a small batch of transactions). There is no partial reveal where some traders know the outcome before others.
+- **Verified**: Each revealed position is accompanied by a signature proving the oracle decrypted it correctly (verifiable against the stored commitment hash).
+- **Irreversible**: Once `hasRevealed` is set to `true` for a position, it cannot be re-revealed or modified.
+
+---
+
+## MVP Status: ECDSA vs. Hardware TEE
+
+<Warning>
+  **Current implementation note**: The `_verifyTeeAttestation` function in PositionVault is implemented as an ECDSA signature verification (oracle signs `market + verdict + reasoningHash`). It is **not** yet a full hardware Trusted Execution Environment attestation. The code is marked with `// TODO: integrate 0G TEE SDK`.
+</Warning>
+
+In the current MVP:
+- The oracle agent's private key is stored in the agent's `.env` file
+- `_verifyTeeAttestation` verifies an ECDSA signature from the oracle wallet
+- This provides cryptographic proof that the correct oracle agent produced the verdict, but does not guarantee the agent ran in a TEE
+
+What **does** work:
+- Positions are genuinely encrypted and cannot be read on-chain
+- Direction and amount are hidden from all observers during market life
+- Simultaneous atomic reveal prevents information asymmetry at reveal time
+- The commitment hash enables post-reveal verification (anyone can verify the decrypted position matches the original commitment)
+
+---
+
+## The Path to Full 0G TEE Integration
+
+0G Labs provides a TEE (Trusted Execution Environment) infrastructure that enables hardware-level privacy guarantees. The full integration path:
+
+<Steps>
+  <Step title="Replace ECDSA with TEE attestation">
+    The oracle agent runs inside a TEE (e.g., Intel SGX or AMD SEV). The TEE generates an attestation report proving the code running inside matches the published hash. `_verifyTeeAttestation` would verify this hardware attestation, not just an ECDSA signature.
+  </Step>
+  <Step title="Key generation inside TEE">
+    The oracle's encryption keypair is generated inside the TEE and the private key never leaves the hardware boundary. Even the agent operator cannot extract it.
+  </Step>
+  <Step title="Sealed inference">
+    The AI inference call happens inside the TEE — the model weights, the prompt, and the response are all processed in hardware-encrypted memory. No external observer, including the cloud provider, can see the inference.
+  </Step>
+  <Step title="On-chain verification">
+    Users can verify on-chain that the oracle was running inside a TEE, that the TEE code matches the published source, and that the key used for encryption was generated inside that TEE — all without trusting the operator.
+  </Step>
+</Steps>
+
+This is the full vision. The MVP demonstrates the architecture and privacy properties. The TEE integration makes the privacy guarantee hardware-enforced rather than operationally dependent.
+
+---
+
+## Who Can See What
+
+| Information | During Market | At Reveal | After Payout |
+|---|---|---|---|
+| That you placed a position | Anyone | Anyone | Anyone |
+| Your direction (YES/NO) | Nobody | Oracle agent | Anyone |
+| Your position size | Nobody | Oracle agent | Anyone |
+| Oracle verdict | Nobody until posted | Posted on-chain | On-chain |
+| Oracle reasoning | On 0G Storage (hash on-chain) | Same | Same |
+
+"Nobody" means the information is not available even to the oracle agent before the reveal phase, because the oracle agent only decrypts positions after resolution — it cannot selectively decrypt one user's position during market life.
+
+---
+
+## redeemCancelledShares
+
+If a market is cancelled (e.g., unresolvable question, oracle failure) rather than resolved, `redeemCancelledShares()` returns everyone's USDT without needing a position reveal. This is the safety hatch for markets that cannot be cleanly resolved.
+
+```solidity
+function redeemCancelledShares() external;
+```
+
+Cancelled market redemption is proportional to each user's deposited collateral — traders receive their original USDT back (minus any fees already taken) regardless of their direction.

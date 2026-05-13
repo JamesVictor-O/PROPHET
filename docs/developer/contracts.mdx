@@ -1,0 +1,382 @@
+---
+title: "Contract Development"
+description: "Foundry commands, test patterns, deployment guide, and development rules for Prophet's Solidity contracts."
+icon: "file-code"
+---
+
+## Repository Structure
+
+```
+contracts/
+├── src/
+│   ├── ProphetFactory.sol
+│   ├── MarketContract.sol
+│   ├── LiquidityPool.sol
+│   ├── PositionVault.sol
+│   └── PayoutDistributor.sol
+├── test/
+│   ├── ProphetFactory.t.sol
+│   ├── MarketContract.t.sol
+│   ├── LiquidityPool.t.sol
+│   ├── PositionVault.t.sol
+│   └── PayoutDistributor.t.sol
+├── script/
+│   └── Deploy.s.sol
+├── lib/
+│   ├── forge-std/
+│   └── openzeppelin-contracts/
+└── foundry.toml
+```
+
+---
+
+## Foundry Commands
+
+All commands run from the `contracts/` directory.
+
+```bash
+# Build all contracts
+forge build
+
+# Run all 232 tests (offline avoids Etherscan network calls)
+forge test --offline
+
+# Verbose test output (shows traces and logs on failures)
+forge test --offline -vvv
+
+# Run a specific test file
+forge test --match-path test/MarketContract.t.sol --offline -vvv
+
+# Run a specific test function
+forge test --match-test testBuyShares_YES --offline -vvv
+
+# Check contract sizes (must be under 24KB each)
+forge build --sizes
+
+# Format all Solidity files
+forge fmt
+
+# Gas usage report
+forge test --gas-report --offline
+
+# Check for compiler warnings
+forge build 2>&1 | grep -i warning
+
+# Deploy to 0G Galileo testnet (dry run first)
+forge script script/Deploy.s.sol:DeployProphet \
+  --rpc-url og_testnet \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+
+# Deploy with broadcast (executes on-chain)
+forge script script/Deploy.s.sol:DeployProphet \
+  --rpc-url og_testnet \
+  --broadcast \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+```
+
+---
+
+## Writing Tests
+
+Tests live in `contracts/test/`. Each contract has its own test file using Foundry's testing framework.
+
+### Test File Structure
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Test, console} from "forge-std/Test.sol";
+import {MarketContract} from "../src/MarketContract.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+
+contract MarketContractTest is Test {
+    MarketContract market;
+    MockERC20 usdt;
+    
+    address oracle = makeAddr("oracle");
+    address mm     = makeAddr("marketMaker");
+    address trader = makeAddr("trader");
+    
+    function setUp() public {
+        // Deploy dependencies
+        usdt = new MockERC20("Mock USDT", "USDT", 6);
+        
+        // Deploy and configure market
+        market = new MarketContract(
+            address(usdt),
+            oracle,
+            mm,
+            "Will Arsenal win EPL?",
+            block.timestamp + 7 days,
+            "Sports"
+        );
+        
+        // Fund traders
+        usdt.mint(trader, 10_000e6); // 10,000 USDT
+        usdt.mint(mm, 100_000e6);    // 100,000 USDT for seeding
+    }
+    
+    function testBuyShares_YES() public {
+        // Seed the AMM
+        vm.startPrank(mm);
+        usdt.approve(address(market), 1_000e6);
+        market.seedLiquidity(1_000e6);
+        vm.stopPrank();
+        
+        // Buy YES shares
+        vm.startPrank(trader);
+        usdt.approve(address(market), 100e6);
+        
+        uint256 expectedShares = market.getBuyAmount(true, 100e6);
+        market.buyShares(true, 100e6, expectedShares * 99 / 100); // 1% slippage
+        vm.stopPrank();
+        
+        // Verify
+        (,, uint256 yesPrice,,,uint256 traderYes,) = market.getAmmState(trader);
+        assertGt(traderYes, 0, "Trader should have YES shares");
+        assertGt(yesPrice, 0.5e18, "YES price should have risen above 0.5");
+    }
+}
+```
+
+### Useful Test Patterns
+
+**vm.prank / vm.startPrank** — impersonate any address:
+```solidity
+vm.prank(oracle);
+market.postResolution(true, bytes32("0xreasoninghash"));
+```
+
+**vm.warp** — move time forward:
+```solidity
+vm.warp(block.timestamp + 8 days); // past the 7-day deadline
+market.triggerResolution();
+```
+
+**vm.expectRevert** — assert a revert:
+```solidity
+vm.expectRevert("Market is not open");
+market.buyShares(true, 100e6, 0);
+```
+
+**vm.expectEmit** — assert an event:
+```solidity
+vm.expectEmit(true, false, false, true);
+emit ResolutionTriggered(address(market), block.timestamp);
+market.triggerResolution();
+```
+
+**deal** — fund an address with native tokens:
+```solidity
+deal(address(usdt), trader, 5_000e6); // 5,000 USDT
+```
+
+---
+
+## The USDT 6-Decimal Rule
+
+<Warning>
+  This is the single most common source of bugs. All USDT amounts in Prophet contracts use 6 decimal places.
+</Warning>
+
+```solidity
+// CORRECT: 100 USDT
+uint256 amount = 100e6;           // 100_000_000
+// or
+uint256 amount = 100 * 10**6;
+
+// WRONG: Do not use ether/18 decimals
+uint256 amount = 100 ether;       // 100_000_000_000_000_000_000 — WRONG
+uint256 amount = 1e18;            // WRONG
+```
+
+In TypeScript (agents/frontend):
+```typescript
+// CORRECT
+const amount = ethers.parseUnits("100", 6);  // 100n * 1000000n = 100000000n
+// WRONG
+const amount = ethers.parseEther("100");      // 100n * 10^18n — WRONG
+```
+
+In Foundry tests:
+```solidity
+// CORRECT — 100 USDT
+usdt.mint(trader, 100e6);
+// CORRECT — 1,000 USDT
+usdt.mint(mm, 1_000e6);
+```
+
+---
+
+## Security Patterns
+
+These patterns are enforced throughout the codebase and must be maintained in all new code:
+
+### Checks-Effects-Interactions
+
+State changes happen before external calls:
+
+```solidity
+// CORRECT
+function redeemWinningShares() external nonReentrant {
+    uint256 payout = calculatePayout(msg.sender); // CHECK
+    winningShares[msg.sender] = 0;                // EFFECT
+    usdt.safeTransfer(msg.sender, payout);        // INTERACTION
+}
+
+// WRONG — interaction before effect (reentrancy risk)
+function redeemWinningShares() external {
+    uint256 payout = calculatePayout(msg.sender);
+    usdt.safeTransfer(msg.sender, payout);       // INTERACTION before...
+    winningShares[msg.sender] = 0;               // ...EFFECT — vulnerable
+}
+```
+
+### SafeERC20
+
+Never use raw `transfer()` or `transferFrom()`:
+
+```solidity
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+using SafeERC20 for IERC20;
+
+// CORRECT
+usdt.safeTransfer(recipient, amount);
+usdt.safeTransferFrom(sender, address(this), amount);
+
+// WRONG — can silently fail on some ERC20 implementations
+usdt.transfer(recipient, amount);
+usdt.transferFrom(sender, address(this), amount);
+```
+
+### ReentrancyGuard
+
+All state-changing external functions use `nonReentrant`:
+
+```solidity
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract MarketContract is ReentrancyGuard {
+    function buyShares(...) external nonReentrant { ... }
+    function sellShares(...) external nonReentrant { ... }
+    function redeemWinningShares() external nonReentrant { ... }
+}
+```
+
+### Non-Zero Input Checks
+
+Never allow zero-amount operations:
+
+```solidity
+function buyShares(bool isYes, uint256 collateralAmount, uint256 minSharesOut) external {
+    require(collateralAmount > 0, "Amount must be greater than zero");
+    ...
+}
+```
+
+---
+
+## Deploy Script Walkthrough
+
+`contracts/script/Deploy.s.sol` implements the full deployment sequence:
+
+```solidity
+contract DeployProphet is Script {
+    function run() external {
+        vm.startBroadcast();
+        
+        // 1. Deploy MockUSDT (testnet only)
+        MockERC20 usdt = new MockERC20("Mock USDT", "USDT", 6);
+        usdt.mint(msg.sender, 10_000_000e6); // 10M USDT for testing
+        
+        // 2. Deploy ProphetFactory
+        ProphetFactory factory = new ProphetFactory(
+            address(usdt),
+            vm.envAddress("ORACLE_AGENT_ADDRESS"),
+            vm.envAddress("MM_AGENT_ADDRESS"),
+            vm.envAddress("TREASURY_ADDRESS")
+        );
+        
+        // 3. Deploy LiquidityPool
+        LiquidityPool pool = new LiquidityPool(
+            address(factory),
+            address(usdt),
+            vm.envAddress("MM_AGENT_ADDRESS")
+        );
+        
+        // 4. Deploy PositionVault (placeholder distributor)
+        PositionVault vault = new PositionVault(
+            address(factory),
+            vm.envAddress("ORACLE_AGENT_ADDRESS"),
+            address(usdt),
+            address(0)  // distributor TBD
+        );
+        
+        // 5. Deploy PayoutDistributor
+        PayoutDistributor distributor = new PayoutDistributor(
+            address(factory),
+            address(vault),
+            vm.envAddress("ORACLE_AGENT_ADDRESS"),
+            vm.envAddress("MM_AGENT_ADDRESS"),
+            vm.envAddress("TREASURY_ADDRESS"),
+            address(usdt)
+        );
+        
+        // 6. Wire contracts together
+        vault.setPayoutDistributor(address(distributor));
+        factory.setVaultAndDistributor(address(vault), address(distributor));
+        
+        vm.stopBroadcast();
+        
+        // Print addresses
+        console.log("ProphetFactory:", address(factory));
+        console.log("LiquidityPool:", address(pool));
+        console.log("MockUSDT:", address(usdt));
+        console.log("PositionVault:", address(vault));
+        console.log("PayoutDistributor:", address(distributor));
+    }
+}
+```
+
+---
+
+## OpenZeppelin Contracts Used
+
+| Contract | Import Path | Used For |
+|---|---|---|
+| `ReentrancyGuard` | `@openzeppelin/contracts/utils/ReentrancyGuard.sol` | Reentrancy protection on all state-changing functions |
+| `SafeERC20` | `@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol` | Safe USDT transfers |
+| `Ownable` | `@openzeppelin/contracts/access/Ownable.sol` | ProphetFactory and LiquidityPool admin functions |
+| `IERC20` | `@openzeppelin/contracts/token/ERC20/IERC20.sol` | USDT interface |
+| `ERC20` | `@openzeppelin/contracts/token/ERC20/ERC20.sol` | MockUSDT (testnet) |
+
+---
+
+## Adding a New Market Category
+
+Market categories are string labels stored in metadata, not an enum on-chain. To add a new category:
+
+1. Add the category name to the category selector in `frontendV2/src/app/(dashboard)/markets/page.tsx`
+2. Add the filter case to the market listing component
+3. No contract changes required — categories are stored in 0G Storage metadata blobs
+
+---
+
+## Contract Size Limits
+
+EVM contracts must be under 24KB. Check sizes after any significant additions:
+
+```bash
+forge build --sizes
+```
+
+If a contract approaches 24KB:
+- Extract logic into libraries (`contracts/src/libraries/`)
+- Use `internal` functions instead of duplicating logic
+- Consider the proxy pattern for future upgrades (not currently used in Prophet MVP)

@@ -1,0 +1,367 @@
+---
+title: "Smart Contracts"
+description: "Deep dive into Prophet's five Solidity contracts — architecture, security, and key functions."
+icon: "file-code"
+---
+
+## Overview
+
+Prophet's on-chain logic is implemented in five Solidity contracts (`^0.8.20`), all deployed on 0G Chain. Each contract has a single responsibility. Together they implement a complete prediction market protocol with protocol-owned liquidity and AI-driven resolution.
+
+**Repository path:** `contracts/src/`
+
+**Build framework:** Foundry (`forge build`, `forge test`)
+
+**Libraries:** OpenZeppelin Contracts `^5.0.0`
+
+---
+
+## ProphetFactory
+
+**File:** `contracts/src/ProphetFactory.sol`
+**Address:** `0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4`
+
+The factory is the entry point for market creation and the registry for all markets. It deploys each new MarketContract and wires it to the shared infrastructure (oracle agent, market-maker agent, PositionVault, PayoutDistributor).
+
+### Key Functions
+
+```solidity
+// Create a new prediction market
+// Deploys a new MarketContract and registers it
+function createMarket(
+    string calldata question,
+    uint256 deadline,
+    string calldata category,
+    string[] calldata approvedSources,
+    bytes32 metadataHash    // root hash of 0G Storage metadata blob
+) external returns (address marketAddress);
+
+// Read all deployed market addresses
+function getMarkets() external view returns (address[] memory);
+
+// Number of markets ever created
+function totalMarkets() external view returns (uint256);
+
+// Check if an address is a valid Prophet market
+function isValidMarket(address market) external view returns (bool);
+
+// Set vault and distributor after deployment (called once during setup)
+function setVaultAndDistributor(
+    address vault,
+    address distributor
+) external onlyOwner;
+```
+
+### Constructor Parameters
+
+```solidity
+constructor(
+    address usdt,           // USDT token address
+    address oracleAgent,    // oracle wallet address (immutable per factory)
+    address mmAgent,        // market-maker wallet address
+    address treasury        // protocol fee recipient
+)
+```
+
+---
+
+## MarketContract
+
+**File:** `contracts/src/MarketContract.sol`
+**Deployed:** One per market (by ProphetFactory)
+
+The core contract. Implements the binary YES/NO AMM, holds all market collateral (USDT), manages the complete market lifecycle, and enforces resolution rules.
+
+### Market Lifecycle
+
+```solidity
+enum MarketStatus {
+    Open,               // trading active
+    PendingResolution,  // deadline passed, oracle not yet responded
+    Challenged,         // oracle posted verdict, 24h challenge window
+    Resolved,           // finalized — positions being revealed, payouts distributed
+    Cancelled           // market cancelled — all positions refunded
+}
+```
+
+### AMM Functions
+
+```solidity
+// Seed initial liquidity (called by market-maker agent)
+function seedLiquidity(uint256 collateralAmount) external onlyMarketMaker;
+
+// Buy YES or NO shares
+// isYes: true = buy YES shares, false = buy NO shares
+// collateralAmount: USDT in (6 decimals)
+// minSharesOut: minimum shares to receive (slippage protection)
+function buyShares(
+    bool isYes,
+    uint256 collateralAmount,
+    uint256 minSharesOut
+) external nonReentrant;
+
+// Sell shares back to the AMM
+// sharesIn: number of shares to sell
+// minCollateralOut: minimum USDT to receive (slippage protection)
+function sellShares(
+    bool isYes,
+    uint256 sharesIn,
+    uint256 minCollateralOut
+) external nonReentrant;
+
+// Redeem winning shares after resolution
+function redeemWinningShares() external nonReentrant;
+
+// Redeem all shares after market cancellation (neutral — gets USDT back)
+function redeemCancelledShares() external nonReentrant;
+```
+
+### Resolution Functions
+
+```solidity
+// Anyone can call after deadline — triggers oracle
+function triggerResolution() external;
+
+// Oracle agent posts verdict after inference
+// reasoningHash: root hash of 0G Storage reasoning blob
+function postResolution(
+    bool verdict,
+    bytes32 reasoningHash
+) external onlyOracle;
+
+// Anyone calls after 24h challenge window with no challenger
+function finalizeResolution() external;
+
+// File a challenge against the oracle's verdict (bond required)
+function fileChallenge() external payable;
+```
+
+### View Functions
+
+```solidity
+// Full AMM state for a given trader
+function getAmmState(address trader) external view returns (
+    uint256 yesReserve,
+    uint256 noReserve,
+    uint256 yesPrice,
+    uint256 noPrice,
+    uint256 traderYesBalance,
+    uint256 traderNoBalance,
+    uint256 collateral
+);
+
+// Preview: shares out for a given USDT input
+function getBuyAmount(bool isYes, uint256 collateralAmount)
+    external view returns (uint256 sharesOut);
+
+// Preview: USDT out for a given number of shares
+function getSellAmount(bool isYes, uint256 sharesIn)
+    external view returns (uint256 collateralOut);
+```
+
+### Security
+
+- **ReentrancyGuard** on all state-changing external functions
+- **Checks-Effects-Interactions**: all state updates happen before external token transfers
+- **SafeERC20**: all token operations use `safeTransfer` / `safeTransferFrom`
+- **Non-zero checks**: zero-amount trades revert with a descriptive error
+- **Slippage protection**: `minSharesOut` / `minCollateralOut` parameters on all trades
+
+### USDT Decimal Rule
+
+<Warning>
+  USDT uses 6 decimal places throughout all Prophet contracts. 100 USDT = `100_000_000` in contract units. Never use `parseEther`. Always use `parseUnits("100", 6)`.
+</Warning>
+
+---
+
+## LiquidityPool
+
+**File:** `contracts/src/LiquidityPool.sol`
+**Address:** `0x13AbE644693DA19f9A895C8c82Cf53879580DA8e`
+
+Holds protocol-owned USDT and provides it to markets on demand. The market-maker agent controls allocation. No human LP is required.
+
+### Key Functions
+
+```solidity
+// LP deposits (for initial protocol funding)
+function deposit(uint256 amount) external;
+
+// LP withdrawals (when pool has excess capital)
+function withdraw(uint256 amount) external;
+
+// Market-maker allocates USDT to a specific market for seeding
+function allocateToMarket(
+    address market,
+    uint256 amount
+) external onlyMarketMaker;
+
+// Market-maker returns settled USDT from a resolved market
+function returnFromMarket(
+    address market,
+    uint256 amount
+) external onlyMarketMaker;
+
+// View current unallocated balance
+function availableBalance() external view returns (uint256);
+
+// View allocation for a specific market
+function marketAllocation(address market) external view returns (uint256);
+```
+
+The LiquidityPool is the economic foundation of Prophet's protocol-owned liquidity model. By keeping funds here rather than requiring per-market LPs, Prophet ensures every market has immediate liquidity at creation.
+
+---
+
+## PositionVault
+
+**File:** `contracts/src/PositionVault.sol`
+**Address:** `0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E`
+
+Stores encrypted bet commitments and enforces atomic position reveal. Users commit positions here; the oracle reveals them after resolution.
+
+### Key Functions
+
+```solidity
+// Store an encrypted position (called by users when placing bets)
+// encryptedPosition: NaCl-encrypted {direction, amount} blob
+// commitmentHash: hash of the encrypted position (for post-reveal verification)
+function commitPosition(
+    address market,
+    bytes calldata encryptedPosition,
+    bytes32 commitmentHash
+) external;
+
+// Oracle reveals positions after market resolution
+// All positions revealed atomically — no partial reveal
+function revealPositions(
+    address[] calldata traders,
+    bool[] calldata isYes,
+    uint256[] calldata amounts,
+    bytes[] calldata signatures
+) external onlyOracle;
+
+// If market is cancelled, oracle can trigger full refund
+function refundAll(address market) external onlyOracle;
+
+// Count of positions for a given market
+function positionCount(address market) external view returns (uint256);
+
+// Whether a specific position has been revealed
+function hasRevealed(address market, address trader) external view returns (bool);
+```
+
+### TEE Attestation (MVP Status)
+
+```solidity
+// Current: ECDSA signature verification (oracle signs market+verdict+reasoningHash)
+// TODO: integrate 0G TEE SDK for hardware-level attestation
+function _verifyTeeAttestation(
+    address market,
+    bool verdict,
+    bytes32 reasoningHash,
+    bytes calldata attestation
+) internal view returns (bool);
+```
+
+The function signature is in place. The full hardware TEE integration is the next step beyond MVP.
+
+---
+
+## PayoutDistributor
+
+**File:** `contracts/src/PayoutDistributor.sol`
+**Address:** `0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740`
+
+Calculates winner payouts after position reveal. Handles fee splits and prevents double distribution.
+
+### Key Functions
+
+```solidity
+// Called by oracle after revealPositions
+// Calculates and transfers winnings to all winners
+function distributePayout(address market) external onlyOracle;
+
+// Check if a market has already had payouts distributed
+function hasDistributed(address market) external view returns (bool);
+
+// View payout for a specific trader after reveal
+function calculatePayout(
+    address market,
+    address trader
+) external view returns (uint256 amount);
+```
+
+### Fee Distribution
+
+When `distributePayout` is called:
+1. Total pool collateral is retrieved from MarketContract
+2. Winning positions are summed (from PositionVault reveal data)
+3. Fees are deducted: oracle fee + market-maker fee + protocol fee
+4. Remaining collateral is split proportionally among winning positions
+5. Each winner receives: `(their position size / total winning positions) * (pool - fees)`
+
+**Double distribution prevention:** The `hasDistributed` mapping is set to `true` on the first call. Any subsequent call to `distributePayout` for the same market reverts. This is an absolute safety check — it cannot be bypassed.
+
+---
+
+## Deployment Order
+
+The contracts have circular dependencies that must be resolved at deploy time:
+
+```
+1. Deploy MockUSDT (testnet only)
+2. Deploy ProphetFactory(usdt, oracle, mm, treasury)
+3. Deploy LiquidityPool(factory, usdt, mm)
+4. Deploy PositionVault(factory, oracle, usdt, address(0))  ← placeholder distributor
+5. Deploy PayoutDistributor(factory, vault, oracle, mm, treasury, usdt)
+6. Call vault.setPayoutDistributor(distributor)
+7. Call factory.setVaultAndDistributor(vault, distributor)
+```
+
+The deploy script at `contracts/script/Deploy.s.sol` handles all of this automatically.
+
+---
+
+## OpenZeppelin Contracts Used
+
+| Pattern | OZ Contract | Where used |
+|---|---|---|
+| Reentrancy protection | `ReentrancyGuard` | MarketContract, PositionVault |
+| Safe token transfers | `SafeERC20` | All contracts with USDT transfers |
+| Ownership | `Ownable` | ProphetFactory, LiquidityPool |
+| Access control | Custom modifiers | `onlyOracle`, `onlyMarketMaker` |
+| ERC20 interface | `IERC20` | All USDT interactions |
+
+---
+
+## Forge Commands
+
+```bash
+# Build all contracts
+cd contracts && forge build
+
+# Run all 232 tests
+forge test --offline
+
+# Verbose output for specific test
+forge test --match-test testBuyShares_YES -vvv --offline
+
+# Check contract sizes (must all be < 24KB)
+forge build --sizes
+
+# Format code
+forge fmt
+
+# Gas usage report
+forge test --gas-report --offline
+
+# Deploy to 0G Galileo testnet
+forge script script/Deploy.s.sol:DeployProphet \
+  --rpc-url og_testnet \
+  --broadcast \
+  --legacy \
+  --gas-price 3000000000 \
+  -vvv
+```

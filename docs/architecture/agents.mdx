@@ -1,0 +1,377 @@
+---
+title: "Agent System"
+description: "Oracle and market-maker agents — how autonomous off-chain services power Prophet's AI resolution and continuous liquidity."
+icon: "robot"
+---
+
+## Overview
+
+Prophet has two autonomous agents running off-chain:
+
+- **Oracle Agent** — resolves markets by calling 0G Compute and posting verdicts on-chain
+- **Market Maker Agent** — seeds new markets with liquidity and returns settled funds to the pool
+
+Both are TypeScript services built with ethers v6, `@0glabs/0g-serving-broker`, and `@0gfoundation/0g-storage-ts-sdk`. They run as a single process (`npm run start`) or independently.
+
+**Repository path:** `agent/src/`
+
+---
+
+## Oracle Agent
+
+**File:** `agent/src/oracle/index.ts`
+
+The oracle is Prophet's core differentiator. It is the only component that can call `postResolution()` and `revealPositions()`. Without it, markets cannot resolve. With it, markets resolve deterministically, in under 2 minutes, with a permanent evidence trail on 0G Storage.
+
+### Startup: Catch-Up Scan
+
+On startup, before listening for new events, the oracle scans all existing markets to handle any that were missed while the agent was offline:
+
+```typescript
+async function catchUpOnPendingMarkets() {
+  const markets = await factory.getMarkets();
+  
+  for (const marketAddress of markets) {
+    const market = getMarketContract(marketAddress);
+    const status = await market.status();
+    const deadline = await market.deadline();
+    
+    switch (status) {
+      case MarketStatus.Open:
+        // Check if deadline has passed but triggerResolution not called
+        if (Date.now() / 1000 > deadline) {
+          await market.triggerResolution();
+        }
+        break;
+
+      case MarketStatus.PendingResolution:
+        // Oracle hasn't run yet — run now
+        await handleResolutionTriggered(marketAddress);
+        break;
+
+      case MarketStatus.Challenged:
+        const challenger = await market.challenger();
+        const challengeDeadline = await market.challengeDeadline();
+        
+        if (challenger !== ethers.ZeroAddress) {
+          // Real challenge filed — run second inference
+          await handleChallenge(marketAddress);
+        } else if (Date.now() / 1000 > challengeDeadline) {
+          // No challenge, window expired — finalize
+          await market.finalizeResolution();
+        }
+        break;
+
+      case MarketStatus.Resolved:
+        const revealed = await vault.hasRevealed(marketAddress, ethers.ZeroAddress);
+        if (!revealed) {
+          // Positions not yet revealed — reveal now
+          await revealPositions(marketAddress);
+        }
+        break;
+    }
+  }
+}
+```
+
+This means the oracle is **stateless** — it can be restarted at any time and will pick up exactly where it left off.
+
+### Event Listeners
+
+After the catch-up scan, the oracle attaches listeners to three events:
+
+```typescript
+// Event 1: Market deadline passed, oracle should resolve
+factory.on('ResolutionTriggered', async (marketAddress, timestamp) => {
+  await handleResolutionTriggered(marketAddress);
+});
+
+// Event 2: Challenge filed against oracle's verdict
+factory.on('ResolutionChallenged', async (marketAddress, challenger, bond) => {
+  await handleChallenge(marketAddress);
+});
+
+// Event 3: Resolution finalized — time to reveal positions
+factory.on('ResolutionFinalized', async (marketAddress, verdict) => {
+  await revealPositions(marketAddress);
+});
+```
+
+Listener errors never crash the agent — they are caught, logged, and the listener continues.
+
+### Periodic Scan
+
+In addition to event listeners, the oracle runs a full catch-up scan every 5 minutes. This handles:
+- Events missed due to RPC instability
+- Markets where `triggerResolution` was called by a third party while the agent was processing another market
+- Any edge case where the event was not received
+
+```typescript
+setInterval(catchUpOnPendingMarkets, 5 * 60 * 1000);
+```
+
+### Resolution Flow (handleResolutionTriggered)
+
+```typescript
+async function handleResolutionTriggered(marketAddress: string) {
+  // 1. Read metadata from 0G Storage
+  const metadataHash = await marketContract.metadataHash();
+  const metadata = await downloadFromStorage(metadataHash);
+  
+  // 2. Call 0G Compute
+  const result = await callOracleInference(
+    metadata.question,
+    metadata.sources,
+    metadata.deadline,
+    oracleWallet
+  );
+  
+  // 3. Check confidence
+  if (result.confidence < 70) {
+    logger.warn({ marketAddress, confidence: result.confidence }, 'Inconclusive — skipping');
+    return;
+  }
+  
+  // 4. Upload reasoning to 0G Storage
+  const reasoningHash = await uploadToStorage({
+    ...result,
+    marketAddress,
+    timestamp: new Date().toISOString()
+  }, oracleWallet);
+  
+  // 5. Post verdict on-chain
+  await marketContract.postResolution(result.verdict, reasoningHash);
+}
+```
+
+### Position Reveal (NaCl Decryption)
+
+After `ResolutionFinalized`, the oracle fetches all encrypted positions from PositionVault, decrypts them using its private key, and calls `revealPositions`:
+
+```typescript
+async function revealPositions(marketAddress: string) {
+  const count = await vault.positionCount(marketAddress);
+  
+  const traders = [], directions = [], amounts = [], sigs = [];
+  
+  for (let i = 0; i < count; i++) {
+    const { trader, encryptedPosition } = await vault.getPosition(marketAddress, i);
+    
+    // NaCl box decryption using oracle's private key
+    const decrypted = decryptPosition(encryptedPosition, oraclePrivateKey);
+    
+    // Sign the revealed data (for PositionVault verification)
+    const sig = await signReveal(marketAddress, trader, decrypted.direction, decrypted.amount);
+    
+    traders.push(trader);
+    directions.push(decrypted.direction === 'YES');
+    amounts.push(decrypted.amount);
+    sigs.push(sig);
+  }
+  
+  await vault.revealPositions(traders, directions, amounts, sigs);
+}
+```
+
+---
+
+## Market Maker Agent
+
+**File:** `agent/src/market-maker/index.ts`
+
+The market-maker ensures every market has liquidity from minute one. Without it, new markets have zero YES/NO reserves and the AMM cannot process trades.
+
+### Startup: Scan Existing Markets
+
+```typescript
+async function startup() {
+  const markets = await factory.getMarkets();
+  
+  for (const marketAddress of markets) {
+    const market = getMarketContract(marketAddress);
+    const status = await market.status();
+    
+    if (status === MarketStatus.Open) {
+      const { yesReserve } = await market.getAmmState(ethers.ZeroAddress);
+      
+      if (yesReserve === 0n) {
+        // Market not yet seeded — allocate and seed
+        await seedMarket(marketAddress);
+      }
+    }
+  }
+}
+```
+
+### Seeding a New Market
+
+```typescript
+async function seedMarket(marketAddress: string) {
+  const seedAmount = calculateSeedAmount(); // based on pool balance
+  
+  // 1. Get initial price estimate from 0G Compute
+  const pricing = await callPricingInference(marketQuestion, mmWallet);
+  
+  // 2. Allocate from LiquidityPool
+  await liquidityPool.allocateToMarket(marketAddress, seedAmount);
+  
+  // 3. Approve MarketContract to spend the allocated USDT
+  await usdt.approve(marketAddress, seedAmount);
+  
+  // 4. Seed the AMM
+  await marketContract.seedLiquidity(seedAmount);
+  
+  // 5. Push initial prices to frontend cache
+  await pushPricesCache(marketAddress, pricing.yesPrice, pricing.noPrice);
+  
+  logger.info({ marketAddress, seedAmount }, 'Market seeded');
+}
+```
+
+### Queued Transaction System
+
+The market-maker can receive many `MarketCreated` events in rapid succession (during demos or high activity periods). Submitting multiple transactions simultaneously causes nonce collisions on 0G Chain.
+
+The agent uses a simple FIFO queue:
+
+```typescript
+const txQueue: Array<() => Promise<void>> = [];
+let processing = false;
+
+async function enqueue(fn: () => Promise<void>) {
+  txQueue.push(fn);
+  if (!processing) processQueue();
+}
+
+async function processQueue() {
+  processing = true;
+  while (txQueue.length > 0) {
+    const task = txQueue.shift()!;
+    try {
+      await task();
+    } catch (err) {
+      logger.error(err, 'Transaction queue error');
+    }
+  }
+  processing = false;
+}
+```
+
+All seeding and repricing operations go through `enqueue()`. This serializes transactions and eliminates nonce issues.
+
+### Event Listener: New Markets
+
+```typescript
+factory.on('MarketCreated', async (marketAddress, creator, question) => {
+  await enqueue(() => seedMarket(marketAddress));
+});
+```
+
+### Recovery Loop: Settled Markets
+
+After a market resolves, the collateral should return to the LiquidityPool. The market-maker runs a recovery loop that checks for resolved markets and returns their allocated liquidity:
+
+```typescript
+setInterval(async () => {
+  const markets = await factory.getMarkets();
+  
+  for (const marketAddress of markets) {
+    const status = await marketContract.status();
+    const allocation = await liquidityPool.marketAllocation(marketAddress);
+    
+    if (status === MarketStatus.Resolved && allocation > 0n) {
+      await enqueue(() => liquidityPool.returnFromMarket(marketAddress, allocation));
+    }
+  }
+}, REPRICE_INTERVAL_MS);
+```
+
+---
+
+## Shared Utilities
+
+### agent/src/shared/compute.ts
+
+Functions:
+- `initializeBroker(signer)` — creates `@0glabs/0g-serving-broker` instance
+- `topUpLedger(broker, provider, amount)` — funds the billing ledger before inference
+- `verifyProvider(broker, provider)` — TEE attestation check
+- `callOracleInference(question, sources, deadline, signer)` — full resolution inference
+- `callValidationInference(question, signer)` — question validation (lighter prompt)
+- `callPricingInference(question, signer)` — initial price estimate
+- `extractJSON(text)` — strips markdown fences, parses JSON with error handling
+
+### agent/src/shared/storage.ts
+
+Functions:
+- `uploadToStorage(data, signer, maxRetries)` — upload with retry + read-after-write verification
+- `downloadFromStorage(rootHash, maxRetries)` — download with retry
+- `getIndexer()` — returns `Indexer` pointed at turbo indexer URL
+
+### agent/src/shared/chain.ts
+
+Functions:
+- `getFactoryContract(signer)` — ProphetFactory with signer
+- `getMarketContract(address, signer)` — MarketContract at address
+- `getVaultContract(signer)` — PositionVault with signer
+- `getLiquidityPoolContract(signer)` — LiquidityPool with signer
+- `listenForEvents(contract, eventName, handler)` — safe event listener wrapper
+
+### agent/src/shared/config.ts
+
+```typescript
+// cfg() helper — typed env var access with defaults and validation
+export function cfg(key: string, required = true): string {
+  const value = process.env[key];
+  if (!value && required) throw new Error(`Missing required env var: ${key}`);
+  return value ?? '';
+}
+
+// Usage:
+const rpc = cfg('OG_CHAIN_RPC');
+const interval = parseInt(cfg('REPRICE_INTERVAL_MS', false) || '60000');
+```
+
+### agent/src/shared/logger.ts
+
+Structured JSON logging using `pino` (or equivalent). Every log entry includes:
+- `timestamp`
+- `level` (debug / info / warn / error)
+- `component` (oracle / mm / storage / compute)
+- Contextual fields (marketAddress, txHash, etc.)
+
+```typescript
+logger.info({ marketAddress, verdict: true, confidence: 88 }, 'Resolution posted');
+logger.error({ err, marketAddress }, 'Failed to call 0G Compute');
+```
+
+Log level is controlled by `LOG_LEVEL` env var. Default: `info`.
+
+### agent/src/shared/types.ts
+
+Shared TypeScript interfaces:
+
+```typescript
+interface OracleResponse {
+  verdict: boolean | null;
+  confidence: number;
+  reasoning: string;
+  evidenceSummary: string;
+  sourcesChecked: string[];
+  inconclusiveReason?: string;
+}
+
+interface MarketMetadata {
+  question: string;
+  deadline: string;
+  category: string;
+  sources: string[];
+  createdAt: string;
+  creatorAddress: string;
+}
+
+interface PositionData {
+  direction: 'YES' | 'NO';
+  amount: string; // bigint as string (avoid JSON precision loss)
+}
+```

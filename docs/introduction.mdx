@@ -1,0 +1,124 @@
+---
+title: "Introduction"
+description: "Prophet is the first autonomous, privacy-preserving prediction market on 0G Chain — where markets are resolved by AI, not committees, and liquidity never sleeps."
+icon: "chart-line"
+---
+
+## What is Prophet?
+
+> **Prophet is the first prediction market where positions are sealed until resolution, markets are resolved by an AI oracle — not a human committee — and liquidity is provided by an autonomous agent, 24/7.**
+
+Prophet is a **YES/NO share prediction market protocol** built on **0G Chain** (EVM-compatible, chain ID 16602). Every market trades exactly two assets — YES shares and NO shares — priced between $0.00 and $1.00 by a protocol-owned on-chain AMM. When a market resolves, the winning share redeems for $1.00 USDT and the losing share for $0.00.
+
+No human committee decides outcomes. No centralized backend runs the oracle. No human LPs are required to seed liquidity. Prophet uses **0G Labs infrastructure** — 0G Chain, 0G Compute, and 0G Storage — to make the entire system autonomous and verifiable.
+
+---
+
+## Who Is Prophet For?
+
+<CardGroup cols={2}>
+  <Card title="Traders" icon="arrow-trend-up" href="/user-guide/trading">
+    Buy and sell YES/NO shares on any open market. Your position direction stays sealed until the market resolves — no front-running, no information leakage.
+  </Card>
+  <Card title="Market Creators" icon="plus-circle" href="/user-guide/create-market">
+    Anyone can permissionlessly create a market on any binary, verifiable question. The AI oracle validates your question at creation time and resolves it at deadline.
+  </Card>
+  <Card title="Developers" icon="code" href="/developer/local-setup">
+    Fork the contracts, extend the oracle, build integrations. Full Foundry test suite (232 tests), TypeScript agents, Next.js frontend — all open source.
+  </Card>
+  <Card title="Researchers" icon="microscope" href="/architecture/0g-integration">
+    Study how decentralized AI inference, permanent on-chain storage, and autonomous market-making combine to create a fully trustless prediction market.
+  </Card>
+</CardGroup>
+
+---
+
+## Why Prediction Markets Matter
+
+Prediction markets are one of the most powerful tools humanity has invented for aggregating information. When people bet real money on outcomes, prices reflect the crowd's honest, skin-in-the-game assessment of probability. This outperforms expert forecasting, surveys, and polls — consistently.
+
+A YES share trading at $0.65 is not an opinion. It is the market's statement: **there is a 65% probability this event occurs.** That signal is valuable for decision-making in finance, governance, science, and policy.
+
+The problem is that existing prediction markets are broken in ways that limit their accuracy and adoption.
+
+---
+
+## Why Existing Markets Fail
+
+**Polymarket** — the current market leader — has two fundamental problems:
+
+1. **Public positions**: Every bet is visible on-chain the moment it is placed. Sophisticated traders see large positions form and front-run them, discouraging early, informed participation.
+2. **Human committee resolution**: UMA's optimistic oracle relies on a human dispute process. It is slow, gameable, and introduces political risk into supposedly objective questions.
+
+**Augur** tried to solve resolution with token-weighted voting, but that requires a liquid governance token, is vulnerable to plutocratic capture, and adds weeks of delay after market close.
+
+Neither protocol has solved the cold-start liquidity problem: without market makers willing to seed both sides, new markets have no liquidity, so no traders come, so no liquidity accumulates.
+
+---
+
+## Why Prophet Is Different
+
+Prophet attacks all three problems simultaneously using 0G infrastructure:
+
+| Problem | Prophet's Solution |
+|---|---|
+| Front-running from public positions | NaCl-encrypted commitments stored in PositionVault — direction sealed until reveal |
+| Human committee resolution | AI oracle on 0G Compute — deterministic, verifiable, no governance token |
+| Cold-start liquidity | Protocol-owned LiquidityPool + autonomous market-maker agent |
+| Oracle accountability | Full reasoning chain written permanently to 0G Storage Log layer |
+| Permissioned market creation | ProphetFactory is open to any caller — no whitelist |
+
+---
+
+## The Five Core Guarantees
+
+<AccordionGroup>
+  <Accordion title="1. Continuous Liquidity" icon="droplet">
+    The LiquidityPool contract holds protocol-owned USDT. The autonomous market-maker agent allocates a portion to each new market, seeding YES and NO reserves so the AMM is immediately tradable. No human LP is required. The agent runs 24/7 and rebalances continuously.
+  </Accordion>
+  <Accordion title="2. Autonomous Resolution" icon="robot">
+    When a market's deadline passes, anyone can call `triggerResolution`. The oracle agent picks up the event, calls **0G Compute** (DeepSeek V3 / Qwen 2.5 7B on testnet) with a structured reasoning prompt, and posts the verdict on-chain. No human vote. No governance process.
+  </Accordion>
+  <Accordion title="3. Permanent Evidence" icon="database">
+    Every oracle reasoning chain — the model's full chain-of-thought, evidence summary, sources checked, confidence score — is uploaded to **0G Storage** before the verdict is posted on-chain. The root hash is stored in the contract. Anyone can retrieve and verify the reasoning independently.
+  </Accordion>
+  <Accordion title="4. Privacy-Preserving" icon="lock">
+    Bets are encrypted before submission using NaCl box encryption (ECDH + XSalsa20-Poly1305). PositionVault stores only the commitment hash. Direction and amount are revealed in a single atomic reveal transaction after resolution — simultaneously for all participants.
+  </Accordion>
+  <Accordion title="5. Permissionless Creation" icon="globe">
+    ProphetFactory accepts market creation from any Ethereum address. The AI oracle validates the question at creation time — rejecting ambiguous or unresolvable questions — but there is no whitelist, no application process, and no human gatekeeper.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Built on 0G Labs
+
+Prophet is a deep integration project, not a surface-level deployment. It uses three distinct 0G modules:
+
+- **0G Chain** (chain ID 16602) — all smart contracts, all transactions, all on-chain state
+- **0G Compute** — decentralized AI inference for question validation, oracle resolution, and market pricing
+- **0G Storage** — permanent decentralized storage for oracle reasoning, market metadata, and agent state
+
+<Info>
+  This is not just "deployed on 0G Chain." The oracle only exists because 0G Compute provides decentralized AI inference. The audit trail only exists because 0G Storage provides permanent, tamper-proof data. Remove either module and the product stops working.
+</Info>
+
+---
+
+## Core Links
+
+<CardGroup cols={2}>
+  <Card title="Trade Markets" icon="arrow-trend-up" href="/user-guide/trading">
+    Start trading YES/NO shares on the Prophet app
+  </Card>
+  <Card title="0G Integration Depth" icon="layer-group" href="/architecture/0g-integration">
+    Technical audit of all 0G module integrations
+  </Card>
+  <Card title="AMM Design" icon="calculator" href="/concepts/amm">
+    How the binary YES/NO AMM works mathematically
+  </Card>
+  <Card title="Oracle Resolution" icon="cpu" href="/concepts/resolution">
+    How AI resolves markets via 0G Compute
+  </Card>
+</CardGroup>

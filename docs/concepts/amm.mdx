@@ -1,0 +1,225 @@
+---
+title: "Binary YES/NO AMM"
+description: "Complete-set accounting, buy/sell equations, price discovery, and slippage protection in Prophet's automated market maker."
+icon: "calculator"
+---
+
+## Overview
+
+Prophet's AMM is a **binary YES/NO automated market maker** built around complete-set accounting. Unlike Uniswap-style constant-product AMMs that trade two existing tokens, Prophet's AMM creates and destroys matched pairs of YES and NO shares to maintain solvency at all times.
+
+The invariant is simple: **for every YES share outstanding, there is exactly one NO share outstanding.** This means the pool can always pay $1.00 per winning share, regardless of which side wins.
+
+---
+
+## Complete-Set Accounting
+
+The fundamental building block is the **complete set**: one YES share + one NO share = $1.00 USDT (always).
+
+When liquidity enters the pool:
+- $1.00 USDT creates one YES share AND one NO share
+- The pool holds both — these are the reserves
+
+When a market resolves YES:
+- Each YES share redeems for $1.00
+- Each NO share is worth $0.00
+- The total USDT in the pool exactly covers all YES share redemptions, because every YES share was matched with a NO share at creation
+
+This is why the AMM is always solvent — the accounting is self-contained.
+
+---
+
+## Pool State
+
+The AMM tracks three values for each market:
+
+```solidity
+uint256 yesReserve;    // YES shares held by the pool
+uint256 noReserve;     // NO shares held by the pool
+uint256 collateral;    // USDT held by the pool (backing the reserves)
+```
+
+The **current YES price** is computed from reserves:
+
+```
+YES price = noReserve / (yesReserve + noReserve)
+NO price  = yesReserve / (yesReserve + noReserve)
+```
+
+Note that YES price + NO price = 1.00 always (they sum to 100% probability).
+
+---
+
+## Seeding: How Liquidity Enters the Pool
+
+When the market-maker agent calls `seedLiquidity(collateralAmount)`:
+
+1. `collateralAmount` USDT enters the pool
+2. An equal number of YES shares and NO shares are minted and added to reserves
+3. Initial price is 50/50 — YES at $0.50, NO at $0.50
+
+Example: seed with 1,000 USDT
+
+```
+Before: yesReserve = 0,    noReserve = 0,    collateral = 0
+After:  yesReserve = 1000, noReserve = 1000, collateral = 1000
+YES price = 1000 / (1000 + 1000) = $0.50
+NO price  = 1000 / (1000 + 1000) = $0.50
+```
+
+Seeding is neutral — it does not move prices. It just establishes the initial liquidity depth.
+
+---
+
+## Buying YES Shares
+
+When a trader calls `buyShares(true, collateralAmount, minSharesOut)`:
+
+1. `collateralAmount` USDT enters the pool
+2. The same amount of YES shares AND NO shares are minted (complete-set creation)
+3. The newly minted YES shares are given to the trader
+4. The newly minted NO shares are added to the pool's NO reserve
+5. A trading fee is taken from the collateral before share calculation
+
+This is why **buying YES increases the YES price**: more NO shares are in the reserve relative to YES shares (which went to the trader), so the ratio shifts.
+
+**Worked example: buy YES with 100 USDT**
+
+```
+Pool before: yesReserve = 1000, noReserve = 1000, collateral = 1000
+Fee (1%): 1 USDT
+Net input: 99 USDT
+
+After buying: pool mints 99 YES + 99 NO from the net input
+  - 99 YES shares go to the trader
+  - 99 NO shares added to noReserve
+
+Pool after: yesReserve = 1000, noReserve = 1099, collateral = 1099
+YES price  = 1099 / (1000 + 1099) = $0.5233
+```
+
+The trader receives 99 YES shares. If the market resolves YES, each is worth $1.00 — total return $99.00 on a $100.00 investment, less fees. The price moved from $0.50 to $0.5233 — the larger the trade relative to pool depth, the more slippage.
+
+---
+
+## Buying NO Shares
+
+The mirror image: `buyShares(false, collateralAmount, minSharesOut)`.
+
+1. `collateralAmount` USDT enters the pool
+2. YES and NO shares are minted
+3. The newly minted NO shares go to the trader
+4. The newly minted YES shares are added to the pool's YES reserve
+
+**Buying NO increases the NO price** (and decreases the YES price) — the YES reserve grows while NO shares leave the pool.
+
+---
+
+## Selling Shares Back to the Pool
+
+Selling is more complex because it is the reverse operation — shares re-enter the pool and USDT exits. The pool must ensure it remains solvent after the sale.
+
+The sell equation that governs `sellShares(isYes, sharesIn, minCollateralOut)`:
+
+```
+(sameReserve + sharesIn - collateralOut) * (oppositeReserve - collateralOut) 
+    = sameReserve * oppositeReserve
+```
+
+Where:
+- `sameReserve` = reserve of the share type being sold (e.g., `yesReserve` when selling YES)
+- `oppositeReserve` = reserve of the other share type (e.g., `noReserve` when selling YES)
+- `sharesIn` = number of shares being sold
+- `collateralOut` = USDT to be returned to the seller (the unknown — solver must find this)
+
+**Why this formula?** It preserves the constant-product relationship of the reserves after the complete-set destruction. When you sell YES shares back, the pool must destroy matched NO shares from its reserve to maintain the YES+NO = complete set invariant. The formula finds the maximum `collateralOut` such that the pool remains solvent.
+
+A trading fee is deducted from `collateralOut`.
+
+**Slippage protection:** The `minCollateralOut` parameter lets sellers specify the minimum USDT they accept. The transaction reverts if the AMM would return less — protecting against sandwich attacks and large price movements between tx submission and execution.
+
+---
+
+## Price Discovery in Practice
+
+The AMM price at any moment reflects the current buy/sell pressure. As traders buy YES, the YES price rises, attracting sellers and NO buyers — pushing it back toward equilibrium. This continuous process means the AMM price tracks the market consensus of probability in real time.
+
+| Action | YES Reserve | NO Reserve | YES Price |
+|---|---|---|---|
+| Initial seed (1000 USDT) | 1000 | 1000 | $0.500 |
+| Buy YES (100 USDT) | 1000 | 1099 | $0.523 |
+| Buy YES (100 USDT) | 1000 | 1198 | $0.545 |
+| Buy NO (200 USDT) | 1198 | 1198 | $0.500 |
+| Buy NO (500 USDT) | 1693 | 1198 | $0.414 |
+
+---
+
+## Trading Fees
+
+Every buy and sell incurs a fee that accrues to the protocol. Fees are taken from the collateral input (for buys) or output (for sells).
+
+The fee breakdown:
+- **Oracle fee**: funds the AI oracle agent's 0G Compute usage
+- **Market-maker fee**: compensates the LiquidityPool for providing initial liquidity
+- **Protocol fee**: goes to the treasury address
+
+Fees are tracked in the contract and distributed via PayoutDistributor at market resolution.
+
+---
+
+## View Functions
+
+These read-only functions let the frontend display current state without a transaction:
+
+```solidity
+// Full AMM state for a given trader
+function getAmmState(address trader) external view returns (
+    uint256 yesReserve,
+    uint256 noReserve,
+    uint256 yesPrice,       // scaled to 1e18
+    uint256 noPrice,        // scaled to 1e18
+    uint256 traderYesBalance,
+    uint256 traderNoBalance,
+    uint256 collateral
+);
+
+// How many YES/NO shares you get for a given USDT input
+function getBuyAmount(bool isYes, uint256 collateralAmount) 
+    external view returns (uint256 sharesOut);
+
+// How much USDT you get for selling a given number of shares
+function getSellAmount(bool isYes, uint256 sharesIn) 
+    external view returns (uint256 collateralOut);
+```
+
+The frontend calls `getBuyAmount` and `getSellAmount` before every trade to show the user exactly what they will receive, including the slippage from their specific trade size.
+
+---
+
+## Slippage Protection
+
+All trade functions accept a minimum output parameter:
+
+```solidity
+// Reverts if sharesOut < minSharesOut
+function buyShares(bool isYes, uint256 collateralAmount, uint256 minSharesOut) external;
+
+// Reverts if collateralOut < minCollateralOut
+function sellShares(bool isYes, uint256 sharesIn, uint256 minCollateralOut) external;
+```
+
+The frontend sets these based on a configurable slippage tolerance (default 1%). Users can increase this tolerance for large trades where price impact is expected to be higher.
+
+---
+
+## AMM Security Properties
+
+- **Non-zero check**: Trades with zero input revert immediately
+- **ReentrancyGuard**: All state-changing functions are protected against reentrancy attacks
+- **SafeERC20**: All token transfers use OpenZeppelin's SafeERC20 — no raw `transfer()` calls
+- **Solvency invariant**: The sell equation is derived to maintain pool solvency — the pool can never be drained to insolvency by a single trade
+- **6-decimal USDT**: All amounts use `parseUnits("X", 6)` — the contracts assume 6-decimal USDT throughout
+
+<Warning>
+  All USDT amounts in the contracts use 6 decimal places. 100 USDT = `100_000_000` in contract units. If you interact directly with contracts, always use `ethers.parseUnits("100", 6)` — never `ethers.parseEther("100")`.
+</Warning>

@@ -10,7 +10,7 @@ import {
 import { useState } from "react";
 import TradeModal from "./trade-modal";
 import type { ProphetMarket } from "@/lib/prophet-market";
-import { marketStatusColor } from "@/lib/market-status";
+import { marketStatusColor, marketStatusDisplay } from "@/lib/market-status";
 
 export type { ProphetMarket };
 
@@ -56,7 +56,7 @@ export default function MarketCard({ market }: { market: ProphetMarket }) {
               style={{ color: marketStatusColor(market.chainStatus) }}
             >
               {market.chainStatus
-                ? `${market.category} · ${market.chainStatus}`
+                ? `${market.category} · ${marketStatusDisplay(market.chainStatus)}`
                 : market.category}
             </span>
           </div>

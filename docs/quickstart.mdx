@@ -1,0 +1,327 @@
+---
+title: "Quickstart"
+description: "Get Prophet running locally in under 15 minutes. Covers contracts, agents, and frontend."
+icon: "rocket"
+---
+
+## Overview
+
+This guide is written for judges, developers, and contributors who want to run Prophet end-to-end on their machine against the 0G Galileo testnet.
+
+<Info>
+  You do **not** need to redeploy contracts. The live deployment on 0G Galileo (chain ID 16602) is ready to use. This guide connects your local frontend and agents to those contracts.
+</Info>
+
+---
+
+## Prerequisites
+
+<Steps>
+  <Step title="Node.js 20+">
+    ```bash
+    node --version  # must be >= 20.0.0
+    npm --version   # must be >= 10.0.0
+    ```
+    Install from [nodejs.org](https://nodejs.org) if needed.
+  </Step>
+  <Step title="Foundry">
+    ```bash
+    curl -L https://foundry.paradigm.xyz | bash
+    foundryup
+    forge --version  # Foundry 0.2.0 or later
+    ```
+  </Step>
+  <Step title="Funded testnet wallet">
+    You need a wallet with 0G testnet gas. Get tokens from [faucet.0g.ai](https://faucet.0g.ai). The oracle and market-maker agents each need their own wallet (can use the same for local testing).
+  </Step>
+  <Step title="Git">
+    ```bash
+    git --version  # any recent version works
+    ```
+  </Step>
+</Steps>
+
+---
+
+## 1. Clone and Install
+
+```bash
+git clone https://github.com/JamesVictor-O/Prophet.git
+cd Prophet
+
+# Install contract dependencies
+cd contracts
+forge install
+
+# Install agent dependencies
+cd ../agent
+npm install
+
+# Install frontend dependencies
+cd ../frontendV2
+npm install
+```
+
+---
+
+## 2. Environment Files
+
+<Warning>
+  Never commit private keys to git. The `.env` files are in `.gitignore`. Keep them local only.
+</Warning>
+
+### contracts/.env
+
+```bash
+# Only needed for deployment — skip if using live addresses
+PRIVATE_KEY=0x...your_deployer_private_key
+OG_TESTNET_RPC=https://evmrpc-testnet.0g.ai
+```
+
+### agent/.env
+
+```bash
+# Required: agent wallet private keys
+PRIVATE_KEY_ORACLE=0x...oracle_agent_wallet_private_key
+PRIVATE_KEY_MM=0x...market_maker_agent_private_key
+
+# 0G Chain
+OG_CHAIN_RPC=https://evmrpc-testnet.0g.ai
+CHAIN_ID=16602
+
+# 0G Storage (use turbo indexer — standard returns 503)
+OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+
+# 0G Compute provider (Qwen 2.5 7B on testnet)
+COMPUTE_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
+
+# Set to 1 to enforce TEE attestation verification (recommended for production)
+COMPUTE_REQUIRE_TEE=0
+
+# Deployed contract addresses (live on 0G Galileo)
+PROPHET_FACTORY_ADDRESS=0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4
+LIQUIDITY_POOL_ADDRESS=0x13AbE644693DA19f9A895C8c82Cf53879580DA8e
+MOCK_USDT_ADDRESS=0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49
+POSITION_VAULT_ADDRESS=0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E
+PAYOUT_DISTRIBUTOR_ADDRESS=0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740
+
+# How often market maker reprices (ms)
+REPRICE_INTERVAL_MS=60000
+
+# Log level (debug | info | warn | error)
+LOG_LEVEL=info
+```
+
+### frontendV2/.env.local
+
+```bash
+# 0G Chain
+NEXT_PUBLIC_CHAIN_ID=16602
+NEXT_PUBLIC_RPC_URL=https://evmrpc-testnet.0g.ai
+
+# Deployed contract addresses
+NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS=0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4
+NEXT_PUBLIC_LIQUIDITY_POOL_ADDRESS=0x13AbE644693DA19f9A895C8c82Cf53879580DA8e
+NEXT_PUBLIC_MOCK_USDT_ADDRESS=0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49
+NEXT_PUBLIC_POSITION_VAULT_ADDRESS=0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E
+NEXT_PUBLIC_PAYOUT_DISTRIBUTOR_ADDRESS=0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740
+
+# 0G Storage (server-side only — not exposed to browser)
+OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+
+# 0G Compute (server-side — for validate-question API route)
+COMPUTE_PROVIDER_ADDRESS=0xa48f01287233509FD694a22Bf840225062E67836
+
+# Optional: WalletConnect project ID (for RainbowKit)
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+```
+
+---
+
+## 3. Run Contract Tests
+
+<Tip>
+  The `--offline` flag skips network calls to Etherscan for ABI validation, making tests run much faster locally.
+</Tip>
+
+```bash
+cd contracts
+forge test --offline
+```
+
+Expected output:
+
+```
+Running 232 tests for test/...
+[PASS] testCreateMarket() (gas: 234,521)
+[PASS] testBuyShares_YES() (gas: 187,332)
+[PASS] testSellShares() (gas: 201,445)
+...
+Test result: ok. 232 passed; 0 failed; 0 skipped;
+```
+
+All 232 tests should pass with `0 failed`. If any fail, check that Foundry is up to date with `foundryup`.
+
+Run with verbose output for a specific test:
+
+```bash
+forge test --match-test testBuyShares_YES -vvv --offline
+```
+
+---
+
+## 4. Run 0G Diagnostics
+
+Before starting agents, verify your 0G connections are working.
+
+### Test 0G Storage
+
+```bash
+cd agent
+npm run test:storage
+```
+
+This script:
+1. Uploads a small JSON blob to 0G Storage via the turbo indexer
+2. Downloads it back and verifies the content matches (checksum check)
+3. Reports upload/download latency
+
+Expected output:
+```
+[storage] Uploading test payload...
+[storage] Root hash: 0xabc123...
+[storage] Download OK — checksum verified in 1.2s
+[storage] 0G Storage: PASS
+```
+
+<Warning>
+  If you see `503 Service Unavailable`, you are hitting the standard indexer. Make sure `OG_INDEXER_URL` in `agent/.env` points to the **turbo** indexer: `https://indexer-storage-testnet-turbo.0g.ai`
+</Warning>
+
+### Test 0G Compute
+
+```bash
+cd agent
+npm run test:compute
+```
+
+This script:
+1. Initializes the 0G Serving Broker with your wallet
+2. Verifies TEE attestation for the configured provider
+3. Sends a simple test prompt and checks the response is valid JSON
+4. Reports inference latency
+
+Expected output:
+```
+[compute] Broker initialized
+[compute] Provider verified: 0xa48f01...
+[compute] Test prompt sent...
+[compute] Response: { "verdict": true, "confidence": 85, ... }
+[compute] Latency: 47s
+[compute] 0G Compute: PASS
+```
+
+<Note>
+  Inference on the testnet Qwen model typically takes 45–90 seconds. This is normal — the testnet provider can be under load. Production uses DeepSeek V3 which is faster and more reliable.
+</Note>
+
+---
+
+## 5. Start the Frontend
+
+```bash
+cd frontendV2
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). You should see the Prophet markets dashboard.
+
+<Tip>
+  If the page loads but shows no markets, the frontend is not connected to the contracts. Double-check `NEXT_PUBLIC_PROPHET_FACTORY_ADDRESS` in `frontendV2/.env.local`.
+</Tip>
+
+---
+
+## 6. Start the Agents
+
+In a separate terminal:
+
+```bash
+cd agent
+npm run start
+```
+
+This starts both the oracle agent and market-maker agent concurrently. You should see startup logs:
+
+```
+[oracle] Connected to 0G Chain (block 4,821,033)
+[oracle] Scanning for pending markets...
+[oracle] Listening for ResolutionTriggered events...
+[mm] LiquidityPool balance: 5000.00 USDT
+[mm] Scanning for open markets...
+[mm] Found 3 open markets — checking liquidity allocation
+[mm] Listening for MarketCreated events...
+```
+
+To run only the oracle agent:
+```bash
+npm run oracle
+```
+
+To run only the market-maker agent:
+```bash
+npm run market-maker
+```
+
+---
+
+## 7. Get Test Tokens
+
+You need two types of tokens to interact with Prophet:
+
+### 0G Gas (for transaction fees)
+
+Go to [faucet.0g.ai](https://faucet.0g.ai), connect your wallet, and request 0G testnet tokens. These are used for gas on every transaction.
+
+### Mock USDT (for trading)
+
+Navigate to the `/faucet` page in the Prophet frontend:
+```
+http://localhost:3000/faucet
+```
+
+Click "Get 1000 USDT". This mints mock USDT from the test contract to your wallet. You can call this multiple times. The mock USDT contract is at `0xc2B0D2A7e858F13B349843fF87dBF4EBF9227F49` on 0G Galileo.
+
+---
+
+## What's Running
+
+After completing this guide, you have:
+
+| Component | Status | URL / Address |
+|---|---|---|
+| ProphetFactory | Live on 0G Galileo | `0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4` |
+| Frontend | Local dev server | http://localhost:3000 |
+| Oracle Agent | Running locally | Listening for chain events |
+| Market Maker | Running locally | Monitoring open markets |
+| 0G Compute | Testnet | Qwen 2.5 7B at `0xa48f01...` |
+| 0G Storage | Testnet | Turbo indexer |
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Connect Your Wallet" icon="wallet" href="/user-guide/connect-wallet">
+    Add 0G Galileo to MetaMask and connect to the app
+  </Card>
+  <Card title="Understand the AMM" icon="calculator" href="/concepts/amm">
+    Learn how YES/NO share pricing works
+  </Card>
+  <Card title="Deploy Contracts" icon="rocket" href="/deployment">
+    Full deployment guide for a fresh environment
+  </Card>
+  <Card title="0G Integration Details" icon="layer-group" href="/architecture/0g-integration">
+    Deep dive into how 0G Chain, Compute, and Storage are used
+  </Card>
+</CardGroup>

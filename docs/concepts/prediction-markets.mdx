@@ -1,0 +1,127 @@
+---
+title: "Prediction Markets"
+description: "How prediction markets aggregate information, why they outperform experts, and why the existing ones fail."
+icon: "chart-bar"
+---
+
+## What Is a Prediction Market?
+
+A prediction market is a trading venue where participants buy and sell contracts whose value depends on the outcome of a future event. Unlike traditional financial markets where you trade claims on company earnings or commodity supply, prediction markets trade claims on whether specific events happen or not.
+
+The fundamental insight is simple: **when people risk real money on outcomes, prices reflect honest beliefs.** You cannot inflate a price by stating an opinion. You can only move a price by backing that opinion with capital — and risking loss if you are wrong.
+
+---
+
+## YES and NO Shares as Financial Instruments
+
+Prophet implements the simplest form of prediction market: **binary YES/NO markets**.
+
+Every market has exactly two tradable assets:
+- A **YES share** pays $1.00 USDT if the market resolves YES, $0.00 if it resolves NO
+- A **NO share** pays $1.00 USDT if the market resolves NO, $0.00 if it resolves YES
+
+The price of each share — which always trades between $0.00 and $1.00 — is the market's implied probability for that outcome.
+
+---
+
+## Share Price = Probability
+
+This equivalence is not metaphorical — it is a mathematical fact. If the YES share trades at $0.60:
+
+- A rational buyer pays $0.60 for a contract that returns $1.00 on YES or $0.00 on NO
+- That implies the buyer believes the probability of YES is at least 60%
+- If buyers collectively believed the probability were lower, they would not pay $0.60 — they would sell, pushing the price down
+- If they believed the probability were higher, more buyers would enter, pushing the price up
+
+Prices converge to market-clearing equilibrium, which represents the aggregate belief of all informed participants.
+
+---
+
+## A Concrete Example
+
+**Market: "Will Arsenal win the Premier League 2025/26 season?"**
+
+| Share | Price | Implied Probability |
+|---|---|---|
+| YES | $0.60 | 60% chance Arsenal wins |
+| NO | $0.40 | 40% chance Arsenal does not win |
+
+Note that YES price + NO price always equals $1.00. This is enforced by the AMM's complete-set accounting — the pool is always solvent to pay out exactly $1.00 per share for every winner.
+
+If Arsenal's form deteriorates — injuries, bad results — traders sell YES shares and buy NO shares. The YES price falls to, say, $0.35, reflecting the updated market consensus of 35% probability. This price movement happens faster than any news organization can update its forecast, because it is driven by people with financial stakes.
+
+---
+
+## Why Prediction Markets Beat Expert Forecasting
+
+Decades of academic research show that prediction market prices consistently outperform:
+
+- **Expert panels**: Experts have individual cognitive biases, career incentives to be diplomatic, and limited information compared to the aggregate
+- **Polls and surveys**: Respondents have no skin in the game — they can say anything without consequence
+- **Statistical models**: Models are parameterized on historical data and cannot incorporate real-time soft information
+
+Prediction markets aggregate both hard information (statistics, models, news) and soft information (insider knowledge, local expertise, gut feelings) through the mechanism of financial incentive. Anyone who knows something the market does not can profit by betting on it — and in doing so, they move the price toward the truth.
+
+---
+
+## Why Liquidity Matters
+
+A prediction market with no liquidity is useless. Without liquidity:
+
+- **Wide spreads**: Buyers and sellers cannot transact near the fair price
+- **Price manipulation**: Small trades move the price dramatically — a single participant can dominate
+- **Informed traders stay out**: No one wants to trade in a thin market where their own entry moves the price against them
+
+Prophet solves this with a protocol-owned AMM that provides continuous, algorithmic liquidity. There is always a price. There is always a counterparty. The spread is determined by the AMM's invariant formula, not by the willingness of human market-makers.
+
+---
+
+## Why Resolution Accuracy Matters
+
+A prediction market is only as good as its resolution mechanism. If participants do not trust that markets will resolve correctly, they will not participate — or they will demand wide risk premiums that distort prices.
+
+Resolution failure modes in existing systems:
+
+| Failure Mode | Example | Impact |
+|---|---|---|
+| Political bias | Human committee favors popular outcome | Prices reflect politics, not probability |
+| Gaming | Large token holder votes self-interest | Governance attacks undermine integrity |
+| Delay | Challenge process takes weeks | Capital tied up, participants lose confidence |
+| Inconclusive | Ambiguous question, no clear answer | Market cancelled, no price signal produced |
+
+Prophet's AI oracle on 0G Compute addresses these directly:
+- No human bias — the AI is given the question, the evidence, and a strict JSON response format
+- No token governance — no one can buy influence over the oracle
+- Fast resolution — inference completes in under 2 minutes once triggered
+- Question validation at creation — ambiguous questions are rejected before a market opens
+
+---
+
+## The Cold-Start Liquidity Problem
+
+Every new prediction market faces a chicken-and-egg problem:
+
+> **No liquidity → no traders → no price signal → no interest → no liquidity**
+
+Traditional solutions:
+1. **Whitelist curated market creators** who are responsible for seeding — but this creates centralization and limits the long-tail of interesting markets
+2. **Incentivize LPs with token rewards** — but this creates mercenary liquidity that leaves when incentives end
+3. **Require a minimum deposit from the market creator** — this prices out smaller participants and limits market creation
+
+Prophet's solution: the **LiquidityPool contract** holds protocol-owned USDT, and the **autonomous market-maker agent** allocates a portion to each new market immediately at creation. Every market starts with liquidity. No human decision required.
+
+---
+
+## The Accountability Gap
+
+Even when markets resolve correctly, existing protocols often produce no verifiable record of why. A human committee votes — but the deliberations are off-chain, private, and unauditable. A token vote passes — but the reasoning is forum posts that disappear.
+
+Prophet stores the oracle's full reasoning chain permanently on **0G Storage** before posting the verdict on-chain. The root hash in the contract links to the exact reasoning that produced the verdict. This is not just an audit log — it is a public, permanent record that any user can retrieve and independently verify.
+
+---
+
+## Next: How the AMM Works
+
+<Card title="Binary YES/NO AMM" icon="calculator" href="/concepts/amm">
+  Understand the complete-set accounting, buy/sell equations, price discovery mechanics, and slippage protection in Prophet's AMM.
+</Card>

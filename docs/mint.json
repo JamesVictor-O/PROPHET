@@ -1,0 +1,46 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Prophet",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#5B21B6",
+    "anchors": { "from": "#7C3AED", "to": "#2563EB" }
+  },
+  "topbarLinks": [
+    { "name": "GitHub", "url": "https://github.com/JamesVictor-O/Prophet" },
+    { "name": "Live App", "url": "https://chainscan-galileo.0g.ai/address/0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4" }
+  ],
+  "topbarCtaButton": { "name": "Launch App", "url": "http://localhost:3000" },
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": ["introduction", "quickstart", "deployment"]
+    },
+    {
+      "group": "Concepts",
+      "pages": ["concepts/prediction-markets", "concepts/amm", "concepts/resolution", "concepts/privacy"]
+    },
+    {
+      "group": "Architecture",
+      "pages": ["architecture/overview", "architecture/0g-integration", "architecture/contracts", "architecture/agents"]
+    },
+    {
+      "group": "User Guide",
+      "pages": ["user-guide/connect-wallet", "user-guide/trading", "user-guide/create-market", "user-guide/redeem"]
+    },
+    {
+      "group": "Developer Guide",
+      "pages": ["developer/local-setup", "developer/contracts", "developer/agents", "developer/frontend"]
+    }
+  ],
+  "footerSocials": {
+    "x": "https://x.com/0G_labs",
+    "github": "https://github.com/JamesVictor-O/Prophet"
+  }
+}

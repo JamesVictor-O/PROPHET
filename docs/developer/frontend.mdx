@@ -1,0 +1,392 @@
+---
+title: "Frontend Development"
+description: "Next.js App Router structure, wagmi/viem setup for 0G Chain, key hooks, API routes, and ABI management."
+icon: "monitor"
+---
+
+## Technology Stack
+
+| Layer | Library | Version |
+|---|---|---|
+| Framework | Next.js (App Router) | 14 |
+| Language | TypeScript | 5 |
+| Wallet | wagmi + viem | v2 |
+| Wallet UI | RainbowKit | Latest |
+| Styling | Tailwind CSS | 3 |
+| Contract reads | wagmi `useReadContract` / `useReadContracts` | v2 |
+
+---
+
+## App Router Structure
+
+```
+frontendV2/src/app/
+├── (dashboard)/
+│   ├── markets/
+│   │   └── page.tsx         ← Markets listing page
+│   ├── oracle/
+│   │   └── page.tsx         ← Oracle reasoning viewer
+│   └── _components/
+│       ├── markets/
+│       │   └── market-card.tsx  ← Market preview card
+│       └── ...
+├── market/
+│   └── [id]/
+│       └── page.tsx         ← Individual market detail page
+├── _components/
+│   └── trade-panel.tsx      ← Main trading UI component
+├── api/
+│   ├── validate-question/
+│   │   └── route.ts         ← 0G Compute question validation
+│   ├── store-metadata/
+│   │   └── route.ts         ← 0G Storage metadata writer
+│   ├── og-storage/
+│   │   └── route.ts         ← 0G Storage reader (proxied)
+│   ├── faucet/
+│   │   └── route.ts         ← Mock USDT minting
+│   └── prices/
+│       └── route.ts         ← Market price cache endpoint
+├── globals.css
+├── layout.tsx
+└── page.tsx                 ← Landing page
+```
+
+---
+
+## 0G Chain Configuration (wagmi + viem)
+
+The chain configuration lives in `frontendV2/src/lib/wagmi.ts`:
+
+```typescript
+import { createConfig, http } from 'wagmi';
+import { defineChain } from 'viem';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+
+export const ogGalileo = defineChain({
+  id: 16602,
+  name: '0G Galileo Testnet',
+  nativeCurrency: {
+    name: '0G',
+    symbol: '0G',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: { http: ['https://evmrpc-testnet.0g.ai'] }
+  },
+  blockExplorers: {
+    default: {
+      name: '0G ChainScan',
+      url: 'https://chainscan-galileo.0g.ai'
+    }
+  },
+  testnet: true,
+});
+
+export const wagmiConfig = getDefaultConfig({
+  appName: 'Prophet',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '',
+  chains: [ogGalileo],
+  transports: {
+    [ogGalileo.id]: http(process.env.NEXT_PUBLIC_RPC_URL),
+  },
+});
+```
+
+---
+
+## Key Hooks
+
+### useMarkets
+
+Reads all markets from ProphetFactory and enriches with AMM state:
+
+```typescript
+// frontendV2/src/hooks/use-markets.ts
+import { useReadContract } from 'wagmi';
+import { ProphetFactoryABI } from '@/lib/abis/ProphetFactory';
+
+export function useMarkets() {
+  const { data: addresses, isLoading } = useReadContract({
+    address: PROPHET_FACTORY_ADDRESS,
+    abi: ProphetFactoryABI,
+    functionName: 'getMarkets',
+  });
+  
+  // ... enrich each address with MarketContract.getAmmState()
+  // Returns: Array<Market> with question, prices, status, deadline, etc.
+}
+```
+
+### useMarketDetail
+
+Reads full state for a single market:
+
+```typescript
+// frontendV2/src/hooks/use-market-detail.ts
+export function useMarketDetail(marketAddress: `0x${string}`) {
+  const { data } = useReadContract({
+    address: marketAddress,
+    abi: MarketContractABI,
+    functionName: 'getAmmState',
+    args: [connectedAddress],
+  });
+  
+  // Returns: { yesReserve, noReserve, yesPrice, noPrice, traderYesBalance, traderNoBalance }
+}
+```
+
+### useOracleReasoning
+
+Fetches oracle reasoning from 0G Storage via the API proxy:
+
+```typescript
+// frontendV2/src/hooks/use-oracle-reasoning.ts
+export function useOracleReasoning(marketAddress: string) {
+  const [reasoning, setReasoning] = useState<OracleReasoning | null>(null);
+  
+  useEffect(() => {
+    async function fetchReasoning() {
+      // 1. Get reasoning hash from contract
+      const hash = await readContract({ 
+        address: marketAddress, 
+        functionName: 'reasoningHash' 
+      });
+      
+      // 2. Fetch from 0G Storage via API proxy
+      const res = await fetch(`/api/og-storage?hash=${hash}`);
+      setReasoning(await res.json());
+    }
+    
+    if (marketAddress) fetchReasoning();
+  }, [marketAddress]);
+  
+  return reasoning;
+}
+```
+
+### useLiquidityPool
+
+Reads LiquidityPool balance and market allocations:
+
+```typescript
+export function useLiquidityPool() {
+  const { data: balance } = useReadContract({
+    address: LIQUIDITY_POOL_ADDRESS,
+    abi: LiquidityPoolABI,
+    functionName: 'availableBalance',
+  });
+  
+  return { balance };
+}
+```
+
+---
+
+## The Trade Panel (trade-panel.tsx)
+
+The main trading component at `frontendV2/src/app/_components/trade-panel.tsx` handles:
+
+1. **Mode switching**: Buy / Sell tabs
+2. **Share type selection**: YES / NO toggle
+3. **Amount input**: USDT input for buy, shares input for sell
+4. **Quote fetching**: Calls `getBuyAmount` or `getSellAmount` on MarketContract
+5. **Slippage calculation**: Applies user's tolerance to minSharesOut / minCollateralOut
+6. **USDT approval**: Checks allowance, requests approval if needed (one-time)
+7. **Transaction submission**: `buyShares` or `sellShares`
+8. **Position commit**: After buy, encrypts position and calls `PositionVault.commitPosition`
+9. **State refresh**: Refetches AMM state after transaction confirms
+
+```typescript
+// Simplified trade-panel.tsx structure
+export function TradePanel({ marketAddress }: { marketAddress: `0x${string}` }) {
+  const [mode, setMode] = useState<'buy' | 'sell'>('buy');
+  const [isYes, setIsYes] = useState(true);
+  const [amount, setAmount] = useState('');
+  
+  // Get quote
+  const { data: quote } = useReadContract({
+    address: marketAddress,
+    abi: MarketContractABI,
+    functionName: mode === 'buy' ? 'getBuyAmount' : 'getSellAmount',
+    args: [isYes, parseUnits(amount || '0', 6)],
+  });
+  
+  // Execute trade
+  const { writeContract } = useWriteContract();
+  
+  function handleTrade() {
+    const slippage = 0.99; // 1% tolerance
+    
+    if (mode === 'buy') {
+      writeContract({
+        address: marketAddress,
+        abi: MarketContractABI,
+        functionName: 'buyShares',
+        args: [isYes, parseUnits(amount, 6), (quote * BigInt(99)) / 100n],
+      });
+    } else {
+      writeContract({
+        address: marketAddress,
+        abi: MarketContractABI,
+        functionName: 'sellShares',
+        args: [isYes, parseUnits(amount, 18), (quote * BigInt(99)) / 100n],
+      });
+    }
+  }
+  
+  return ( /* JSX */ );
+}
+```
+
+---
+
+## API Routes
+
+### /api/validate-question
+
+**Method:** POST  
+**Body:** `{ question: string }`  
+**Returns:** `{ valid: boolean, reason: string, suggestedSources: string[] }`
+
+Calls 0G Compute via `@0glabs/0g-serving-broker` to validate whether the question is a valid binary prediction market question. This is server-side only — the provider address and compute credentials are not exposed to the browser.
+
+### /api/store-metadata
+
+**Method:** POST  
+**Body:** `MarketMetadata` object  
+**Returns:** `{ rootHash: string }`
+
+Uploads market metadata to 0G Storage using the turbo indexer. Returns the root hash which should be stored in the contract's `metadataHash` field.
+
+### /api/og-storage
+
+**Method:** GET  
+**Query:** `?hash=0x...`  
+**Returns:** Parsed JSON object stored at that root hash
+
+Proxies 0G Storage reads from the browser. Handles CORS, caches responses, and implements retry logic. The turbo indexer URL is kept server-side.
+
+### /api/faucet
+
+**Method:** POST  
+**Body:** `{ address: string }`  
+**Returns:** `{ txHash: string }`
+
+Mints 1000 mock USDT to the specified address. Server-side only — uses a funded wallet private key to call the mock USDT contract's `mint()` function.
+
+### /api/prices
+
+**Method:** GET  
+**Query:** `?market=0x...`  
+**Returns:** `{ yesPrice: string, noPrice: string, lastUpdated: string }`
+
+Returns cached price data pushed by the market-maker agent. Falls back to reading from the contract directly if cache is stale.
+
+---
+
+## 0G Storage — Server-Side Client
+
+The server-side storage client at `frontendV2/src/lib/server/og-storage.ts` is used only in API routes (never in client components):
+
+```typescript
+// frontendV2/src/lib/server/og-storage.ts
+import { Indexer, MemData } from '@0gfoundation/0g-storage-ts-sdk';
+
+const indexer = new Indexer(process.env.OG_INDEXER_URL!);
+
+export async function downloadFromOgStorage(rootHash: string): Promise<object> {
+  const [buffer, err] = await indexer.download(rootHash);
+  if (err) throw new Error(`0G Storage download failed: ${err}`);
+  return JSON.parse(buffer.toString());
+}
+
+export async function uploadToOgStorage(
+  data: object,
+  signer: ethers.Wallet
+): Promise<string> {
+  const buffer  = Buffer.from(JSON.stringify(data));
+  const memData = new MemData(buffer);
+  const [tx, err] = await indexer.upload(memData, signer);
+  if (err) throw new Error(`0G Storage upload failed: ${err}`);
+  return tx; // root hash
+}
+```
+
+<Warning>
+  Never import `og-storage.ts` from client components. It uses the Node.js `Buffer` API and server-only env vars. Always use the `/api/og-storage` route from the browser.
+</Warning>
+
+---
+
+## ABI Management
+
+Contract ABIs are stored as JSON files in `frontendV2/src/lib/abis/`. After deploying new contracts, regenerate them:
+
+```bash
+# From project root — copies compiled ABIs from Foundry output
+node scripts/copy-abis.js
+
+# Or manually
+cp contracts/out/ProphetFactory.sol/ProphetFactory.json \
+   frontendV2/src/lib/abis/ProphetFactory.json
+```
+
+ABIs are imported in hooks and components:
+
+```typescript
+import ProphetFactoryABI from '@/lib/abis/ProphetFactory.json';
+import MarketContractABI from '@/lib/abis/MarketContract.json';
+```
+
+After updating ABIs, run `npm run type-check` to catch any function signature mismatches.
+
+---
+
+## Market Status Utilities
+
+`frontendV2/src/lib/market-status.ts` contains helpers for interpreting market status:
+
+```typescript
+export type MarketStatus = 'Open' | 'PendingResolution' | 'Challenged' | 'Resolved' | 'Cancelled';
+
+export function getStatusColor(status: MarketStatus): string {
+  switch (status) {
+    case 'Open': return 'green';
+    case 'PendingResolution': return 'yellow';
+    case 'Challenged': return 'orange';
+    case 'Resolved': return 'blue';
+    case 'Cancelled': return 'red';
+  }
+}
+
+export function isMarketTradeable(status: MarketStatus): boolean {
+  return status === 'Open';
+}
+
+export function canRedeem(status: MarketStatus): boolean {
+  return status === 'Resolved' || status === 'Cancelled';
+}
+```
+
+---
+
+## Development Commands
+
+```bash
+cd frontendV2
+
+# Start dev server with hot reload
+npm run dev           # → http://localhost:3000
+
+# Type check without running
+npm run type-check
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run start
+
+# Lint
+npm run lint
+```

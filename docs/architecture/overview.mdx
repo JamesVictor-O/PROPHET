@@ -1,0 +1,179 @@
+---
+title: "Architecture Overview"
+description: "System components, data flow, and how 0G Chain, 0G Compute, and 0G Storage connect in Prophet."
+icon: "sitemap"
+---
+
+## System Architecture
+
+Prophet is composed of four distinct layers: the blockchain layer (smart contracts on 0G Chain), the agent layer (off-chain autonomous services), the data layer (0G Storage), and the inference layer (0G Compute). The frontend serves as the user interface across all four.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        PROPHET SYSTEM ARCHITECTURE                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+  USER BROWSER                    AGENT LAYER                0G INFRA
+  ┌──────────┐     wagmi/viem    ┌─────────────┐   broker   ┌─────────────┐
+  │          │ ◄──────────────►  │             │ ◄────────► │  0G Compute │
+  │ Next.js  │                  │ Oracle Agent │            │  (Qwen/     │
+  │ Frontend │                  │             │            │  DeepSeek)  │
+  │          │                  └──────┬──────┘            └─────────────┘
+  │ trade-   │                         │                          │
+  │ panel.tsx│                         │ ethers v6                │
+  │          │     API routes           │                          │
+  │          │ ───────────────►  ┌──────▼──────┐   SDK     ┌─────▼───────┐
+  │          │   /validate-q     │             │ ◄────────► │  0G Storage │
+  │          │   /store-meta     │  Market     │            │  (turbo     │
+  └──────────┘   /og-storage     │  Maker      │            │  indexer)   │
+        │        /faucet         │  Agent      │            └─────────────┘
+        │        /prices         │             │                  │
+        │                        └──────┬──────┘                  │
+        │                               │                          │
+        │        0G CHAIN (EVM, chain ID 16602)                   │
+        │  ┌────────────────────────────────────────────┐         │
+        └─►│                                            │◄────────┘
+           │  ProphetFactory  ◄──►  MarketContract       │
+           │       │                     │              │
+           │  LiquidityPool  ◄──►  PositionVault        │
+           │                             │              │
+           │              PayoutDistributor             │
+           │                                            │
+           └────────────────────────────────────────────┘
+```
+
+---
+
+## Component Responsibilities
+
+### Smart Contracts (0G Chain)
+
+The contracts are the source of truth for all financial state. They hold funds, enforce rules, and emit events.
+
+**ProphetFactory** (`0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4`)
+Creates and tracks all markets. Anyone can call `createMarket()`. The factory wires each new market to the vault, distributor, oracle agent, and market-maker agent at deployment.
+
+**MarketContract** (one per market, deployed by factory)
+Implements the binary YES/NO AMM. Holds all market collateral (USDT). Enforces the complete-set accounting invariant. Manages the market lifecycle from Open through Resolved.
+
+**LiquidityPool** (`0x13AbE644693DA19f9A895C8c82Cf53879580DA8e`)
+Holds protocol-owned USDT. The market-maker agent allocates portions to new markets and reclaims settled funds after resolution. No human LP is needed.
+
+**PositionVault** (`0x89FAcA46A2782b4751F697ddFe0A0b9124Eb794E`)
+Stores encrypted bet commitments. Receives position reveals from the oracle after resolution. Enforces that positions cannot be revealed before the market is resolved.
+
+**PayoutDistributor** (`0x238D341Bb358AC7C8Ae0A22b35897bECE97b9740`)
+Calculates and distributes winnings after reveal. Handles fee splits between oracle, market-maker, and protocol treasury.
+
+---
+
+### Agent Layer
+
+The agents are TypeScript services that run off-chain. They read events from 0G Chain, call 0G Compute and 0G Storage, and submit transactions back to the chain.
+
+**Oracle Agent** (`agent/src/oracle/index.ts`)
+The brain of market resolution. It listens for resolution events, calls the AI model on 0G Compute, stores reasoning on 0G Storage, and posts verdicts on-chain. It also handles the position reveal after finalization.
+
+**Market Maker Agent** (`agent/src/market-maker/index.ts`)
+Keeps markets liquid. It watches for new market creation, allocates USDT from LiquidityPool to seed each market's AMM, monitors active markets, and returns settled funds to the pool after resolution.
+
+---
+
+### 0G Compute
+
+Provides decentralized AI inference via the `@0glabs/0g-serving-broker` SDK. Prophet uses it for:
+1. **Question validation** at market creation (is this a valid, resolvable question?)
+2. **Oracle resolution** at deadline (did the event happen? what is the evidence?)
+3. **Market pricing inference** (what is a fair initial price for this market?)
+
+All inference goes through the 0G Compute provider at `0xa48f01287233509FD694a22Bf840225062E67836` (Qwen 2.5 7B on testnet). TEE attestation is verified before each inference session.
+
+---
+
+### 0G Storage
+
+Provides permanent, decentralized storage via the `@0gfoundation/0g-storage-ts-sdk` SDK. Prophet uses the turbo indexer at `https://indexer-storage-testnet-turbo.0g.ai`.
+
+Prophet writes to 0G Storage:
+- Market metadata (question, deadline, sources, category) — written at creation
+- Oracle reasoning chains (full JSON with confidence, evidence, reasoning) — written before each verdict
+- Agent state (active markets, liquidity allocation) — updated continuously
+- Price snapshots (YES/NO prices at intervals) — written by market-maker
+
+Root hashes returned by uploads are stored in the relevant smart contracts, creating a verifiable link between on-chain state and off-chain data.
+
+---
+
+## Data Flow: Market Creation
+
+```
+1. User fills CreateMarketForm in frontend
+2. Frontend calls /api/validate-question → 0G Compute validates question
+3. User confirms → frontend calls ProphetFactory.createMarket()
+4. Factory deploys new MarketContract, emits MarketCreated event
+5. Frontend calls /api/store-metadata → 0G Storage stores market details
+   → root hash stored in MarketContract.metadataHash
+6. Market-maker agent receives MarketCreated event
+7. Market-maker calls LiquidityPool.allocateToMarket() → gets USDT
+8. Market-maker calls MarketContract.seedLiquidity() → AMM is live
+9. Market appears on markets dashboard with live prices
+```
+
+---
+
+## Data Flow: Trading
+
+```
+1. User selects YES or NO in trade-panel.tsx
+2. Frontend calls MarketContract.getBuyAmount() to estimate shares out
+3. User sets slippage tolerance, approves USDT
+4. Frontend calls MarketContract.buyShares()
+   → USDT enters pool, shares go to user
+   → AMM price updates immediately
+5. Position encrypted via NaCl box, submitted to PositionVault.commitPosition()
+6. Market-maker agent reprices periodically (every REPRICE_INTERVAL_MS)
+```
+
+---
+
+## Data Flow: Resolution
+
+```
+1. Market deadline passes
+2. Anyone calls MarketContract.triggerResolution()
+3. Oracle agent receives ResolutionTriggered event
+4. Oracle reads metadata from 0G Storage (via metadataHash)
+5. Oracle calls 0G Compute (Qwen/DeepSeek) with resolution prompt
+6. Oracle receives JSON response with verdict + reasoning
+7. Oracle uploads reasoning to 0G Storage → gets root hash
+8. Oracle calls MarketContract.postResolution(verdict, reasoningHash)
+9. 24-hour challenge window begins (status = Challenged)
+10. If no challenge: anyone calls finalizeResolution()
+11. Oracle receives ResolutionFinalized event
+12. Oracle decrypts positions from PositionVault
+13. Oracle calls revealPositions() with decrypted data
+14. Users call redeemWinningShares()
+15. Market-maker agent calls LiquidityPool.returnFromMarket()
+```
+
+---
+
+## Separation of Concerns
+
+| Concern | Where it lives | Why |
+|---|---|---|
+| Financial state | Smart contracts (0G Chain) | Trustless, on-chain enforcement |
+| AI inference | 0G Compute | Decentralized, no centralized backend |
+| Data storage | 0G Storage | Permanent, tamper-proof audit trail |
+| User interface | Next.js frontend | Standard web UX |
+| Automation | TypeScript agents | Off-chain computation, on-chain settlement |
+
+No component is a single point of failure in terms of data integrity. The contracts enforce rules. 0G Storage holds the permanent record. 0G Compute runs inference. The agents are the coordination layer — if they go down, the on-chain state is preserved and agents can resume from where they left off using the catch-up scan on startup.
+
+---
+
+## Next: Deep Dive on 0G Integration
+
+<Card title="0G Integration Depth" icon="layer-group" href="/architecture/0g-integration">
+  A technical audit of every 0G module integration in Prophet — written for judges and engineers evaluating the depth of 0G use.
+</Card>
