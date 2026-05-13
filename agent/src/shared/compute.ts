@@ -683,7 +683,10 @@ Respond with this exact JSON structure:
 Rules:
 - verdict must be: true (YES), false (NO), or null (INCONCLUSIVE)
 - confidence must be 0–100
-- Do not claim to have checked a source unless it appears in the approved evidence package
+- The approved evidence package above was fetched by Prophet's oracle source collector before this inference call.
+- Treat the provided excerpts as checked evidence; do not return INCONCLUSIVE merely because you personally did not browse the web.
+- Do not claim to have checked a source unless it appears in the approved evidence package.
+- If the excerpts are inaccessible, contradictory, or do not answer the question, then return INCONCLUSIVE.
 - If confidence is below ${minConfidence}, set verdict to null and explain in inconclusiveReason
 - Do not include any text outside the JSON object`;
 }

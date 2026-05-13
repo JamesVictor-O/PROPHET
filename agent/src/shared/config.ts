@@ -30,6 +30,8 @@ export const CONFIG = {
   RECOVERY_INTERVAL_MS:   60_000,  // 1 minute chain/settlement catch-up loop
   ORACLE_MIN_CONFIDENCE: 70,
   ORACLE_REQUIRE_STORAGE: 1,
+  ORACLE_CANCEL_ON_INCONCLUSIVE: 0,
+  ORACLE_MAX_INCONCLUSIVE_ATTEMPTS: 2,
   ORACLE_ALLOW_LEGACY_PLAINTEXT_COMMITMENTS: 0,
 
   // ── 0G Storage reliability ────────────────────────────────────────────────

@@ -44,6 +44,8 @@ export default function TradePanel({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isRefreshingAfterTrade, setIsRefreshingAfterTrade] = useState(false);
   const [lastTradeHash, setLastTradeHash] = useState<`0x${string}` | undefined>();
+  const [autoSubmitBuyAfterApproval, setAutoSubmitBuyAfterApproval] = useState(false);
+  const autoSubmittedForApproveHashRef = useRef<`0x${string}` | undefined>(undefined);
 
   const amountUnits = amountStr ? parseUnits(amountStr, 6) : BigInt(0);
   const isBuy = mode === "BUY";
@@ -209,10 +211,33 @@ export default function TradePanel({
   }, [approveError, approveReceiptError, isApproveReceiptError, isApproveReverted]);
 
   useEffect(() => {
-    if (!isApproveSuccess) return;
+    if (!isApproveSuccess || !approveHash || !autoSubmitBuyAfterApproval) return;
+    if (autoSubmittedForApproveHashRef.current === approveHash) return;
+    if (!marketAddress || !isBuy || amountUnits === BigInt(0)) return;
+
+    autoSubmittedForApproveHashRef.current = approveHash;
     setTxErrorMessage(null);
-    setSuccessMessage("USDT approved. Review the quote, then buy your shares.");
-  }, [isApproveSuccess]);
+    setSuccessMessage("Approval confirmed. Submitting your buy transaction...");
+    resetBet();
+    writeBet({
+      address: marketAddress as `0x${string}`,
+      abi: MARKET_CONTRACT_ABI,
+      functionName: "buyShares",
+      args: [isYes, amountUnits, minSharesOut],
+    });
+    setAutoSubmitBuyAfterApproval(false);
+  }, [
+    approveHash,
+    autoSubmitBuyAfterApproval,
+    amountUnits,
+    isApproveSuccess,
+    isBuy,
+    isYes,
+    marketAddress,
+    minSharesOut,
+    resetBet,
+    writeBet,
+  ]);
 
   useEffect(() => {
     if (isBetReverted) {
@@ -285,6 +310,7 @@ export default function TradePanel({
     setSuccessMessage(null);
 
     if (isBuy && needsApproval) {
+      setAutoSubmitBuyAfterApproval(true);
       resetApprove();
       writeApprove({
         address: MOCK_USDT_ADDRESS as `0x${string}`,
@@ -293,6 +319,7 @@ export default function TradePanel({
         args: [marketAddress as `0x${string}`, maxUint256],
       });
     } else if (isBuy) {
+      setAutoSubmitBuyAfterApproval(false);
       resetBet();
       writeBet({
         address: marketAddress as `0x${string}`,
@@ -301,6 +328,7 @@ export default function TradePanel({
         args: [isYes, amountUnits, minSharesOut],
       });
     } else {
+      setAutoSubmitBuyAfterApproval(false);
       resetBet();
       writeBet({
         address: marketAddress as `0x${string}`,
@@ -315,20 +343,20 @@ export default function TradePanel({
   const isConfirming = isApproveConfirming || isBetConfirming;
   const isProcessing = isWriting || isConfirming || isRefreshingAfterTrade;
 
-  let buttonText = isBuy ? `Buy ${side}` : `Sell ${side}`;
+  let buttonText = isBuy ? `Buy shares (${side})` : `Sell shares (${side})`;
   if (isRefreshingAfterTrade) buttonText = "Updating balances...";
-  else if (isBetConfirming) buttonText = "Buying on-chain...";
+  else if (isBetConfirming) buttonText = isBuy ? "Buying shares..." : "Selling shares...";
   else if (isApproveConfirming) buttonText = "Approving USDT...";
-  else if (isBetPending) buttonText = "Confirm trade in wallet...";
+  else if (isBetPending) buttonText = isBuy ? "Confirm buy in wallet..." : "Confirm sell in wallet...";
   else if (isApprovePending) buttonText = "Confirm approval in wallet...";
   else if (isQuoteLoading) buttonText = "Refreshing quote...";
-  else if (needsApproval) buttonText = "Approve USDT first";
+  else if (needsApproval) buttonText = "Approve USDT to buy shares";
 
   const txStatusLabel = (() => {
-    if (isApprovePending) return "Step 1 of 2: confirm USDT approval in your wallet.";
-    if (isApproveConfirming) return "Step 1 of 2: approval is confirming on 0G Chain.";
-    if (isBetPending) return `Step 2 of 2: confirm ${isBuy ? "buy" : "sell"} in your wallet.`;
-    if (isBetConfirming) return `Step 2 of 2: ${isBuy ? "buy" : "sell"} transaction is confirming on 0G Chain.`;
+    if (isApprovePending) return "Please confirm USDT approval in your wallet.";
+    if (isApproveConfirming) return "USDT approval is confirming on-chain.";
+    if (isBetPending) return `Please confirm ${isBuy ? "buy" : "sell"} in your wallet.`;
+    if (isBetConfirming) return `${isBuy ? "Buy" : "Sell"} transaction is confirming on-chain.`;
     if (isRefreshingAfterTrade) return "Trade confirmed. Refreshing your USDT and share balances.";
     return null;
   })();
@@ -547,9 +575,7 @@ export default function TradePanel({
             {successMessage}
           </span>
           <p className="mt-1 text-xs text-white/45">
-            {successMessage.startsWith("USDT approved")
-              ? "The next click will place the trade; it will not approve again."
-              : "Enter a new amount when you want to place another trade."}
+            Enter a new amount when you want to place another trade.
           </p>
         </div>
       )}
@@ -590,11 +616,11 @@ export default function TradePanel({
         {!tradeEnabled
           ? "Trading unavailable"
           : !userAddress
-            ? "Connect Wallet To Proceed"
+            ? "Connect wallet to continue"
             : isInsufficientUsdt
               ? "Insufficient USDT"
               : isInsufficientShares
-                ? `Insufficient ${side} Shares`
+                ? `Insufficient ${side} shares`
                 : hasNoExecutableQuote
                   ? "No executable quote"
                   : buttonText}

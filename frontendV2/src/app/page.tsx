@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   ArrowRight01Icon,
   Database01Icon,
@@ -18,57 +20,99 @@ const ConnectButton = dynamic(
   { ssr: false },
 );
 
-const HERO_TICKS = [
-  { t: "09:41", yes: "0.50", no: "0.50", note: "Market initialized" },
-  { t: "09:44", yes: "0.57", no: "0.43", note: "YES pressure" },
-  { t: "09:49", yes: "0.42", no: "0.58", note: "NO rebalance" },
-  { t: "09:52", yes: "0.68", no: "0.32", note: "Liquidity deepened" },
-];
+const HERO_PILLS = ["0G Chain", "0G Compute", "0G Storage"];
 
-const SYSTEM_FLOW = [
-  ["01", "Validate", "0G Compute scores the market question and sources."],
-  ["02", "Seed", "Protocol liquidity initializes a neutral YES/NO AMM."],
-  ["03", "Trade", "Users move prices through real reserve imbalance."],
-  ["04", "Resolve", "The oracle posts verdict and reasoning to 0G Storage."],
-  ["05", "Recycle", "Remaining liquidity and fees return to the pool."],
+const HOW_IT_WORKS = [
+  {
+    step: "01",
+    title: "Create a Question",
+    userAction: "Pick a real-world YES/NO event you care about.",
+    systemAction: "Prophet validates it and opens a live market.",
+    icon: Shield01Icon,
+    side: "left",
+  },
+  {
+    step: "02",
+    title: "Instant Market Depth",
+    userAction: "Open the market and see live YES/NO prices.",
+    systemAction: "Protocol liquidity seeds a balanced AMM start.",
+    icon: Link04Icon,
+    side: "right",
+  },
+  {
+    step: "03",
+    title: "Trade Your View",
+    userAction: "Buy or sell shares as your conviction changes.",
+    systemAction: "AMM reprices continuously from reserve imbalance.",
+    icon: TradeUpIcon,
+    side: "left",
+  },
+  {
+    step: "04",
+    title: "Resolve and Redeem",
+    userAction: "Winning holders redeem directly from the market.",
+    systemAction: "Oracle settles outcome and stores reasoning on 0G.",
+    icon: Database01Icon,
+    side: "right",
+  },
 ];
 
 const OG_MODULES = [
   {
-    icon: Link04Icon,
-    title: "0G Chain",
-    label: "Execution",
-    body: "Market creation, AMM trades, settlement, redemption, and liquidity return live on-chain.",
-    signal: "sub-second settlement surface",
+    icon: Database01Icon,
+    title: "0G Storage",
+    label: "Historical Data",
+    body: "Market evidence, oracle reasoning, and agent state persist as immutable records.",
+    slot: "top",
   },
   {
     icon: CpuIcon,
     title: "0G Compute",
-    label: "Intelligence",
-    body: "Agents validate questions, evaluate risk, reason through outcomes, and operate market infrastructure.",
-    signal: "TEE-aware inference path",
+    label: "Predictive Intelligence",
+    body: "TEE-backed inference powers validation, risk scoring, and market resolution logic.",
+    slot: "right",
   },
   {
-    icon: Database01Icon,
-    title: "0G Storage",
-    label: "Memory",
-    body: "Oracle reasoning, metadata, evidence packages, and agent state become durable audit trails.",
-    signal: "permanent market record",
+    icon: Link04Icon,
+    title: "0G Chain",
+    label: "Settlement Layer",
+    body: "AMM trading, collateral accounting, and deterministic payouts execute on-chain.",
+    slot: "bottom",
+  },
+  {
+    icon: Shield01Icon,
+    title: "Protocol Layer",
+    label: "Integrated Analytics",
+    body: "Agent outcomes feed allocation, pricing, and liquidity management across markets.",
+    slot: "left",
   },
 ];
 
-const LEDGER_ROWS = [
-  ["source", "UEFA official report", "stored"],
-  ["compute", "oracle verdict: YES", "attested"],
-  ["hash", "0xf08d...7584", "on-chain"],
-  ["status", "challenge window", "closed"],
+const WHY_PROPHET = [
+  {
+    step: "01",
+    title: "Turn Hot Opinions Into Markets",
+    body: "If your take can spark real argument, you can launch it as a YES/NO market and let people price the truth.",
+    icon: TradeUpIcon,
+    tone: "bg-[#ef6b4a]/18 text-[#ef6b4a]",
+  },
+  {
+    step: "02",
+    title: "No Liquidity Headache",
+    body: "You do not need to chase manual LPs. Prophet injects protocol liquidity so your market is tradable from day one.",
+    icon: Link04Icon,
+    tone: "bg-[#5b5ce6]/20 text-[#8b80ff]",
+  },
+  {
+    step: "03",
+    title: "Verifiable Resolution",
+    body: "Outcomes are settled with auditable reasoning on 0G, so users can verify why a market resolved the way it did.",
+    icon: Database01Icon,
+    tone: "bg-[#26c281]/18 text-[#26c281]",
+  },
 ];
 
-const AMM_ROWS = [
-  ["YES bought", "$23.00", "$0.50", "$0.64"],
-  ["NO sold", "14.20", "$0.36", "$0.31"],
-  ["fees", "1.00%", "pool", "recycled"],
-];
+
 
 const SOCIAL = [
   { label: "X", href: "https://x.com/prophet" },
@@ -102,164 +146,169 @@ function PrimaryLink({
 
 
 
-function MiniChart() {
+function HeroTerminal({
+  isConnected,
+  onConnectWallet,
+}: {
+  isConnected: boolean;
+  onConnectWallet?: () => void;
+}) {
   return (
-    <svg
-      viewBox="0 0 520 190"
-      className="h-full w-full"
-      role="img"
-      aria-label="Animated YES and NO share price movement"
-    >
-      <g className="landing-grid">
-        {[22, 68, 114, 160].map((y) => (
-          <line key={y} x1="0" x2="520" y1={y} y2={y} />
-        ))}
-        {[60, 160, 260, 360, 460].map((x) => (
-          <line key={x} x1={x} x2={x} y1="0" y2="190" />
-        ))}
-      </g>
-      <path
-        className="hero-path hero-path-yes"
-        d="M8 124 L72 124 L72 104 L136 104 L136 116 L198 116 L198 82 L262 82 L262 72 L326 72 L326 96 L388 96 L388 54 L452 54 L452 48 L512 48"
-      />
-      <path
-        className="hero-path hero-path-no"
-        d="M8 64 L72 64 L72 84 L136 84 L136 72 L198 72 L198 106 L262 106 L262 116 L326 116 L326 92 L388 92 L388 134 L452 134 L452 140 L512 140"
-      />
-      <circle className="hero-dot hero-dot-yes" cx="512" cy="48" r="5" />
-      <circle className="hero-dot hero-dot-no" cx="512" cy="140" r="5" />
-      <text x="456" y="34" className="hero-chart-label hero-chart-label-yes">
-        YES $0.68
-      </text>
-      <text x="456" y="164" className="hero-chart-label hero-chart-label-no">
-        NO $0.32
-      </text>
-    </svg>
-  );
-}
-
-function HeroTerminal() {
-  return (
-    <section className="landing-panel landing-reveal landing-reveal-2">
-      <div className="grid border-b border-white/10 lg:grid-cols-[1fr_13rem]">
-        <div className="p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8b80ff]">
-                Live YES/NO AMM
-              </p>
-              <h2 className="mt-2 max-w-lg text-lg font-semibold leading-tight text-white sm:text-xl">
-                Will autonomous agents become core DeFi infrastructure in 2026?
-              </h2>
+    <section className="hero-shell landing-reveal landing-reveal-2 h-full w-full">
+      <div className="hero-grid-bg" aria-hidden="true" />
+      <div className="relative grid h-full items-center gap-8 px-6 pb-4 pt-4 sm:px-8 sm:pt-6 lg:grid-cols-[1fr_0.95fr] lg:px-10 lg:pt-8">
+        <div className="max-w-xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
+            Welcome to Prophet Markets
+          </p>
+          <h2 className="mt-4 text-[clamp(2.4rem,4.6vw,4.9rem)] font-semibold leading-[1.01] text-white">
+           The{" "}
+            <span className="text-[#f5cf6a]">Autonomous Prediction</span>{" "}
+            Platform
+          </h2>
+          <p className="mt-5 text-sm leading-7 text-white/62 sm:text-base">
+            Trade real YES/NO share prices with protocol-owned liquidity, AI
+            resolution, and verifiable 0G evidence trails.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {HERO_PILLS.map((pill) => (
+              <span
+                key={pill}
+                className="rounded border border-white/15 bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-white/70"
+              >
+                {pill}
+              </span>
+            ))}
+          </div>
+          <div className="mt-6 flex items-center gap-3 text-sm text-white/80">
+            <div className="hero-avatars" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
             </div>
-            <span className="hidden rounded-full border border-[#34d399]/25 px-3 py-1 font-mono text-xs text-[#34d399] sm:inline-flex">
-              OPEN
+            <span className="text-xs text-white/55">
+              Built To Make Your Opinion Tradeable.
             </span>
           </div>
-        </div>
-        <div className="grid grid-cols-2 border-t border-white/10 lg:grid-cols-1 lg:border-l lg:border-t-0">
-          <div className="px-4 py-3">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-              Pool
-            </p>
-            <p className="mt-1 font-mono text-lg text-white">$50.00</p>
+          <div className="mt-7">
+            {isConnected ? (
+              <PrimaryLink href="/dashboard">Explore market</PrimaryLink>
+            ) : (
+              <button
+                type="button"
+                onClick={onConnectWallet}
+                className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#ece8df] px-5 py-3 text-sm font-semibold text-[#111111] transition-colors duration-150 ease-out hover:bg-white active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]"
+              >
+                Connect wallet
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={16}
+                  strokeWidth={2.2}
+                  aria-hidden="true"
+                  className="motion-safe:duration-150 motion-safe:ease-out group-hover:translate-x-0.5"
+                />
+              </button>
+            )}
           </div>
-          <div className="border-l border-white/10 px-4 py-3 lg:border-l-0 lg:border-t">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-              Fee
-            </p>
-            <p className="mt-1 font-mono text-lg text-white">1.00%</p>
+        </div>
+        <div className="hero-device-stage">
+          <div className="hero-device hero-device-back">
+            <Image
+              src="/mobilePridiction.jpg"
+              alt="Prophet mobile trading interface"
+              width={260}
+              height={520}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_13rem]">
-        <div className="relative h-[220px] border-b border-white/10 p-4 sm:h-[280px] lg:border-b-0 lg:p-5">
-          <MiniChart />
-        </div>
-        <div className="divide-y divide-white/10 border-white/10 lg:border-l">
-          {HERO_TICKS.map((row) => (
-            <div key={row.t} className="grid grid-cols-[3.2rem_1fr] gap-3 px-4 py-3">
-              <span className="font-mono text-[11px] text-white/32">{row.t}</span>
-              <div>
-                <div className="flex items-center justify-between gap-3 font-mono text-xs">
-                  <span className="text-[#34d399]">{row.yes}</span>
-                  <span className="text-[#f87171]">{row.no}</span>
-                </div>
-                <p className="mt-1 text-[11px] leading-4 text-white/45">{row.note}</p>
-              </div>
-            </div>
-          ))}
+          <div className="hero-device hero-device-mid">
+            <Image
+              src="/mobilePridiction.jpg"
+              alt="Prophet market dashboard on mobile"
+              width={260}
+              height={520}
+              className="h-full w-full object-cover"
+              priority
+            />
+          </div>
+          <div className="hero-device hero-device-front">
+            <Image
+              src="/mobilePridiction.jpg"
+              alt="Prophet prediction market detail on mobile"
+              width={260}
+              height={520}
+              className="h-full w-full object-cover"
+              priority
+            />
+          </div>
+          <span className="hero-device-floor" aria-hidden="true" />
         </div>
       </div>
     </section>
   );
 }
 
-function FlowRail() {
+function HowItWorksSection() {
   return (
-    <section className="landing-scene mx-auto flex max-w-7xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-      <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <p className="eyebrow">Autonomous Flow</p>
-          <h2 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            The protocol behaves like an exchange operator, not a betting desk.
-          </h2>
-        </div>
-        <p className="max-w-md text-sm leading-6 text-white/55">
-          Each step has an accountable surface: compute decides, contracts
-          enforce, storage preserves, and liquidity returns to the system.
-        </p>
-      </div>
-
-      <div className="protocol-rail">
-        <span className="protocol-runner" aria-hidden="true" />
-        {SYSTEM_FLOW.map(([step, title, body]) => (
-          <article key={step} className="protocol-node">
-            <span className="font-mono text-xs text-[#8b80ff]">{step}</span>
-            <h3 className="mt-4 text-lg font-semibold text-white">{title}</h3>
-            <p className="mt-3 text-sm leading-6 text-white/55">{body}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function OgSection() {
-  return (
-    <section className="landing-scene flex items-center border-y border-white/10 bg-[#141414]">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.72fr_1fr] lg:px-8 lg:py-24">
-        <div>
-          <p className="eyebrow">Built On 0G</p>
+    <section className="landing-scene h-screen flex items-center">
+      <div className="mx-auto w-full px-6 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto mb-8 max-w-2xl text-center">
+          <p className="eyebrow">How It Works</p>
           <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            Chain, Compute, and Storage are not badges here. They are the market.
+            Prophet in 4 clear steps.
           </h2>
-          <p className="mt-5 text-base leading-7 text-white/56">
-            Prophet uses 0G as the operating layer for autonomous markets:
-            settlement, intelligence, and memory are designed to reinforce one
-            another.
+          <p className="mt-4 text-sm leading-6 text-white/58 sm:text-base">
+            Create, trade, and settle in one clear flow. Simple for users,
+            autonomous behind the scenes.
           </p>
         </div>
 
-        <div className="divide-y divide-white/10 border border-white/10">
-          {OG_MODULES.map((item) => (
-            <article key={item.title} className="grid gap-4 p-5 sm:grid-cols-[3rem_1fr_auto] sm:items-start">
-              <div className="flex h-10 w-10 items-center justify-center border border-white/10 bg-white/[0.03]">
-                <HugeiconsIcon icon={item.icon} size={20} strokeWidth={1.8} aria-hidden="true" />
+        <div className="how-works">
+          <span className="how-works-line" aria-hidden="true" />
+          {HOW_IT_WORKS.map((item) => (
+            <article
+              key={item.step}
+              className={`how-works-item how-works-item-${item.side}`}
+            >
+              <div className="how-works-col how-works-col-left">
+                {item.side === "left" ? (
+                  <div className="how-works-card">
+                    <div className="how-works-card-head">
+                      <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.9} aria-hidden="true" />
+                      <h3>{item.title}</h3>
+                    </div>
+                    <p>
+                      <strong>You:</strong> {item.userAction}
+                    </p>
+                    <p>
+                      <strong>Prophet:</strong> {item.systemAction}
+                    </p>
+                  </div>
+                ) : null}
               </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/34">
-                    {item.label}
-                  </span>
-                </div>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">{item.body}</p>
+
+              <div className="how-works-node" aria-hidden="true">
+                <span>{item.step}</span>
               </div>
-              <span className="self-start border border-[#8b80ff]/25 px-2.5 py-1 font-mono text-[11px] text-[#c8c2ff]">
-                {item.signal}
-              </span>
+
+              <div className="how-works-col how-works-col-right">
+                {item.side === "right" ? (
+                  <div className="how-works-card">
+                    <div className="how-works-card-head">
+                      <HugeiconsIcon icon={item.icon} size={18} strokeWidth={1.9} aria-hidden="true" />
+                      <h3>{item.title}</h3>
+                    </div>
+                    <p>
+                      <strong>You:</strong> {item.userAction}
+                    </p>
+                    <p>
+                      <strong>Prophet:</strong> {item.systemAction}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
@@ -268,110 +317,106 @@ function OgSection() {
   );
 }
 
-function AmmSection() {
+function OgSection() {
   return (
-    <section className="landing-scene mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_0.86fr] lg:px-8 lg:py-24">
-      <div>
-        <p className="eyebrow">AMM Mechanics</p>
-        <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-          YES and NO are priced like real inventory.
-        </h2>
-        <p className="mt-5 max-w-2xl text-base leading-7 text-white/56">
-          The landing page should teach the core idea without sounding like a
-          manual. The pool is finite, large trades move price, and traders
-          introduce directional belief.
-        </p>
-        <div className="mt-8 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-3">
-          {AMM_ROWS.map(([label, value, before, after]) => (
-            <div key={label} className="bg-[#101010] p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">{label}</p>
-              <p className="mt-3 font-mono text-xl text-white">{value}</p>
-              <p className="mt-2 font-mono text-xs text-white/44">
-                {before} / {after}
-              </p>
-            </div>
-          ))}
+    <section className="landing-scene h-screen overflow-hidden">
+      <div className="flex h-full w-full flex-col pb-4 pt-4">
+        <div className="mx-auto mb-6 w-full max-w-xl px-6 text-center sm:px-8 lg:px-10">
+          <p className="eyebrow">Why OG Labs</p>
+          <h2 className="mt-4  text-2xl font-semibold leading-tight text-white sm:text-3xl">
+            Prophet runs as a connected 0G intelligence system.
+          </h2>
         </div>
-      </div>
 
-      <div className="landing-depth">
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/34">
-              Reserve pressure
+        <div className="og-system mt-4 min-h-0 w-full flex-1">
+          <div className="og-link og-link-top" />
+          <div className="og-link og-link-right" />
+          <div className="og-link og-link-bottom" />
+          <div className="og-link og-link-left" />
+
+          <div className="og-core">
+            <h3 className="text-2xl font-semibold leading-tight text-white ">
+              Prophet Autonomous
+              <br />
+              Market Core
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/58">
+              Connected execution across chain, compute, storage, and protocol
+              analytics.
             </p>
-            <p className="mt-1 text-sm text-white/62">A large YES buy moves the curve.</p>
           </div>
-          <HugeiconsIcon icon={TradeUpIcon} size={22} strokeWidth={1.8} className="text-[#8b80ff]" aria-hidden="true" />
-        </div>
-        <div className="space-y-5 p-5">
-          <div>
-            <div className="mb-2 flex justify-between font-mono text-sm">
-              <span className="text-[#34d399]">YES</span>
-              <span className="text-white">$0.34 → $0.68</span>
-            </div>
-            <div className="h-3 border border-white/10 bg-white/[0.03]">
-              <span className="amm-yes block h-full bg-[#34d399]" />
-            </div>
-          </div>
-          <div>
-            <div className="mb-2 flex justify-between font-mono text-sm">
-              <span className="text-[#f87171]">NO</span>
-              <span className="text-white">$0.66 → $0.32</span>
-            </div>
-            <div className="h-3 border border-white/10 bg-white/[0.03]">
-              <span className="amm-no block h-full bg-[#f87171]" />
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-white/10 p-5">
-          <div className="landing-equation">
-            <span>YES</span>
-            <span>+</span>
-            <span>NO</span>
-            <span>=</span>
-            <span>$1.00</span>
-          </div>
+
+          {OG_MODULES.map((item) => (
+            <article
+              key={item.title}
+              className={`og-panel og-panel-${item.slot} ${
+                item.slot === "left"
+                  ? "items-end text-right"
+                  : item.slot === "right"
+                    ? "items-start text-left"
+                    : "items-center text-center"
+              }`}
+            >
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/12 bg-white text-[#111]">
+                <HugeiconsIcon
+                  icon={item.icon}
+                  size={24}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="mt-3 max-w-xs">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/42">
+                  {item.label}
+                </p>
+                <h4 className="mt-1 text-[1.9rem] font-semibold leading-[1.04] text-white">
+                  {item.title}
+                </h4>
+                <p className="mt-3 text-sm leading-6 text-white/56">
+                  {item.body}
+                </p>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
+
+
 function LedgerSection() {
   return (
-    <section className="landing-scene flex items-center border-y border-white/10 bg-[#141414]">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.8fr_1fr] lg:px-8 lg:py-24">
-        <div>
-          <p className="eyebrow">Oracle Memory</p>
-          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            Every resolution leaves a trail a judge can inspect.
+    <section className="landing-scene h-screen flex items-center">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <p className="eyebrow">Why Prophet</p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
+            Why Use Prophet
           </h2>
-          <p className="mt-5 text-base leading-7 text-white/56">
-            Prophet is strongest when the oracle is not a black box. The
-            reasoning payload lives on 0G Storage, while the market contract
-            stores the hash.
-          </p>
         </div>
-        <div className="ledger-surface">
-          <div className="grid grid-cols-[1fr_auto] border-b border-white/10 p-4">
-            <div className="flex items-center gap-3">
-              <HugeiconsIcon icon={Shield01Icon} size={20} strokeWidth={1.8} className="text-[#c8c2ff]" aria-hidden="true" />
-              <span className="font-mono text-xs uppercase tracking-[0.18em] text-white/52">
-                Resolution Packet
-              </span>
-            </div>
-            <span className="font-mono text-xs text-[#34d399]">verified</span>
-          </div>
-          <div className="divide-y divide-white/10">
-            {LEDGER_ROWS.map(([key, value, status]) => (
-              <div key={key} className="grid grid-cols-[5rem_1fr_auto] gap-3 px-4 py-3 text-sm">
-                <span className="font-mono text-white/34">{key}</span>
-                <span className="truncate text-white/78">{value}</span>
-                <span className="font-mono text-[11px] text-[#8b80ff]">{status}</span>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {WHY_PROPHET.map((reason) => (
+            <article
+              key={reason.step}
+              className="border border-white/10 bg-white/[0.02] p-5"
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <span
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-sm ${reason.tone}`}
+                >
+                  <HugeiconsIcon icon={reason.icon} size={18} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span className="font-mono text-sm text-white/55">{reason.step}</span>
               </div>
-            ))}
-          </div>
+              <h3 className="text-2xl font-semibold leading-tight text-white">
+                {reason.title}
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-white/62">{reason.body}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -379,61 +424,56 @@ function LedgerSection() {
 }
 
 export default function LandingPage() {
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#101010] text-white">
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="flex min-h-11 items-center gap-3 rounded-md pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]"
-          aria-label="Prophet home"
-        >
-          <Image
-            src="/ProphateLogo1.png"
-            alt=""
-            width={34}
-            height={34}
-            className="rounded-full bg-white"
-            priority
+    <main className="landing-global-bg min-h-screen overflow-x-hidden text-white">
+      <section className="relative h-screen w-full overflow-hidden">
+        <header className="absolute inset-x-0 top-0 z-30">
+          <div className="flex h-20 w-full items-center justify-between px-6 sm:px-8 lg:px-10">
+            <Link
+              href="/"
+              className="flex min-h-11 items-center gap-3 rounded-md pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ece8df] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]"
+              aria-label="Prophet home"
+            >
+              <Image
+                src="/ProphateLogo1.png"
+                alt=""
+                width={34}
+                height={34}
+                className="rounded-full bg-white"
+                priority
+              />
+              <div>
+                <span className="block text-sm font-semibold tracking-wide text-white">
+                  Prophet
+                </span>
+                <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/30 sm:block">
+                  Autonomous markets on 0G
+                </span>
+              </div>
+            </Link>
+
+            <div className="flex items-center gap-3">
+              <ConnectButton />
+            </div>
+          </div>
+        </header>
+
+        <div className="h-full w-full">
+          <HeroTerminal
+            isConnected={isConnected}
+            onConnectWallet={openConnectModal}
           />
-          <div>
-            <span className="block text-sm font-semibold tracking-wide text-white">
-              Prophet
-            </span>
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-white/30 sm:block">
-              Autonomous markets on 0G
-            </span>
-          </div>
-        </Link>
-
-        <div className="flex items-center gap-3">
-          <ConnectButton />
         </div>
-      </header>
-
-      <section className="mx-auto grid min-h-[calc(100svh-84px)] max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[0.86fr_1fr] lg:px-8">
-        <div className="max-w-3xl">
-          <h1 className="landing-reveal landing-reveal-2 mt-6 max-w-4xl text-[clamp(2.7rem,7vw,5.8rem)] font-semibold leading-[0.93] tracking-[-0.035em] text-[#f5f2ea]">
-            Markets that operate themselves.
-          </h1>
-          <p className="landing-reveal landing-reveal-3 mt-6 max-w-2xl text-base leading-8 text-white/58 sm:text-lg">
-            Prophet turns real-world questions into YES/NO share markets where
-            autonomous agents allocate liquidity, reason through outcomes, and
-            preserve the evidence trail on 0G.
-          </p>
-          <div className="landing-reveal landing-reveal-4 mt-8 flex flex-col gap-3 sm:flex-row">
-            <PrimaryLink href="/dashboard">Enter the market</PrimaryLink>
-          </div>
-        </div>
-
-        <HeroTerminal />
       </section>
 
-      <FlowRail />
+      <HowItWorksSection />
       <OgSection />
-      <AmmSection />
       <LedgerSection />
 
-      <footer className="mx-auto flex max-w-7xl flex-col gap-4 border-t border-white/10 px-4 py-6 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <footer className="mx-auto flex max-w-7xl flex-col gap-4 border-t border-white/10 px-6 py-6 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
         <span>© 2026 Prophet. Built on 0G Galileo.</span>
         <div className="flex items-center gap-4">
           {SOCIAL.map((item) => (

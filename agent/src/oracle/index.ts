@@ -17,6 +17,36 @@ import type { OracleResponse }  from "../shared/types";
 const logger = createLogger("oracle");
 const ZERO_HASH = `0x${"0".repeat(64)}`;
 const marketLocks = new Set<string>();
+const inconclusiveAttempts = new Map<string, number>();
+
+type DeterministicResolution = {
+  verdict: boolean;
+  confidence: number;
+  reasoning: string;
+  evidenceSummary: string;
+  sourcesChecked: string[];
+  evidence: string[];
+};
+
+type CryptoTarget = {
+  symbol: string;
+  assetLabel: string;
+  threshold: number;
+  comparator: "above";
+};
+
+const CRYPTO_ASSETS: Array<{ pattern: RegExp; symbol: string; label: string }> = [
+  { pattern: /\b(bitcoin|btc)\b/i, symbol: "BTCUSDT", label: "Bitcoin (BTC)" },
+  { pattern: /\b(ethereum|ether|eth)\b/i, symbol: "ETHUSDT", label: "Ethereum (ETH)" },
+  { pattern: /\b(solana|sol)\b/i, symbol: "SOLUSDT", label: "Solana (SOL)" },
+  { pattern: /\b(bnb|binance coin)\b/i, symbol: "BNBUSDT", label: "BNB" },
+  { pattern: /\b(xrp|ripple)\b/i, symbol: "XRPUSDT", label: "XRP" },
+  { pattern: /\b(dogecoin|doge)\b/i, symbol: "DOGEUSDT", label: "Dogecoin (DOGE)" },
+  { pattern: /\b(cardano|ada)\b/i, symbol: "ADAUSDT", label: "Cardano (ADA)" },
+  { pattern: /\b(avalanche|avax)\b/i, symbol: "AVAXUSDT", label: "Avalanche (AVAX)" },
+  { pattern: /\b(chainlink|link)\b/i, symbol: "LINKUSDT", label: "Chainlink (LINK)" },
+  { pattern: /\b(polygon|matic)\b/i, symbol: "MATICUSDT", label: "Polygon (MATIC)" },
+];
 
 async function withMarketLock(
   marketAddress: string,
@@ -197,6 +227,240 @@ async function collectEvidence(sources: string[]): Promise<string[]> {
   return Promise.all(cleanSources.map((source, index) => fetchSourceExcerpt(source, index)));
 }
 
+function parseNumberWithSuffix(raw: string, suffix?: string): number {
+  const base = Number(raw.replace(/,/g, ""));
+  if (!Number.isFinite(base)) return NaN;
+  const s = suffix?.toLowerCase();
+  if (s === "k") return base * 1_000;
+  if (s === "m") return base * 1_000_000;
+  return base;
+}
+
+function parseCryptoTarget(question: string): CryptoTarget | null {
+  const asset = CRYPTO_ASSETS.find((item) => item.pattern.test(question));
+  if (!asset) return null;
+
+  const aboveMatch = question.match(
+    /\b(?:surpass|exceed|reach|hit|above|cross|break(?:\s+above)?)\b[^\d$]{0,24}\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*([kKmM]))?/i
+  );
+  if (!aboveMatch) return null;
+
+  const threshold = parseNumberWithSuffix(aboveMatch[1] ?? "", aboveMatch[2]);
+  if (!Number.isFinite(threshold) || threshold <= 0) return null;
+
+  return {
+    symbol: asset.symbol,
+    assetLabel: asset.label,
+    threshold,
+    comparator: "above",
+  };
+}
+
+function resolutionWindow(question: string, deadline: number): {
+  startMs: number;
+  endMs: number;
+  label: string;
+} {
+  const deadlineMs = deadline * 1000;
+  const deadlineDate = new Date(deadlineMs);
+
+  if (/\btoday\b/i.test(question)) {
+    const start = Date.UTC(
+      deadlineDate.getUTCFullYear(),
+      deadlineDate.getUTCMonth(),
+      deadlineDate.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    return {
+      startMs: start,
+      endMs: deadlineMs,
+      label: "UTC calendar day of the market deadline through the deadline timestamp",
+    };
+  }
+
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  return {
+    startMs: Math.max(0, deadlineMs - thirtyDaysMs),
+    endMs: deadlineMs,
+    label: "30-day lookback window ending at the market deadline",
+  };
+}
+
+async function fetchBinanceHigh(
+  symbol: string,
+  startMs: number,
+  endMs: number
+): Promise<{
+  high: number;
+  candleCount: number;
+  firstOpenTime: number;
+  lastCloseTime: number;
+  source: string;
+}> {
+  const intervalMs = endMs - startMs > 1_000 * 60 * 60 * 24 * 45
+    ? 24 * 60 * 60 * 1000
+    : 60 * 60 * 1000;
+  const interval = intervalMs === 24 * 60 * 60 * 1000 ? "1d" : "1h";
+  const url = new URL("https://api.binance.com/api/v3/klines");
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("interval", interval);
+  url.searchParams.set("startTime", String(startMs));
+  url.searchParams.set("endTime", String(endMs));
+  url.searchParams.set("limit", "1000");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "ProphetOracle/1.0 (+https://prophet.market)" },
+    });
+    if (!res.ok) {
+      throw new Error(`Binance returned ${res.status}`);
+    }
+
+    const rows = await res.json() as unknown;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error("Binance returned no candles");
+    }
+
+    let high = 0;
+    let firstOpenTime = Number.MAX_SAFE_INTEGER;
+    let lastCloseTime = 0;
+
+    for (const row of rows) {
+      if (!Array.isArray(row) || row.length < 7) continue;
+      const candleHigh = Number(row[2]);
+      const openTime = Number(row[0]);
+      const closeTime = Number(row[6]);
+      if (Number.isFinite(candleHigh)) high = Math.max(high, candleHigh);
+      if (Number.isFinite(openTime)) firstOpenTime = Math.min(firstOpenTime, openTime);
+      if (Number.isFinite(closeTime)) lastCloseTime = Math.max(lastCloseTime, closeTime);
+    }
+
+    if (!Number.isFinite(high) || high <= 0) {
+      throw new Error("Binance candles did not include a valid high price");
+    }
+
+    return {
+      high,
+      candleCount: rows.length,
+      firstOpenTime,
+      lastCloseTime,
+      source: url.toString(),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function collectDeterministicResolution(
+  question: string,
+  category: string,
+  deadline: number
+): Promise<DeterministicResolution | null> {
+  const target = parseCryptoTarget(question);
+  if (!target) return null;
+  if (category && !["crypto", "finance", "custom"].includes(category.toLowerCase())) return null;
+
+  const window = resolutionWindow(question, deadline);
+  logger.info("Running deterministic crypto oracle adapter", {
+    symbol: target.symbol,
+    threshold: target.threshold,
+    window: window.label,
+  });
+
+  try {
+    const data = await fetchBinanceHigh(target.symbol, window.startMs, window.endMs);
+    const verdict = data.high >= target.threshold;
+    const threshold = `$${target.threshold.toLocaleString("en-US", { maximumFractionDigits: 8 })}`;
+    const high = `$${data.high.toLocaleString("en-US", { maximumFractionDigits: 8 })}`;
+    const first = new Date(data.firstOpenTime).toISOString();
+    const last = new Date(data.lastCloseTime).toISOString();
+
+    return {
+      verdict,
+      confidence: 96,
+      evidenceSummary: `${target.assetLabel} ${verdict ? "did" : "did not"} trade at or above ${threshold}; observed high was ${high}.`,
+      reasoning: [
+        `Prophet deterministic crypto adapter evaluated ${target.assetLabel} using ${target.symbol} candles from Binance.`,
+        `Resolution window: ${window.label}.`,
+        `Candle coverage: ${data.candleCount} candles from ${first} to ${last}.`,
+        `Observed high: ${high}. Required threshold: ${threshold}.`,
+        `Deterministic verdict: ${verdict ? "YES" : "NO"}.`,
+      ].join("\n"),
+      sourcesChecked: [
+        `Prophet deterministic crypto adapter`,
+        data.source,
+      ],
+      evidence: [
+        [
+          "Prophet deterministic crypto adapter",
+          `Question: ${question}`,
+          `Asset: ${target.assetLabel}`,
+          `Pair: ${target.symbol}`,
+          `Resolution window: ${new Date(window.startMs).toISOString()} to ${new Date(window.endMs).toISOString()} (${window.label})`,
+          `Observed high: ${high}`,
+          `Threshold: ${threshold}`,
+          `Computed verdict: ${verdict ? "YES" : "NO"}`,
+          `Source: ${data.source}`,
+        ].join("\n"),
+      ],
+    };
+  } catch (err) {
+    logger.warn("Deterministic crypto oracle adapter failed; falling back to 0G Compute only", {
+      question,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+function applyDeterministicGuard(
+  oracleResponse: OracleResponse,
+  deterministic: DeterministicResolution | null
+): OracleResponse {
+  if (!deterministic) return oracleResponse;
+
+  const computeReasoning = oracleResponse.reasoning || "0G Compute returned no reasoning.";
+  const computeSummary = oracleResponse.evidenceSummary || "";
+  const computeSources = Array.isArray(oracleResponse.sourcesChecked)
+    ? oracleResponse.sourcesChecked
+    : [];
+
+  if (
+    oracleResponse.verdict !== deterministic.verdict ||
+    oracleResponse.confidence < deterministic.confidence
+  ) {
+    logger.warn("Deterministic oracle guard overriding weak 0G Compute verdict", {
+      computeVerdict: oracleResponse.verdict,
+      computeConfidence: oracleResponse.confidence,
+      deterministicVerdict: deterministic.verdict,
+      deterministicConfidence: deterministic.confidence,
+    });
+  }
+
+  return {
+    verdict: deterministic.verdict,
+    confidence: Math.max(oracleResponse.confidence, deterministic.confidence),
+    evidenceSummary: deterministic.evidenceSummary,
+    reasoning: [
+      deterministic.reasoning,
+      "",
+      "0G Compute reasoning layer:",
+      computeSummary ? `Summary: ${computeSummary}` : "",
+      computeReasoning,
+    ].filter(Boolean).join("\n"),
+    sourcesChecked: Array.from(new Set([
+      ...deterministic.sourcesChecked,
+      ...computeSources,
+    ])).slice(0, 20),
+  };
+}
+
 // ── Resolve a market ──────────────────────────────────────────────────────────
 
 /**
@@ -206,7 +470,8 @@ async function collectEvidence(sources: string[]): Promise<string[]> {
  *   3. Call 0G Compute (DeepSeek/Qwen) for inference
  *   4. Write reasoning to 0G Storage (permanent, immutable)
  *   5. Post verdict on-chain — verdictReasoningHash links to 0G Storage
- *   6. On INCONCLUSIVE: cancel market (refunds all bettors)
+ *   6. On INCONCLUSIVE: fail soft by default so the agent can retry with
+ *      better evidence instead of cancelling a resolvable market prematurely
  */
 async function resolveMarket(
   marketAddress: string,
@@ -268,11 +533,18 @@ async function resolveMarket(
 
   // 4. Call 0G Compute — question + deadline + approved sources → verdict
   const minConfidence = cfgNum("ORACLE_MIN_CONFIDENCE");
-  const evidence = await collectEvidence(sources);
+  const [sourceEvidence, deterministic] = await Promise.all([
+    collectEvidence(sources),
+    collectDeterministicResolution(info.question, info.category, info.deadline),
+  ]);
+  const evidence = [
+    ...(deterministic?.evidence ?? []),
+    ...sourceEvidence,
+  ];
   await writeOracleWorkingState(marketAddress, {
     stage:            "inferring",
     evidenceGathered: evidence,
-    sourcesChecked:   sources,
+    sourcesChecked:   [...(deterministic?.sourcesChecked ?? []), ...sources],
     startedAt:        Date.now(),
   }, oracleWallet).catch((e) => logger.warn("Storage write failed (non-fatal)", e));
 
@@ -284,10 +556,24 @@ async function resolveMarket(
       evidence.length ? evidence : sources,
       oracleWallet
     );
+    oracleResponse = applyDeterministicGuard(oracleResponse, deterministic);
   } catch (err) {
     logger.error("0G Compute inference failed", err);
-    // Don't cancel on compute error — retry on next ResolutionTriggered event
-    return;
+    if (!deterministic) {
+      // Don't cancel on compute error — retry on next ResolutionTriggered event
+      return;
+    }
+    logger.warn("Using deterministic oracle verdict because 0G Compute failed after evidence collection", {
+      market: marketAddress,
+      verdict: deterministic.verdict,
+    });
+    oracleResponse = {
+      verdict: deterministic.verdict,
+      confidence: deterministic.confidence,
+      reasoning: deterministic.reasoning,
+      evidenceSummary: deterministic.evidenceSummary,
+      sourcesChecked: deterministic.sourcesChecked,
+    };
   }
 
   // 4. Write full reasoning to 0G Storage (Log layer — permanent, unmodifiable)
@@ -321,11 +607,18 @@ async function resolveMarket(
     logger.warn("0G Storage write failed (fallback mode enabled — continuing with hashed reasoning)", err);
   }
 
-  // 5. Handle INCONCLUSIVE — cancel the market
+  // 5. Handle INCONCLUSIVE. A weak model answer should not immediately kill a
+  //    market. Keep it in PendingResolution by default; cancellation is only
+  //    allowed when explicitly enabled and after repeated inconclusive attempts.
   if (oracleResponse.verdict === null || oracleResponse.confidence < minConfidence) {
+    const key = marketAddress.toLowerCase();
+    const attempts = (inconclusiveAttempts.get(key) ?? 0) + 1;
+    inconclusiveAttempts.set(key, attempts);
+
     logger.warn("Oracle returned INCONCLUSIVE", {
       confidence: oracleResponse.confidence,
       reason:     oracleResponse.inconclusiveReason,
+      attempts,
     });
 
     if (isChallenge) {
@@ -333,6 +626,19 @@ async function resolveMarket(
       logger.warn("Challenge resolution inconclusive — rejecting challenge");
       await processChallengeOnChain(marketAddress, false, oracleWallet);
     } else {
+      const canCancel = cfgNum("ORACLE_CANCEL_ON_INCONCLUSIVE") > 0;
+      const maxAttempts = Math.max(1, cfgNum("ORACLE_MAX_INCONCLUSIVE_ATTEMPTS"));
+
+      if (!canCancel || attempts < maxAttempts) {
+        logger.warn("Leaving market in PendingResolution for another oracle pass", {
+          market: marketAddress,
+          canCancel,
+          attempts,
+          maxAttempts,
+        });
+        return;
+      }
+
       await cancelMarketOnChain(
         marketAddress,
         oracleResponse.inconclusiveReason ?? "Oracle could not determine outcome with sufficient confidence",
@@ -341,6 +647,8 @@ async function resolveMarket(
     }
     return;
   }
+
+  inconclusiveAttempts.delete(marketAddress.toLowerCase());
 
   // 6. Post verdict on-chain
   //    reasoningHash links the on-chain record to the full reasoning in 0G Storage

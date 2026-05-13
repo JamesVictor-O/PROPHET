@@ -19,7 +19,7 @@ import {
 } from "@/lib/hooks/use-market-detail";
 import { useOracleReasoning } from "@/lib/hooks/use-oracle-reasoning";
 import { useMarketMetadata } from "@/lib/hooks/use-market-metadata";
-import { marketStatusTone } from "@/lib/market-status";
+import { marketStatusDisplay, marketStatusTone } from "@/lib/market-status";
 import { zeroGGalileo } from "@/lib/web3-config";
 
 const PredictionMarketChart = dynamic(
@@ -195,7 +195,7 @@ export default function MarketDetailPage() {
                         border: `1px solid ${marketStatusTone(detail.statusLabel).border}`,
                       }}
                     >
-                      {detail.statusLabel}
+                      {marketStatusDisplay(detail.statusLabel)}
                     </span>
                   )}
                   {category && (

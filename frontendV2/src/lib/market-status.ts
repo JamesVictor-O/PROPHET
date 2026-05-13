@@ -20,3 +20,10 @@ export function marketStatusTone(status?: string | null) {
     border: `${color}33`,
   };
 }
+
+export function marketStatusDisplay(status?: string | null): string {
+  if (status === "Resolved") return "Closed";
+  if (status === "Cancelled") return "Cancelled";
+  if (status === "Resolving") return "Under Resolution";
+  return status ?? "Unknown";
+}
