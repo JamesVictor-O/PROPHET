@@ -32,7 +32,7 @@ type CryptoTarget = {
   symbol: string;
   assetLabel: string;
   threshold: number;
-  comparator: "above";
+  comparator: "above" | "below";
 };
 
 const CRYPTO_ASSETS: Array<{ pattern: RegExp; symbol: string; label: string }> = [
@@ -243,17 +243,22 @@ function parseCryptoTarget(question: string): CryptoTarget | null {
   const aboveMatch = question.match(
     /\b(?:surpass|exceed|reach|hit|above|cross|break(?:\s+above)?)\b[^\d$]{0,24}\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*([kKmM]))?/i
   );
-  if (!aboveMatch) return null;
+  if (aboveMatch) {
+    const threshold = parseNumberWithSuffix(aboveMatch[1] ?? "", aboveMatch[2]);
+    if (!Number.isFinite(threshold) || threshold <= 0) return null;
+    return { symbol: asset.symbol, assetLabel: asset.label, threshold, comparator: "above" };
+  }
 
-  const threshold = parseNumberWithSuffix(aboveMatch[1] ?? "", aboveMatch[2]);
-  if (!Number.isFinite(threshold) || threshold <= 0) return null;
+  const belowMatch = question.match(
+    /\b(?:drop|fall|dip|go|trade|sink|plunge|crash)(?:\s+(?:to|down))?\s+below\b[^\d$]{0,16}\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)(?:\s*([kKmM]))?/i
+  );
+  if (belowMatch) {
+    const threshold = parseNumberWithSuffix(belowMatch[1] ?? "", belowMatch[2]);
+    if (!Number.isFinite(threshold) || threshold <= 0) return null;
+    return { symbol: asset.symbol, assetLabel: asset.label, threshold, comparator: "below" };
+  }
 
-  return {
-    symbol: asset.symbol,
-    assetLabel: asset.label,
-    threshold,
-    comparator: "above",
-  };
+  return null;
 }
 
 function resolutionWindow(question: string, deadline: number): {
@@ -295,6 +300,7 @@ async function fetchBinanceHigh(
   endMs: number
 ): Promise<{
   high: number;
+  low: number;
   candleCount: number;
   firstOpenTime: number;
   lastCloseTime: number;
@@ -328,17 +334,20 @@ async function fetchBinanceHigh(
     }
 
     let high = 0;
+    let low = Number.MAX_VALUE;
     let firstOpenTime = Number.MAX_SAFE_INTEGER;
     let lastCloseTime = 0;
 
     for (const row of rows) {
       if (!Array.isArray(row) || row.length < 7) continue;
       const candleHigh = Number(row[2]);
-      const openTime = Number(row[0]);
-      const closeTime = Number(row[6]);
+      const candleLow  = Number(row[3]);
+      const openTime   = Number(row[0]);
+      const closeTime  = Number(row[6]);
       if (Number.isFinite(candleHigh)) high = Math.max(high, candleHigh);
-      if (Number.isFinite(openTime)) firstOpenTime = Math.min(firstOpenTime, openTime);
-      if (Number.isFinite(closeTime)) lastCloseTime = Math.max(lastCloseTime, closeTime);
+      if (Number.isFinite(candleLow))  low  = Math.min(low,  candleLow);
+      if (Number.isFinite(openTime))   firstOpenTime = Math.min(firstOpenTime, openTime);
+      if (Number.isFinite(closeTime))  lastCloseTime = Math.max(lastCloseTime, closeTime);
     }
 
     if (!Number.isFinite(high) || high <= 0) {
@@ -347,6 +356,7 @@ async function fetchBinanceHigh(
 
     return {
       high,
+      low: low === Number.MAX_VALUE ? high : low,
       candleCount: rows.length,
       firstOpenTime,
       lastCloseTime,
@@ -375,21 +385,27 @@ async function collectDeterministicResolution(
 
   try {
     const data = await fetchBinanceHigh(target.symbol, window.startMs, window.endMs);
-    const verdict = data.high >= target.threshold;
+    const isBelow = target.comparator === "below";
+    const verdict = isBelow ? data.low <= target.threshold : data.high >= target.threshold;
     const threshold = `$${target.threshold.toLocaleString("en-US", { maximumFractionDigits: 8 })}`;
-    const high = `$${data.high.toLocaleString("en-US", { maximumFractionDigits: 8 })}`;
+    const observedValue = isBelow
+      ? `$${data.low.toLocaleString("en-US", { maximumFractionDigits: 8 })}`
+      : `$${data.high.toLocaleString("en-US", { maximumFractionDigits: 8 })}`;
     const first = new Date(data.firstOpenTime).toISOString();
     const last = new Date(data.lastCloseTime).toISOString();
+    const directionLabel = isBelow ? "at or below" : "at or above";
+    const observedLabel = isBelow ? "observed low" : "observed high";
 
     return {
       verdict,
       confidence: 96,
-      evidenceSummary: `${target.assetLabel} ${verdict ? "did" : "did not"} trade at or above ${threshold}; observed high was ${high}.`,
+      evidenceSummary: `${target.assetLabel} ${verdict ? "did" : "did not"} trade ${directionLabel} ${threshold}; ${observedLabel} was ${observedValue}.`,
       reasoning: [
         `Prophet deterministic crypto adapter evaluated ${target.assetLabel} using ${target.symbol} candles from Binance.`,
+        `Comparator: ${target.comparator} ${threshold}.`,
         `Resolution window: ${window.label}.`,
         `Candle coverage: ${data.candleCount} candles from ${first} to ${last}.`,
-        `Observed high: ${high}. Required threshold: ${threshold}.`,
+        `${observedLabel.charAt(0).toUpperCase() + observedLabel.slice(1)}: ${observedValue}. Required threshold: ${threshold}.`,
         `Deterministic verdict: ${verdict ? "YES" : "NO"}.`,
       ].join("\n"),
       sourcesChecked: [
@@ -402,8 +418,9 @@ async function collectDeterministicResolution(
           `Question: ${question}`,
           `Asset: ${target.assetLabel}`,
           `Pair: ${target.symbol}`,
+          `Comparator: ${target.comparator} ${threshold}`,
           `Resolution window: ${new Date(window.startMs).toISOString()} to ${new Date(window.endMs).toISOString()} (${window.label})`,
-          `Observed high: ${high}`,
+          `${observedLabel}: ${observedValue}`,
           `Threshold: ${threshold}`,
           `Computed verdict: ${verdict ? "YES" : "NO"}`,
           `Source: ${data.source}`,
