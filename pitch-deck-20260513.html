@@ -3,763 +3,673 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prophet — Pitch Deck · 0G APAC Hackathon 2026</title>
+  <title>Prophet — 0G APAC 2026</title>
   <style>
-    /* === DESIGN SYSTEM TOKENS — Dark Premium === */
     :root {
-      --c-bg:          #09090f;
-      --c-bg-alt:      #0d0d1a;
-      --c-bg-card:     #131320;
-      --c-surface:     #1a1a2e;
-      --c-border:      rgba(255,255,255,0.07);
+      --bg:          #07070e;
+      --bg-alt:      #0b0b17;
+      --bg-card:     #111120;
+      --border:      rgba(255,255,255,0.06);
+      --border-blue: rgba(59,130,246,0.20);
+      --border-green:rgba(16,185,129,0.20);
+      --border-red:  rgba(239,68,68,0.22);
 
-      --c-primary:     #3b82f6;
-      --c-primary-dim: rgba(59,130,246,0.10);
-      --c-accent:      #10b981;
-      --c-accent-dim:  rgba(16,185,129,0.10);
-      --c-danger:      #ef4444;
-      --c-warning:     #f59e0b;
+      --blue:        #3b82f6;
+      --blue-dim:    rgba(59,130,246,0.10);
+      --green:       #10b981;
+      --green-dim:   rgba(16,185,129,0.10);
+      --red:         #ef4444;
+      --amber:       #f59e0b;
 
-      --c-text:           #f1f5f9;
-      --c-text-secondary: rgba(241,245,249,0.65);
-      --c-text-muted:     rgba(241,245,249,0.35);
+      --text:        #f1f5f9;
+      --text-2:      rgba(241,245,249,0.60);
+      --text-3:      rgba(241,245,249,0.32);
 
-      --f-hero:  88px;
-      --f-h1:    60px;
-      --f-h2:    44px;
-      --f-h3:    32px;
-      --f-body:  26px;
-      --f-small: 21px;
-      --f-caption: 14px;
+      --mono: 'JetBrains Mono','SF Mono','Consolas',monospace;
+      --sans: 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
 
-      --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-mono:    'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
-
-      --s-xs: 8px; --s-sm: 16px; --s-md: 28px; --s-lg: 44px; --s-xl: 64px;
-      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-      --duration-enter: 0.55s;
+      --ease: cubic-bezier(0.16,1,0.3,1);
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; background: var(--c-bg); color: var(--c-text); font-family: var(--font-display); }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
 
-    .deck { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+    /* ── deck shell ── */
+    .deck{width:100vw;height:100vh;position:relative;overflow:hidden}
 
-    .slide {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column; justify-content: center;
-      padding: 72px 96px;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.45s var(--ease-out);
-      background: var(--c-bg);
+    .slide{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;justify-content:center;
+      padding:64px 88px;
+      opacity:0;pointer-events:none;
+      transition:opacity 0.4s var(--ease);
+      background:var(--bg);
     }
-    .slide.active { opacity: 1; pointer-events: auto; }
-    .slide.bg-alt { background: var(--c-bg-alt); }
+    .slide.alt{background:var(--bg-alt)}
+    .slide.active{opacity:1;pointer-events:auto}
 
-    .slide.active .animate-in { animation: slideUp var(--duration-enter) var(--ease-out) both; }
-    .slide.active .animate-in:nth-child(1) { animation-delay: 0s; }
-    .slide.active .animate-in:nth-child(2) { animation-delay: 0.07s; }
-    .slide.active .animate-in:nth-child(3) { animation-delay: 0.14s; }
-    .slide.active .animate-in:nth-child(4) { animation-delay: 0.21s; }
-    .slide.active .animate-in:nth-child(5) { animation-delay: 0.28s; }
-    .slide.active .animate-in:nth-child(6) { animation-delay: 0.35s; }
-    .slide.active .animate-in:nth-child(7) { animation-delay: 0.42s; }
-    .slide.active .animate-in:nth-child(8) { animation-delay: 0.49s; }
+    .slide.active .a{animation:up 0.5s var(--ease) both}
+    .slide.active .a:nth-child(1){animation-delay:0s}
+    .slide.active .a:nth-child(2){animation-delay:.06s}
+    .slide.active .a:nth-child(3){animation-delay:.12s}
+    .slide.active .a:nth-child(4){animation-delay:.18s}
+    .slide.active .a:nth-child(5){animation-delay:.24s}
+    .slide.active .a:nth-child(6){animation-delay:.30s}
 
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
+    @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── type ── */
+    .eyebrow{font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text-3)}
+    .display{font-size:76px;font-weight:900;letter-spacing:-3.5px;line-height:1.02}
+    .h1{font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1.1}
+    .h2{font-size:38px;font-weight:700;letter-spacing:-1px;line-height:1.2}
+    .h3{font-size:26px;font-weight:600;line-height:1.3}
+    .body{font-size:22px;font-weight:400;line-height:1.6;color:var(--text-2)}
+    .small{font-size:17px;font-weight:400;line-height:1.55;color:var(--text-2)}
+    .mono{font-family:var(--mono);font-size:13px;color:var(--blue)}
+
+    .c-blue{color:var(--blue)}
+    .c-green{color:var(--green)}
+    .c-red{color:var(--red)}
+    .c-amber{color:var(--amber)}
+    .c-dim{color:var(--text-2)}
+    .c-muted{color:var(--text-3)}
+    .bold{font-weight:700;color:var(--text)}
+
+    /* ── layout ── */
+    .row{display:flex;gap:20px}
+    .col{display:flex;flex-direction:column}
+    .g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+    .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .flex-1{flex:1}
+    .items-center{align-items:center}
+    .center{text-align:center}
+
+    /* ── components ── */
+    .card{
+      background:var(--bg-card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:28px 24px;
     }
+    .card-b{border-color:var(--border-blue);box-shadow:0 0 32px rgba(59,130,246,.05)}
+    .card-g{border-color:var(--border-green);box-shadow:0 0 32px rgba(16,185,129,.05)}
+    .card-r{border-color:var(--border-red)}
 
-    /* === TYPOGRAPHY === */
-    .hero   { font-size: var(--f-hero); font-weight: 900; letter-spacing: -3px; line-height: 1.02; }
-    .h1     { font-size: var(--f-h1);  font-weight: 800; letter-spacing: -2px; line-height: 1.1; }
-    .h2     { font-size: var(--f-h2);  font-weight: 700; letter-spacing: -1px; line-height: 1.2; }
-    .h3     { font-size: var(--f-h3);  font-weight: 600; line-height: 1.3; }
-    .body   { font-size: var(--f-body); font-weight: 400; line-height: 1.55; color: var(--c-text-secondary); }
-    .small  { font-size: var(--f-small); font-weight: 400; line-height: 1.5; color: var(--c-text-secondary); }
-    .caption { font-size: var(--f-caption); font-weight: 600; color: var(--c-text-muted); letter-spacing: 3px; text-transform: uppercase; }
+    .rule{width:48px;height:3px;border-radius:2px;background:var(--blue);opacity:.45;margin:20px 0}
 
-    .text-primary   { color: var(--c-primary); }
-    .text-accent    { color: var(--c-accent); }
-    .text-muted     { color: var(--c-text-muted); }
-    .text-danger    { color: var(--c-danger); }
-    .text-emphasis  { color: var(--c-primary); font-weight: 800; }
-
-    /* === LAYOUT === */
-    .flex            { display: flex; }
-    .flex-col        { flex-direction: column; }
-    .items-center    { align-items: center; }
-    .items-start     { align-items: flex-start; }
-    .justify-center  { justify-content: center; }
-    .justify-between { justify-content: space-between; }
-    .gap-xs { gap: var(--s-xs); } .gap-sm { gap: var(--s-sm); }
-    .gap-md { gap: var(--s-md); } .gap-lg { gap: var(--s-lg); }
-    .flex-1 { flex: 1; } .w-full { width: 100%; } .text-center { text-align: center; }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-lg); }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s-md); }
-    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: var(--s-md); }
-
-    /* === COMPONENTS === */
-    .card {
-      background: var(--c-bg-card);
-      border: 1px solid var(--c-border);
-      border-radius: 14px;
-      padding: var(--s-lg);
+    .badge{
+      display:inline-block;padding:4px 12px;border-radius:100px;
+      font-size:12px;font-weight:700;letter-spacing:.5px
     }
-    .card-glow {
-      background: var(--c-bg-card);
-      border: 1px solid rgba(59,130,246,0.2);
-      border-radius: 14px;
-      padding: var(--s-lg);
-      box-shadow: 0 0 36px rgba(59,130,246,0.06);
-    }
-    .card-accent {
-      background: var(--c-bg-card);
-      border: 1px solid rgba(16,185,129,0.2);
-      border-radius: 14px;
-      padding: var(--s-lg);
-    }
+    .badge-b{background:var(--blue-dim);color:var(--blue)}
+    .badge-g{background:var(--green-dim);color:var(--green)}
+    .badge-out{border:1px solid var(--border);color:var(--text-2)}
 
-    .metric-value {
-      font-size: 64px; font-weight: 900;
-      color: var(--c-accent); letter-spacing: -2px; line-height: 1;
+    .pill{
+      display:inline-block;padding:2px 9px;border-radius:5px;
+      font-size:12px;font-weight:700;font-family:var(--mono)
     }
-    .metric-label {
-      font-size: var(--f-small); color: var(--c-text-muted);
-      margin-top: 8px; font-weight: 500;
-    }
+    .pill-b{background:rgba(59,130,246,.12);color:var(--blue)}
+    .pill-g{background:rgba(16,185,129,.12);color:var(--green)}
+    .pill-r{background:rgba(239,68,68,.12);color:var(--red)}
 
-    .badge {
-      display: inline-block; padding: 5px 14px;
-      border-radius: 100px; font-size: 13px; font-weight: 600; letter-spacing: 1px;
-    }
-    .badge-primary { background: var(--c-primary-dim); color: var(--c-primary); }
-    .badge-accent  { background: var(--c-accent-dim);  color: var(--c-accent); }
-    .badge-outline { border: 1px solid var(--c-border); color: var(--c-text-secondary); }
+    .check{color:var(--green);font-weight:700}
+    .cross{color:var(--text-3)}
 
-    .divider {
-      width: 56px; height: 3px; border-radius: 2px;
-      background: var(--c-primary); opacity: 0.5;
-      margin: var(--s-md) 0;
-    }
+    /* metric */
+    .metric{font-size:64px;font-weight:900;letter-spacing:-2px;line-height:1;color:var(--green)}
+    .metric-lbl{font-size:15px;color:var(--text-3);margin-top:6px;font-weight:500}
 
-    .bullet-list { list-style: none; }
-    .bullet-list li {
-      padding: 14px 0; padding-left: var(--s-md);
-      position: relative; font-size: var(--f-body);
-      color: var(--c-text-secondary);
-      border-bottom: 1px solid var(--c-border);
+    /* step list */
+    .steps{list-style:none;counter-reset:s}
+    .steps li{
+      counter-increment:s;
+      padding:14px 0 14px 52px;position:relative;
+      font-size:19px;color:var(--text-2);
+      border-bottom:1px solid var(--border);line-height:1.5
     }
-    .bullet-list li:last-child { border-bottom: none; }
-    .bullet-list li::before {
-      content: ''; position: absolute; left: 0; top: 50%;
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--c-primary); transform: translateY(-50%);
+    .steps li:last-child{border-bottom:none}
+    .steps li::before{
+      content:counter(s);
+      position:absolute;left:0;top:10px;
+      width:32px;height:32px;border-radius:50%;
+      background:var(--blue-dim);color:var(--blue);
+      font-weight:700;font-size:14px;
+      display:flex;align-items:center;justify-content:center
     }
 
-    .comparison-table { width: 100%; border-collapse: collapse; }
-    .comparison-table th {
-      text-align: left; padding: 12px 20px;
-      font-size: var(--f-small); color: var(--c-text-muted);
-      border-bottom: 1px solid var(--c-border); font-weight: 600;
+    /* comparison table */
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl th{
+      text-align:left;padding:10px 18px;
+      font-size:13px;color:var(--text-3);
+      border-bottom:1px solid var(--border);font-weight:600;letter-spacing:.5px
     }
-    .comparison-table td {
-      padding: 14px 20px; font-size: var(--f-small);
-      border-bottom: 1px solid var(--c-border); color: var(--c-text-secondary);
+    .tbl td{
+      padding:12px 18px;font-size:16px;
+      border-bottom:1px solid var(--border);color:var(--text-2)
     }
-    .comparison-table tr.highlight td {
-      color: var(--c-text); background: rgba(59,130,246,0.06); font-weight: 600;
-    }
-    .check  { color: var(--c-accent); font-weight: 700; }
-    .cross  { color: var(--c-text-muted); opacity: 0.5; }
+    .tbl tr.hl td{color:var(--text);background:rgba(59,130,246,.06);font-weight:700}
 
-    .tag {
-      display: inline-block; padding: 3px 10px;
-      border-radius: 6px; font-size: 13px; font-weight: 600;
-      font-family: var(--font-mono);
+    /* ── navigation ── */
+    .nav{
+      position:fixed;bottom:0;left:0;right:0;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 32px;
+      background:linear-gradient(0deg,rgba(7,7,14,.96),transparent);
+      z-index:100;opacity:0;transition:opacity .3s
     }
-    .tag-blue  { background: rgba(59,130,246,0.12); color: var(--c-primary); }
-    .tag-green { background: rgba(16,185,129,0.12); color: var(--c-accent); }
+    .deck:hover .nav{opacity:1}
+    .nav-ctr{font-size:13px;color:var(--text-3);font-family:var(--mono)}
+    .nav-bar-inner{flex:1;max-width:160px;height:2px;background:rgba(255,255,255,.07);margin:0 18px;border-radius:2px}
+    .nav-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .3s var(--ease)}
+    .btn{
+      background:none;border:1px solid var(--border);color:var(--text-2);
+      padding:5px 13px;border-radius:7px;cursor:pointer;font-size:13px;font-family:var(--sans)
+    }
+    .btn:hover{border-color:var(--blue);color:var(--text)}
+    .hint{
+      position:fixed;top:22px;right:32px;
+      font-size:12px;color:var(--text-3);font-family:var(--mono);
+      z-index:100;opacity:0;transition:opacity .3s
+    }
+    .deck:hover .hint{opacity:1}
 
-    /* Step list */
-    .step-list { list-style: none; counter-reset: steps; }
-    .step-list li {
-      counter-increment: steps;
-      padding: 16px 0 16px 56px;
-      position: relative;
-      font-size: var(--f-body);
-      color: var(--c-text-secondary);
-      border-bottom: 1px solid var(--c-border);
+    /* ── presenter notes ── */
+    .notes{
+      display:none;position:fixed;
+      bottom:50px;left:32px;right:32px;
+      background:rgba(0,0,0,.93);border:1px solid var(--border);
+      border-radius:10px;padding:14px 18px;
+      font-size:14px;color:var(--text-2);line-height:1.6;
+      z-index:200;max-height:160px;overflow-y:auto
     }
-    .step-list li::before {
-      content: counter(steps);
-      position: absolute; left: 0; top: 12px;
-      width: 36px; height: 36px; border-radius: 50%;
-      background: var(--c-primary-dim); color: var(--c-primary);
-      font-weight: 700; font-size: 16px;
-      display: flex; align-items: center; justify-content: center;
-    }
+    .notes.on{display:block}
+    .notes-lbl{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:2px;margin-bottom:5px}
 
-    /* === NAVIGATION === */
-    .nav-bar {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 14px 36px;
-      background: linear-gradient(0deg, rgba(9,9,15,0.97) 0%, transparent 100%);
-      z-index: 100; opacity: 0; transition: opacity 0.3s;
-    }
-    .deck:hover .nav-bar { opacity: 1; }
-    .nav-counter { font-size: 14px; color: var(--c-text-muted); font-family: var(--font-mono); }
-    .nav-progress {
-      flex: 1; max-width: 180px; height: 2px; border-radius: 2px;
-      background: rgba(255,255,255,0.08); margin: 0 20px;
-    }
-    .nav-progress-fill {
-      height: 100%; border-radius: 2px; background: var(--c-primary);
-      transition: width 0.3s var(--ease-out);
-    }
-    .nav-btn {
-      background: none; border: 1px solid var(--c-border);
-      color: var(--c-text-secondary); padding: 6px 14px;
-      border-radius: 8px; cursor: pointer; font-size: 13px;
-      font-family: var(--font-display);
-    }
-    .nav-btn:hover { border-color: var(--c-primary); color: var(--c-text); }
-    .slide-hint {
-      position: fixed; top: 24px; right: 36px;
-      font-size: 13px; color: var(--c-text-muted);
-      font-family: var(--font-mono); z-index: 100;
-      opacity: 0; transition: opacity 0.3s;
-    }
-    .deck:hover .slide-hint { opacity: 1; }
-
-    /* === PRESENTER NOTES === */
-    .notes {
-      display: none; position: fixed;
-      bottom: 56px; left: 36px; right: 36px;
-      background: rgba(0,0,0,0.92); border: 1px solid var(--c-border);
-      border-radius: 10px; padding: 16px 20px;
-      font-size: 15px; color: var(--c-text-secondary); line-height: 1.6;
-      z-index: 200; max-height: 180px; overflow-y: auto;
-    }
-    .notes.visible { display: block; }
-    .notes-label { font-size: 11px; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-
-    /* === PRINT === */
-    @media print {
-      .deck { overflow: visible; }
-      .slide { position: relative; opacity: 1; pointer-events: auto; page-break-after: always; height: 100vh; break-inside: avoid; }
-      .nav-bar, .slide-hint, .notes { display: none !important; }
-      .animate-in { animation: none !important; opacity: 1 !important; transform: none !important; }
+    @media print{
+      .deck{overflow:visible}
+      .slide{position:relative;opacity:1;pointer-events:auto;page-break-after:always;height:100vh;break-inside:avoid}
+      .nav,.hint,.notes{display:none!important}
+      .a{animation:none!important;opacity:1!important;transform:none!important}
     }
   </style>
 </head>
 <body>
 <div class="deck" id="deck">
 
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 1 — TITLE
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-alt" style="align-items: center; justify-content: center; text-align: center;">
+<!-- ════════════════════════════════════════════
+     01 · TITLE
+════════════════════════════════════════════ -->
+<div class="slide alt" style="align-items:center;justify-content:center;text-align:center">
 
-    <div class="animate-in" style="margin-bottom: 32px;">
-      <span class="badge badge-primary" style="font-size:13px;">0G APAC HACKATHON 2026 &nbsp;·&nbsp; TRACK 2</span>
-    </div>
-
-    <h1 class="hero animate-in" style="letter-spacing: -4px;">
-      PROPHET
-    </h1>
-
-    <p class="h3 animate-in" style="color: var(--c-text-secondary); margin-top: 24px; max-width: 760px; font-weight: 400;">
-      Autonomous prediction markets.<br>
-      <span class="text-primary">AI resolution</span> via 0G Compute.
-      <span class="text-accent">Permanent evidence</span> on 0G Storage.
-    </p>
-
-    <div class="animate-in" style="margin-top: 48px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-      <span class="badge badge-outline">0G Chain · 16602</span>
-      <span class="badge badge-outline">0G Compute</span>
-      <span class="badge badge-outline">0G Storage</span>
-      <span class="badge badge-accent">Track 2 — Agentic Trading Arena</span>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      "Prophet is a prediction market where markets are resolved by an AI oracle — not a human committee — and liquidity is provided by an autonomous agent, 24/7. Everything runs on 0G infrastructure. No centralized backend. No human votes. No vendor lock-in."
-      <br><br>
-      Pause after the tagline. Let the scope land. Then: "Let me show you the problem we're solving."
-    </div>
+  <div class="a" style="margin-bottom:32px">
+    <span class="badge badge-b" style="font-size:13px;padding:6px 16px;letter-spacing:1.5px">
+      0G APAC HACKATHON 2026 · TRACK 2 · AGENTIC TRADING ARENA
+    </span>
   </div>
 
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 2 — THE PROBLEM
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-default">
-    <span class="caption animate-in">The Problem</span>
+  <h1 class="display a" style="background:linear-gradient(135deg,#f1f5f9 40%,rgba(59,130,246,.7));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+    PROPHET
+  </h1>
 
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 900px;">
-      Prediction markets are broken.<br>
-      <span class="text-primary">Humans are the bottleneck.</span>
-    </h1>
+  <p class="h3 a c-dim" style="margin-top:24px;max-width:680px;font-weight:400;line-height:1.5">
+    The Autonomous prediction market that<br>
+    <span style="color:var(--text);font-weight:600">resolves itself.</span>
+  </p>
 
-    <div class="divider animate-in"></div>
+  <p class="small a c-muted" style="margin-top:20px;letter-spacing:.3px">
+    AI oracle · Sealed positions · Autonomous liquidity — all on 0G infrastructure
+  </p>
 
-    <div class="grid-3 animate-in" style="margin-top: 8px;">
-      <div class="card">
-        <p class="caption" style="color: var(--c-danger); margin-bottom: 14px;">PUBLIC POSITIONS</p>
-        <p class="h3" style="line-height: 1.3;">Every bet is visible on-chain the moment it's placed.</p>
-        <p class="small" style="margin-top: 12px;">Sophisticated traders front-run large positions. Informed capital stays out. Price discovery degrades.</p>
-      </div>
-      <div class="card">
-        <p class="caption" style="color: var(--c-danger); margin-bottom: 14px;">HUMAN COMMITTEES</p>
-        <p class="h3" style="line-height: 1.3;">UMA and Augur rely on human votes to settle outcomes.</p>
-        <p class="small" style="margin-top: 12px;">Slow. Gameable. No accountability. Disputed markets happen every cycle.</p>
-      </div>
-      <div class="card">
-        <p class="caption" style="color: var(--c-danger); margin-bottom: 14px;">COLD-START LIQUIDITY</p>
-        <p class="h3" style="line-height: 1.3;">New markets launch with zero liquidity and usually die there.</p>
-        <p class="small" style="margin-top: 12px;">No automated market maker. No protocol pool. Human LPs don't show up for small markets.</p>
-      </div>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      Three distinct failure modes — not one. Emphasise that Polymarket is the market leader and still has all three. Augur tried to decentralise resolution and made it worse. Neither protocol solved liquidity. These aren't UX problems — they're infrastructure problems. That's the setup for the next slide.
-    </div>
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Start by letting the name sit. Then: "Prophet is a prediction market where an AI oracle — not a human committee — decides every outcome, user positions are sealed until resolution so no one can front-run you, and a protocol-owned agent provides liquidity 24/7. Everything runs on 0G Labs infrastructure. No backend. No human votes. Fully autonomous."
   </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 3 — WHY NOW
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-alt">
-    <span class="caption animate-in">Why Now</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 920px;">
-      0G Labs just made autonomous<br>
-      <span class="text-accent">market infrastructure possible.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="grid-3 animate-in" style="margin-top: 8px;">
-      <div class="card">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 14px;">0G COMPUTE</p>
-        <p class="h3">Decentralised AI inference — finally usable</p>
-        <p class="small" style="margin-top: 12px;">Pay-per-use GPU inference with TEE attestation. No vendor can censor or throttle oracle calls. The oracle economics only work at 0G gas prices.</p>
-      </div>
-      <div class="card">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 14px;">0G STORAGE</p>
-        <p class="h3">Permanent oracle audit trails at commodity cost</p>
-        <p class="small" style="margin-top: 12px;">Every reasoning chain stored permanently. Root hash committed on-chain. Anyone can verify. 95% cheaper than AWS S3 — the only way to make per-market storage viable.</p>
-      </div>
-      <div class="card">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 14px;">0G CHAIN</p>
-        <p class="h3">11,000 TPS · sub-second finality · cents per tx</p>
-        <p class="small" style="margin-top: 12px;">Oracle submits multiple txs per resolution. At Ethereum L1 prices this is $50–$200 per market. On 0G Chain it's cents. The whole system changes economics.</p>
-      </div>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      This is the "why now" slide — Sequoia's most overlooked and most important. Don't rush it. The argument: Prophet is not a clever idea that could have been built before. It literally required these three 0G modules to exist simultaneously. Without 0G Compute, the oracle is centralised. Without 0G Storage, reasoning is unverifiable. Without 0G Chain economics, oracle txs are unprofitable. The window opened when 0G launched.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 4 — THE SOLUTION
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-default">
-    <span class="caption animate-in">The Solution</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 880px;">
-      Prophet: the first prediction market<br>
-      where <span class="text-primary">everything runs itself.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="grid-2 animate-in" style="margin-top: 8px; gap: 20px;">
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div class="card-glow" style="padding: 24px 28px;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <span class="tag tag-blue">AMM</span>
-            <span class="caption">Binary YES/NO markets</span>
-          </div>
-          <p class="small">Every market has YES and NO shares priced $0–$1 by a protocol-owned AMM. No human LPs needed. Liquidity is seeded from a protocol pool and managed by an autonomous agent.</p>
-        </div>
-        <div class="card-glow" style="padding: 24px 28px;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <span class="tag tag-blue">ORACLE</span>
-            <span class="caption">AI resolution via 0G Compute</span>
-          </div>
-          <p class="small">At deadline, the oracle agent calls 0G Compute, reasons about the outcome, writes the full chain-of-thought to 0G Storage, and posts the verdict on-chain. No human vote. Confidence threshold enforced.</p>
-        </div>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div class="card-glow" style="padding: 24px 28px;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <span class="tag tag-green">SEALED</span>
-            <span class="caption">Private positions via TEE</span>
-          </div>
-          <p class="small">Bet commitments are NaCl-encrypted before submission. PositionVault stores only the ciphertext. Direction and amount are revealed simultaneously at resolution — zero front-running window.</p>
-        </div>
-        <div class="card-glow" style="padding: 24px 28px;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-            <span class="tag tag-green">AGENTS</span>
-            <span class="caption">Autonomous operations 24/7</span>
-          </div>
-          <p class="small">Market maker agent allocates liquidity, monitors AMM reserves, queues txs to avoid nonce collisions, and returns settled funds. Oracle agent scans for expired markets and drives them to resolution.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      Four pillars — AMM, oracle, privacy, agents. The key insight: none of these four things works without the others. An AMM without liquidity dies. An oracle without accountability is just a black box. Privacy without simultaneous reveal is theatre. Agents without reliable compute and storage can't operate autonomously. All four together, on 0G, is the product.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 5 — 0G INTEGRATION DEPTH
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-alt">
-    <span class="caption animate-in">0G Integration Depth</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 860px;">
-      Prophet doesn't <em>run on</em> 0G.<br>
-      <span class="text-primary">Prophet requires 0G to exist.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="animate-in" style="margin-top: 8px;">
-      <table class="comparison-table" style="table-layout: fixed;">
-        <colgroup>
-          <col style="width: 18%">
-          <col style="width: 24%">
-          <col style="width: 30%">
-          <col style="width: 28%">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>0G Module</th>
-            <th>SDK Used</th>
-            <th>What Prophet Uses It For</th>
-            <th>What Breaks Without It</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong style="color: var(--c-text);">0G Chain</strong></td>
-            <td><span class="tag tag-blue" style="font-size:12px;">ethers v6 · viem · wagmi</span></td>
-            <td>All contracts · AMM trading · resolution lifecycle · payouts</td>
-            <td style="color: var(--c-danger);">Everything — no state, no settlement</td>
-          </tr>
-          <tr>
-            <td><strong style="color: var(--c-text);">0G Compute</strong></td>
-            <td><span class="tag tag-blue" style="font-size:12px;">0g-serving-broker</span></td>
-            <td>Question validation · oracle resolution · market pricing · TEE attestation</td>
-            <td style="color: var(--c-danger);">Oracle cannot resolve — all markets stuck forever</td>
-          </tr>
-          <tr>
-            <td><strong style="color: var(--c-text);">0G Storage</strong></td>
-            <td><span class="tag tag-blue" style="font-size:12px;">0g-storage-ts-sdk</span></td>
-            <td>Market metadata · oracle reasoning · agent state · price snapshots</td>
-            <td style="color: var(--c-danger);">No verifiability — on-chain hash points to nothing</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="animate-in" style="margin-top: 20px; display: flex; gap: 16px; flex-wrap: wrap;">
-      <div class="card" style="padding: 16px 20px; flex: 1;">
-        <p class="caption" style="margin-bottom: 6px;">0G COMPUTE FEATURES USED</p>
-        <p class="small">Provider metadata · TEE attestation <code style="font-family: var(--font-mono); font-size: 13px; color: var(--c-primary);">verifyService()</code> · billing headers · ledger top-up · strict TEE mode · retry + JSON extraction · confidence threshold</p>
-      </div>
-      <div class="card" style="padding: 16px 20px; flex: 1;">
-        <p class="caption" style="margin-bottom: 6px;">0G STORAGE FEATURES USED</p>
-        <p class="small">Turbo indexer · <code style="font-family: var(--font-mono); font-size: 13px; color: var(--c-primary);">MemData</code> upload · download · upload retry · read-after-write checksum · Merkle tree generation</p>
-      </div>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      This is the depth slide — designed to address the "did you actually integrate or just deploy to 0G Chain?" question. Walk through the table row by row. Key talking point: we use TEE attestation verification on every 0G Compute call — the oracle will refuse to post if the provider isn't verified. That's not superficial. The turbo indexer note (standard returns 503 on testnet) shows we actually ran this in production, not just in a tutorial.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 6 — HOW IT WORKS (ARCHITECTURE)
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-default">
-    <span class="caption animate-in">Architecture</span>
-
-    <h1 class="h2 animate-in" style="margin-top: 14px; max-width: 860px;">
-      Five contracts. Two autonomous agents. Three 0G modules.<br>
-      <span class="text-primary">One full market lifecycle.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="animate-in" style="margin-top: 12px;">
-      <ol class="step-list">
-        <li>
-          <strong style="color: var(--c-text);">Create</strong>
-          — User submits question → 0G Compute validates it → <code style="font-family: var(--font-mono); font-size: 14px; color: var(--c-primary);">ProphetFactory</code> deploys <code style="font-family: var(--font-mono); font-size: 14px; color: var(--c-primary);">MarketContract</code> → metadata written to 0G Storage
-        </li>
-        <li>
-          <strong style="color: var(--c-text);">Seed</strong>
-          — Market maker agent detects new market → reads <code style="font-family: var(--font-mono); font-size: 14px; color: var(--c-primary);">LiquidityPool</code> → allocates USDT to AMM reserves → YES/NO shares are immediately tradable
-        </li>
-        <li>
-          <strong style="color: var(--c-text);">Trade</strong>
-          — Users buy/sell YES and NO shares → AMM price moves with slippage → sealed commitments stored in <code style="font-family: var(--font-mono); font-size: 14px; color: var(--c-primary);">PositionVault</code> (encrypted, direction hidden)
-        </li>
-        <li>
-          <strong style="color: var(--c-text);">Resolve</strong>
-          — Deadline passes → oracle agent calls 0G Compute → reasoning written to 0G Storage → verdict posted on-chain → 24h challenge window → <code style="font-family: var(--font-mono); font-size: 14px; color: var(--c-primary);">finalizeResolution()</code>
-        </li>
-        <li>
-          <strong style="color: var(--c-text);">Settle</strong>
-          — Positions revealed simultaneously → winning shares redeem at $1.00 → losing shares at $0.00 → pool liquidity returned → fees distributed
-        </li>
-      </ol>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      Walk through each step as a user journey. Emphasise step 4 — the oracle flow is where all three 0G modules interact simultaneously: 0G Compute for inference, 0G Storage for the reasoning record, 0G Chain for the verdict transaction. That's the core of the product and the core of the 0G integration.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 7 — COMPETITION
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-alt">
-    <span class="caption animate-in">Competitive Landscape</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 860px;">
-      The infrastructure gap<br>
-      <span class="text-primary">nobody else has closed.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="animate-in" style="margin-top: 12px;">
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Protocol</th>
-            <th>Sealed positions</th>
-            <th>AI oracle</th>
-            <th>Autonomous liquidity</th>
-            <th>Permanent reasoning</th>
-            <th>Permissionless creation</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="color: var(--c-text-secondary); font-weight: 500;">Polymarket</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-          </tr>
-          <tr>
-            <td style="color: var(--c-text-secondary); font-weight: 500;">Augur</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="check">✓</td>
-          </tr>
-          <tr>
-            <td style="color: var(--c-text-secondary); font-weight: 500;">Manifold</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="cross">✗</td>
-            <td class="check">✓</td>
-          </tr>
-          <tr class="highlight">
-            <td style="font-weight: 800; color: var(--c-text);">Prophet ✦</td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p class="small animate-in" style="margin-top: 20px; color: var(--c-text-muted);">
-      Biggest competitor is always the status quo — Polymarket's public positions and human UMA committee.
-      Prophet's moat is the combination: none of these five exist together anywhere else.
-    </p>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      Judges will ask "why not just build on Polymarket?" Answer: Polymarket is a centralized company that decides which markets exist, uses a human committee, and has fully public positions. Prophet's autonomy and verifiability aren't features on top — they're the architecture. Also note: Manifold and Kalshi exist but neither has on-chain AMM trading with sealed positions.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 8 — PROOF / TRACTION
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-default">
-    <span class="caption animate-in">Proof</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 14px; max-width: 860px;">
-      This is not a whitepaper.<br>
-      <span class="text-accent">It runs. Right now. On 0G.</span>
-    </h1>
-
-    <div class="divider animate-in"></div>
-
-    <div class="animate-in" style="margin-top: 8px; display: flex; gap: 20px;">
-
-      <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
-        <div class="card-accent" style="padding: 20px 24px; text-align: center;">
-          <div class="metric-value">232</div>
-          <div class="metric-label">Passing Forge contract tests</div>
-        </div>
-        <div class="card-accent" style="padding: 20px 24px; text-align: center;">
-          <div class="metric-value">5</div>
-          <div class="metric-label">Deployed contracts on 0G Galileo</div>
-        </div>
-        <div class="card-accent" style="padding: 20px 24px; text-align: center;">
-          <div class="metric-value">7</div>
-          <div class="metric-label">Live markets created on testnet</div>
-        </div>
-      </div>
-
-      <div style="flex: 2; display: flex; flex-direction: column; gap: 12px;">
-        <div class="card" style="padding: 18px 22px;">
-          <p class="caption" style="color: var(--c-accent); margin-bottom: 8px;">0G COMPUTE — VERIFIED LIVE</p>
-          <p class="small">Oracle resolves markets via Qwen 2.5 7B on 0G testnet. TEE attestation verified before each call. <code style="font-family: var(--font-mono); font-size: 13px; color: var(--c-primary);">npm run test:compute</code> → PASS</p>
-        </div>
-        <div class="card" style="padding: 18px 22px;">
-          <p class="caption" style="color: var(--c-accent); margin-bottom: 8px;">0G STORAGE — VERIFIED LIVE</p>
-          <p class="small">Oracle reasoning uploaded, downloaded, checksum-verified on turbo indexer. Market metadata persisted on-chain via root hash. <code style="font-family: var(--font-mono); font-size: 13px; color: var(--c-primary);">npm run test:storage</code> → PASS</p>
-        </div>
-        <div class="card" style="padding: 18px 22px;">
-          <p class="caption" style="color: var(--c-accent); margin-bottom: 8px;">AUTONOMOUS AGENTS — RUNNING</p>
-          <p class="small">Oracle agent scans for expired markets, triggers resolution, calls 0G Compute, writes reasoning to 0G Storage, finalizes. Market maker seeds liquidity and returns settled funds. Both running continuously.</p>
-        </div>
-        <div class="card" style="padding: 18px 22px;">
-          <p class="caption" style="color: var(--c-accent); margin-bottom: 8px;">INSPECT ON 0G CHAIN</p>
-          <p class="small" style="font-family: var(--font-mono); font-size: 13px; color: var(--c-primary);">ProphetFactory: 0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4</p>
-          <p class="small" style="margin-top: 4px;">chainscan-galileo.0g.ai — live contract state, real tx history</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      Lead with the 232 tests — that's a proxy for code quality and completeness. Then move to live: "You can go to the 0G Scan link right now and see the contract state." If you have time, pull up the oracle reasoning from 0G Storage in the demo and show the root hash matching the on-chain verdictReasoningHash. That's the verifiability claim made concrete.
-    </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════
-       SLIDE 9 — THE ASK
-  ══════════════════════════════════════════════════ -->
-  <div class="slide bg-alt" style="align-items: center; justify-content: center; text-align: center;">
-
-    <span class="caption animate-in" style="color: var(--c-primary);">The Ask</span>
-
-    <h1 class="h1 animate-in" style="margin-top: 16px; max-width: 820px;">
-      Judge it. Run it. Break it.<br>
-      <span class="text-primary">Then give us Track 2.</span>
-    </h1>
-
-    <div class="divider animate-in" style="margin: var(--s-md) auto;"></div>
-
-    <div class="grid-3 animate-in" style="max-width: 900px; margin-top: 8px; text-align: left;">
-      <div class="card" style="padding: 20px 24px;">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 10px;">VERIFY CONTRACTS</p>
-        <p class="small" style="font-family: var(--font-mono); font-size: 13px; color: var(--c-text-secondary);">cd contracts<br>forge test --offline<br>→ 232 tests pass</p>
-      </div>
-      <div class="card" style="padding: 20px 24px;">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 10px;">VERIFY 0G INTEGRATIONS</p>
-        <p class="small" style="font-family: var(--font-mono); font-size: 13px; color: var(--c-text-secondary);">cd agent<br>npm run test:storage<br>npm run test:compute</p>
-      </div>
-      <div class="card" style="padding: 20px 24px;">
-        <p class="caption" style="color: var(--c-primary); margin-bottom: 10px;">INSPECT ON-CHAIN</p>
-        <p class="small" style="font-family: var(--font-mono); font-size: 13px; color: var(--c-text-secondary);">chainscan-galileo.0g.ai<br>0xEd51...7bD4<br>ProphetFactory → live</p>
-      </div>
-    </div>
-
-    <div class="animate-in" style="margin-top: 32px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
-      <span class="badge badge-outline" style="font-size: 14px; padding: 8px 18px;">
-        github.com/JamesVictor-O/PROPHET
-      </span>
-      <span class="badge badge-primary" style="font-size: 14px; padding: 8px 18px;">
-        0G APAC 2026 · Track 2 · Agentic Trading Arena
-      </span>
-    </div>
-
-    <p class="small animate-in" style="margin-top: 28px; color: var(--c-text-muted); max-width: 700px;">
-      Prophet — Making opinions tradable. Privately. Autonomously. Verifiably.<br>
-      Built entirely on 0G Labs infrastructure.
-    </p>
-
-    <div class="notes">
-      <div class="notes-label">Speaker Notes</div>
-      End with conviction, not a question. "We've built the infrastructure. Run the tests. Check the contracts. The 0G integrations are real and verifiable — that's the whole point of the product." If they ask about the team, answer: solo builder, full-stack. If they ask about next steps: mainnet deployment + multi-category oracle + grant application. Leave on "Thank you" — don't rush to answer questions from this slide.
-    </div>
-  </div>
-
-  <!-- Navigation -->
-  <div class="nav-bar">
-    <button class="nav-btn" onclick="prev()">← Prev</button>
-    <span class="nav-counter"><span id="current">1</span> / <span id="total"></span></span>
-    <div class="nav-progress"><div class="nav-progress-fill" id="progress"></div></div>
-    <button class="nav-btn" onclick="next()">Next →</button>
-  </div>
-
-  <div class="slide-hint">← → or click · N for notes</div>
-
 </div>
 
-<script>
-  let current = 0;
-  const slides = document.querySelectorAll('.slide');
-  const total  = slides.length;
-  let notesVisible = false;
+<!-- ════════════════════════════════════════════
+     02 · PROBLEM
+════════════════════════════════════════════ -->
+<div class="slide">
+  <span class="eyebrow a">The Problem</span>
 
-  document.getElementById('total').textContent = total;
+  <h1 class="h1 a" style="margin-top:14px;max-width:860px">
+    Prediction markets work.<br>
+    <span class="c-blue">Four things have always been missing.</span>
+  </h1>
+
+  <div class="rule a"></div>
+
+  <div class="g2 a" style="margin-top:4px;gap:14px">
+    <div class="card card-r" style="padding:20px 22px">
+      <p class="eyebrow c-red" style="margin-bottom:10px">No permissionless creation</p>
+      <p class="h3" style="margin-bottom:10px;line-height:1.3">Platforms decide what markets exist. You don't.</p>
+      <p class="small">Polymarket curates every market. A company can't list a prediction on their own product launch. An analyst can't monetize their thesis. A user can't trade their hot take. Market creation is gatekept.</p>
+    </div>
+    <div class="card card-r" style="padding:20px 22px">
+      <p class="eyebrow c-red" style="margin-bottom:10px">No position privacy</p>
+      <p class="h3" style="margin-bottom:10px;line-height:1.3">Every bet is visible on-chain the moment you place it.</p>
+      <p class="small">Whales see your position and front-run it. Informed capital stays out. Prices reflect noise, not conviction.</p>
+    </div>
+    <div class="card card-r" style="padding:20px 22px">
+      <p class="eyebrow c-red" style="margin-bottom:10px">No autonomous resolution</p>
+      <p class="h3" style="margin-bottom:10px;line-height:1.3">Someone always has to decide — a human, a committee, a multisig.</p>
+      <p class="small">Disputes take days. Votes are gameable. No record of why a decision was made. No accountability when they get it wrong.</p>
+    </div>
+    <div class="card card-r" style="padding:20px 22px">
+      <p class="eyebrow c-red" style="margin-bottom:10px">No protocol liquidity</p>
+      <p class="h3" style="margin-bottom:10px;line-height:1.3">Every new market launches empty and waits for human LPs.</p>
+      <p class="small">Liquidity providers don't show up for long-tail markets. Most markets die at 50/50 with zero volume.</p>
+    </div>
+  </div>
+
+  <p class="small a c-muted" style="margin-top:14px">
+    Polymarket does <strong style="color:var(--text)">$1B+ in monthly volume</strong> — and none of these four exist there.
+  </p>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Lead with permissionless creation — it's the most relatable to any audience. "Right now, if you have a strong view on something — a company prediction, a product launch outcome, a sports call — you can't just turn it into a tradeable market. Polymarket decides. Prophet removes that gate. Anyone can create any market." Then move through the other three. Each unlocks a different class of participant: permissionless creation unlocks the long tail, privacy brings sophisticated capital, AI resolution removes the human bottleneck, autonomous liquidity kills the cold-start problem.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     03 · SOLUTION
+════════════════════════════════════════════ -->
+<div class="slide">
+  <span class="eyebrow a">The Solution</span>
+
+  <h1 class="h1 a" style="margin-top:14px;max-width:860px">
+    Prophet introduces four primitives<br>
+    <span class="c-blue">no prediction market has ever had.</span>
+  </h1>
+
+  <div class="rule a"></div>
+
+  <div class="g2 a" style="margin-top:8px;gap:14px">
+
+    <div class="card card-g col" style="gap:12px;padding:20px 22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:19px">🌐</span>
+        </div>
+        <p class="eyebrow c-green">Permissionless creation</p>
+      </div>
+      <p class="h3" style="line-height:1.3">Anyone can create any market. No approval. No gatekeeping.</p>
+      <p class="small">A user, a company, a DAO — anyone can turn any question into a tradeable market in under 30 seconds. Prophet's AI oracle validates and resolves it automatically. No platform permission needed.</p>
+      <div style="padding-top:10px;border-top:1px solid var(--border)">
+        <p class="small c-muted">Answers: <strong style="color:var(--text)">No permissionless creation</strong></p>
+      </div>
+    </div>
+
+    <div class="card card-g col" style="gap:12px;padding:20px 22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:19px">🔒</span>
+        </div>
+        <p class="eyebrow c-green">Sealed positions</p>
+      </div>
+      <p class="h3" style="line-height:1.3">Your bet is encrypted before it touches the chain.</p>
+      <p class="small">Direction and amount are hidden from everyone until the market resolves. All positions revealed simultaneously. Zero front-running window, regardless of position size.</p>
+      <div style="padding-top:10px;border-top:1px solid var(--border)">
+        <p class="small c-muted">Answers: <strong style="color:var(--text)">No position privacy</strong></p>
+      </div>
+    </div>
+
+    <div class="card card-g col" style="gap:12px;padding:20px 22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:19px">🤖</span>
+        </div>
+        <p class="eyebrow c-green">AI oracle</p>
+      </div>
+      <p class="h3" style="line-height:1.3">At deadline, an autonomous agent resolves every market.</p>
+      <p class="small">Calls 0G Compute with real evidence. Writes its full chain-of-thought permanently to 0G Storage. Posts a verifiable verdict. No committee. No vote. No human delay.</p>
+      <div style="padding-top:10px;border-top:1px solid var(--border)">
+        <p class="small c-muted">Answers: <strong style="color:var(--text)">No autonomous resolution</strong></p>
+      </div>
+    </div>
+
+    <div class="card card-g col" style="gap:12px;padding:20px 22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:19px">⚡</span>
+        </div>
+        <p class="eyebrow c-green">Autonomous liquidity</p>
+      </div>
+      <p class="h3" style="line-height:1.3">A protocol-owned pool seeds every market automatically.</p>
+      <p class="small">The market maker agent allocates USDT to YES/NO reserves the moment a market is created. Trading starts immediately on every market — including long-tail ones nobody else will touch.</p>
+      <div style="padding-top:10px;border-top:1px solid var(--border)">
+        <p class="small c-muted">Answers: <strong style="color:var(--text)">No protocol liquidity</strong></p>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="small a c-muted" style="margin-top:14px">
+    None of these four exist together anywhere. <strong style="color:var(--text)">Prophet ships all four — right now, on 0G.</strong>
+  </p>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Each card directly answers one problem from the previous slide. Lead with permissionless creation — it's the most democratizing and the most surprising. "Polymarket decides what you can trade. Prophet doesn't. Anyone can create a market." Then move through the others. The "Answers:" tag at the bottom of each card makes the connection explicit for judges reviewing quickly.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     04 · PRODUCT
+════════════════════════════════════════════ -->
+<div class="slide alt">
+  <span class="eyebrow a">The Product</span>
+
+  <h1 class="h1 a" style="margin-top:14px;max-width:900px">
+    Prediction markets already work.<br>
+    <span class="c-blue">Prophet makes them autonomous.</span>
+  </h1>
+
+  <div class="rule a"></div>
+
+  <div class="g2 a" style="margin-top:8px;gap:24px">
+
+    <!-- LEFT — what a prediction market is today -->
+    <div class="col" style="gap:0">
+      <p class="eyebrow c-muted" style="margin-bottom:16px">How prediction markets work today</p>
+      <div class="col" style="gap:0;border-left:2px solid var(--border);padding-left:20px">
+        <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+          <p class="bold" style="font-size:18px;margin-bottom:4px">1 · Someone creates a question</p>
+          <p class="small">"Will BTC exceed $100K by end of 2025?"</p>
+        </div>
+        <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+          <p class="bold" style="font-size:18px;margin-bottom:4px">2 · People bet YES or NO with real money</p>
+          <p class="small">Prices move between $0 and $1, reflecting collective probability.</p>
+        </div>
+        <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+          <p class="bold" style="font-size:18px;margin-bottom:4px">3 · At deadline, an outcome is determined</p>
+          <p class="small">A person, committee, or data feed decides what happened.</p>
+        </div>
+        <div style="padding:14px 0">
+          <p class="bold" style="font-size:18px;margin-bottom:4px">4 · Winners are paid out</p>
+          <p class="small">Correct bettors redeem shares at $1.00. Losers get $0.00.</p>
+        </div>
+      </div>
+      <p class="small c-muted" style="margin-top:14px">Polymarket does <strong style="color:var(--text)">$1B+ monthly</strong> on this model. It works.</p>
+    </div>
+
+    <!-- RIGHT — what Prophet adds -->
+    <div class="col" style="gap:12px">
+      <p class="eyebrow c-green" style="margin-bottom:4px">What Prophet adds — three things no prediction market does today</p>
+      <div class="card card-g" style="padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="badge badge-g" style="font-size:11px;letter-spacing:1.5px">NEW</span>
+          <p class="bold" style="font-size:17px">Sealed positions</p>
+        </div>
+        <p class="small">Your bet direction is encrypted client-side before it ever hits the chain. Nobody — not even the protocol — can see which way you bet until the market resolves. Simultaneously for all participants.</p>
+      </div>
+      <div class="card card-g" style="padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="badge badge-g" style="font-size:11px;letter-spacing:1.5px">NEW</span>
+          <p class="bold" style="font-size:17px">AI oracle</p>
+        </div>
+        <p class="small">No committee. No vote. At deadline, an autonomous agent calls 0G Compute, reasons about the outcome with real evidence, and posts a verifiable verdict on-chain. Full reasoning stored permanently on 0G Storage.</p>
+      </div>
+      <div class="card card-g" style="padding:18px 20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="badge badge-g" style="font-size:11px;letter-spacing:1.5px">NEW</span>
+          <p class="bold" style="font-size:17px">Autonomous liquidity</p>
+        </div>
+        <p class="small">A protocol-owned pool seeds every market the moment it's created. A market maker agent manages reserves 24/7. No human LP needed. Trading starts immediately on every market.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Critical framing: "We're not saying Polymarket is broken. We're saying prediction markets are proven — $1B+ monthly volume proves people want this. What we're doing is adding three primitives that have never existed together in any prediction market: sealed positions, AI resolution, and autonomous liquidity. Each one independently is a meaningful improvement. Together they change what's possible."
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     04 · ARCHITECTURE
+════════════════════════════════════════════ -->
+<div class="slide">
+  <span class="eyebrow a">Architecture</span>
+
+  <h2 class="h2 a" style="margin-top:14px;max-width:820px">
+    Five contracts. Two autonomous agents.<br>
+    <span class="c-blue">One complete market lifecycle.</span>
+  </h2>
+
+  <div class="rule a"></div>
+
+  <div class="a" style="margin-top:8px">
+    <ol class="steps">
+      <li>
+        <span class="bold">Create</span> — User submits a question →
+        <span class="pill pill-b">0G Compute</span> validates it →
+        <span class="pill pill-b">ProphetFactory</span> deploys a
+        <span class="pill pill-b">MarketContract</span> →
+        metadata written to <span class="pill pill-b">0G Storage</span>
+      </li>
+      <li>
+        <span class="bold">Seed</span> — Market maker agent reads
+        <span class="pill pill-b">LiquidityPool</span> →
+        allocates USDT to AMM reserves →
+        YES and NO shares are immediately tradable at opening price
+      </li>
+      <li>
+        <span class="bold">Trade</span> — Users buy/sell YES and NO shares →
+        AMM price adjusts with every trade →
+        commitments encrypted in
+        <span class="pill pill-b">PositionVault</span> (direction hidden until resolution)
+      </li>
+      <li>
+        <span class="bold">Resolve</span> — Deadline passes →
+        oracle agent calls <span class="pill pill-b">0G Compute</span> →
+        full reasoning written to <span class="pill pill-b">0G Storage</span> →
+        verdict posted on-chain → 24h challenge window → <code class="mono">finalizeResolution()</code>
+      </li>
+      <li>
+        <span class="bold">Settle</span> — All positions revealed simultaneously →
+        <span class="pill pill-b">PayoutDistributor</span> sends USDT to winners →
+        pool liquidity returned → protocol fees distributed
+      </li>
+    </ol>
+  </div>
+
+  <div class="row a" style="margin-top:20px;gap:12px;flex-wrap:wrap">
+    <span class="badge badge-b">ProphetFactory</span>
+    <span class="badge badge-b">MarketContract</span>
+    <span class="badge badge-b">LiquidityPool</span>
+    <span class="badge badge-b">PositionVault</span>
+    <span class="badge badge-b">PayoutDistributor</span>
+    <span class="badge badge-g">Oracle Agent</span>
+    <span class="badge badge-g">Market Maker Agent</span>
+    <span class="badge badge-out">232 passing tests</span>
+  </div>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Walk through as a user journey. The step that's most important to highlight: step 4 (Resolve) — this is where all three 0G modules interact simultaneously. 0G Compute for inference. 0G Storage for the reasoning record. 0G Chain for the verdict transaction. That's the core of Prophet and the core of the 0G integration. Everything else supports this moment.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     05 · WHY 0G
+════════════════════════════════════════════ -->
+<div class="slide alt">
+  <span class="eyebrow a">Why 0G Labs</span>
+
+  <h1 class="h1 a" style="margin-top:14px;max-width:820px">
+    We don't run <em>on</em> 0G.<br>
+    <span class="c-blue">We require 0G to exist.</span>
+  </h1>
+
+  <div class="rule a"></div>
+
+  <div class="g3 a" style="margin-top:8px">
+
+    <!-- 0G COMPUTE -->
+    <div class="card card-b col" style="gap:14px">
+      <div>
+        <p class="eyebrow c-blue" style="margin-bottom:6px">0G Compute</p>
+        <p class="bold" style="font-size:18px">Decentralised AI inference. Censorship-resistant. TEE-attested.</p>
+      </div>
+      <div>
+        <p class="small" style="margin-bottom:8px"><span class="c-muted">SDK:</span> <span class="mono">@0glabs/0g-serving-broker</span></p>
+        <p class="small">Oracle calls <code class="mono">broker.verifyService()</code> on every inference — refuses to post if TEE attestation fails. Hardcoded to <span class="mono" style="color:var(--green)">temperature: 0.1</span> for deterministic verdicts.</p>
+      </div>
+      <div class="card" style="padding:12px 14px;background:rgba(239,68,68,.06);border-color:var(--border-red)">
+        <p class="small c-red" style="font-size:15px"><strong>Without it:</strong> Every market freezes at deadline. No resolution. User funds locked forever.</p>
+      </div>
+    </div>
+
+    <!-- 0G STORAGE -->
+    <div class="card card-b col" style="gap:14px">
+      <div>
+        <p class="eyebrow c-blue" style="margin-bottom:6px">0G Storage</p>
+        <p class="bold" style="font-size:18px">Permanent oracle audit trails. Verifiable by anyone. Economically viable.</p>
+      </div>
+      <div>
+        <p class="small" style="margin-bottom:8px"><span class="c-muted">SDK:</span> <span class="mono">@0gfoundation/0g-storage-ts-sdk</span></p>
+        <p class="small">Uses <em>turbo indexer</em> (standard returns 503 on testnet). <code class="mono">MemData</code> upload → Merkle root hash committed on-chain. Read-after-write checksum verified on every write.</p>
+      </div>
+      <div class="card" style="padding:12px 14px;background:rgba(239,68,68,.06);border-color:var(--border-red)">
+        <p class="small c-red" style="font-size:15px"><strong>Without it:</strong> <code class="mono" style="color:var(--red)">verdictReasoningHash</code> on-chain points to nothing. The verifiability claim is a lie.</p>
+      </div>
+    </div>
+
+    <!-- 0G CHAIN -->
+    <div class="card card-b col" style="gap:14px">
+      <div>
+        <p class="eyebrow c-blue" style="margin-bottom:6px">0G Chain</p>
+        <p class="bold" style="font-size:18px">11,000 TPS. Sub-second finality. Cents per transaction.</p>
+      </div>
+      <div>
+        <p class="small" style="margin-bottom:8px"><span class="c-muted">Stack:</span> <span class="mono">ethers v6 · viem · wagmi</span> · Chain ID <span class="mono" style="color:var(--green)">16602</span></p>
+        <p class="small">Oracle submits 3–5 txs per market resolution. At Ethereum L1 prices: $50–$200 per market. On 0G: cents. The economics of a per-market AI oracle only work here.</p>
+      </div>
+      <div class="card" style="padding:12px 14px;background:rgba(239,68,68,.06);border-color:var(--border-red)">
+        <p class="small c-red" style="font-size:15px"><strong>Without it:</strong> The entire protocol. No state. No settlement. Not transferable at any other chain's gas structure.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    This is the most important slide for 0G judges. Walk each column. Key argument: "Prophet is not a clever idea that could have been built on Ethereum, Solana, or any existing chain. It required these three modules to exist simultaneously. Without 0G Compute, the oracle is centralised. Without 0G Storage, the reasoning record doesn't exist. Without 0G Chain economics, the oracle loses money on every market it resolves." Emphasise the TEE attestation detail — we actually call verifyService() before every inference call. That's not a tutorial integration.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     06 · WHY YOUR TEAM
+════════════════════════════════════════════ -->
+<div class="slide" style="align-items:center;justify-content:center">
+
+  <div style="width:100%;max-width:1000px">
+    <span class="eyebrow a" style="display:block;text-align:center;margin-bottom:20px">Why Us</span>
+
+    <h1 class="h1 a center" style="max-width:760px;margin:0 auto">
+      One builder. Full stack.<br>
+      <span class="c-green">Already shipped.</span>
+    </h1>
+
+    <div class="rule a" style="margin:24px auto"></div>
+
+    <!-- metrics row -->
+    <div class="g4 a" style="margin-top:4px">
+      <div class="card center" style="padding:22px 16px">
+        <div class="metric">232</div>
+        <div class="metric-lbl">Passing Forge tests</div>
+      </div>
+      <div class="card center" style="padding:22px 16px">
+        <div class="metric">5</div>
+        <div class="metric-lbl">Deployed contracts on 0G Galileo</div>
+      </div>
+      <div class="card center" style="padding:22px 16px">
+        <div class="metric">7</div>
+        <div class="metric-lbl">Live markets on testnet</div>
+      </div>
+      <div class="card center" style="padding:22px 16px">
+        <div class="metric" style="font-size:44px;padding-top:8px">Full</div>
+        <div class="metric-lbl">Stack shipped: contracts + agents + frontend + docs</div>
+      </div>
+    </div>
+
+    <!-- stack row -->
+    <div class="g2 a" style="margin-top:16px">
+      <div class="card col" style="gap:10px;padding:20px 22px">
+        <p class="eyebrow c-blue" style="margin-bottom:2px">What's running right now</p>
+        <p class="small">Oracle agent scanning 0G Chain for expired markets, calling 0G Compute, writing reasoning to 0G Storage, finalizing verdicts — continuously.</p>
+        <p class="small">Market maker agent seeding liquidity and returning settled funds to the pool.</p>
+        <p class="mono" style="margin-top:4px">ProphetFactory: 0xEd51e3d6Ba8914875616bBcDd9aa9D4A00B27bD4</p>
+      </div>
+    </div>
+
+    <p class="small a c-muted center" style="margin-top:18px">
+      Prophet — Making opinions tradable. Privately. Autonomously. Verifiably.
+    </p>
+  </div>
+
+  <div class="notes">
+    <div class="notes-lbl">Speaker Notes</div>
+    Lead with the numbers — 232 tests is a signal of engineering rigour. "Not a demo, not a prototype — 232 contract tests pass." Then move to live: "Right now, the oracle agent is watching 0G Chain. When a market deadline passes, it calls 0G Compute, gets a verdict, writes the reasoning to 0G Storage, and finalizes on-chain. You can watch it happen." End with conviction: "We're not asking you to believe the pitch. Run the code. The proof is on-chain."
+  </div>
+</div>
+
+<!-- ── navigation ── -->
+<div class="nav">
+  <button class="btn" onclick="prev()">← Prev</button>
+  <span class="nav-ctr"><span id="cur">1</span> / <span id="tot"></span></span>
+  <div class="nav-bar-inner"><div class="nav-fill" id="fill"></div></div>
+  <button class="btn" onclick="next()">Next →</button>
+</div>
+
+<div class="hint">← → or click · N for notes</div>
+
+</div><!-- /deck -->
+
+<script>
+  let cur = 0;
+  const slides = document.querySelectorAll('.slide');
+  const n = slides.length;
+  let showNotes = false;
+
+  document.getElementById('tot').textContent = n;
 
   function show(i) {
     slides.forEach(s => s.classList.remove('active'));
-    current = Math.max(0, Math.min(i, total - 1));
-    slides[current].classList.add('active');
-    document.getElementById('current').textContent = current + 1;
-    document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
-    document.querySelectorAll('.notes').forEach(n => n.classList.remove('visible'));
-    const note = slides[current].querySelector('.notes');
-    if (note && notesVisible) note.classList.add('visible');
+    cur = Math.max(0, Math.min(i, n - 1));
+    slides[cur].classList.add('active');
+    document.getElementById('cur').textContent = cur + 1;
+    document.getElementById('fill').style.width = ((cur + 1) / n * 100) + '%';
+    document.querySelectorAll('.notes').forEach(el => el.classList.remove('on'));
+    if (showNotes) {
+      const note = slides[cur].querySelector('.notes');
+      if (note) note.classList.add('on');
+    }
   }
 
-  function next() { show(current + 1); }
-  function prev() { show(current - 1); }
+  function next() { show(cur + 1); }
+  function prev() { show(cur - 1); }
 
   document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
     if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
     if (e.key === 'n' || e.key === 'N') {
-      notesVisible = !notesVisible;
-      document.querySelectorAll('.notes').forEach(n => {
-        n.classList.toggle('visible', notesVisible && n.closest('.slide').classList.contains('active'));
+      showNotes = !showNotes;
+      document.querySelectorAll('.notes').forEach(el => {
+        el.classList.toggle('on', showNotes && el.closest('.slide').classList.contains('active'));
       });
     }
   });
 
   document.getElementById('deck').addEventListener('click', e => {
-    if (e.target.closest('.nav-bar') || e.target.closest('.nav-btn')) return;
+    if (e.target.closest('.nav') || e.target.closest('.btn')) return;
     if (e.clientX > window.innerWidth / 2) next(); else prev();
   });
 

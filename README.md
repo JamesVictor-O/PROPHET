@@ -11,16 +11,29 @@ Each share is priced between `$0.00` and `$1.00` by an on-chain AMM. When the ma
 
 The goal is not to build a simple betting app. Prophet is market infrastructure: protocol-owned liquidity, autonomous market operations, verifiable AI-assisted resolution, and decentralized storage for market memory.
 
+## The Core Problem Prophet Solves
+
+Today's prediction markets — Polymarket, Augur, Manifold — share four structural gaps that have never been closed together:
+
+| Gap | What it means |
+|-----|---------------|
+| **Gatekept creation** | Platforms decide which markets exist. A company can't list a prediction on their own product launch. An analyst can't monetize their thesis. A user can't trade their hot take. |
+| **Public positions** | Every bet is visible on-chain the moment it's placed. Whales front-run informed positions. Sophisticated capital stays out. |
+| **Human resolution** | UMA, Augur, Polymarket — someone always casts the deciding vote. Slow. Gameable. No accountability trail. |
+| **Cold-start liquidity** | New markets launch empty. Human LPs don't show up for long-tail questions. Most markets die at 50/50. |
+
+Prophet closes all four with a single protocol: **permissionless creation, sealed positions, AI oracle resolution, and autonomous liquidity**. All running on 0G infrastructure.
+
 ## Why This Matters
 
 Prediction markets need more than a nice trading UI. They need:
 
+- permissionless market creation — anyone, any question, no approval
 - continuous liquidity from day one
 - prices that move with demand and slippage
-- deterministic settlement
-- permanent resolution evidence
-- automated market operations
-- infrastructure that can survive adversarial trading behavior
+- deterministic settlement with a verifiable evidence trail
+- permanent resolution evidence stored and auditable by anyone
+- automated market operations that run without human intervention
 
 Prophet uses 0G as the infrastructure layer for that system:
 
