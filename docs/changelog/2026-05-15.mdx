@@ -1,0 +1,29 @@
+---
+title: "Week of May 15, 2026"
+description: "Live prediction stream, AI delegation rollout, and a batch of trading UX fixes."
+---
+
+## New features
+
+**Live prediction stream**
+
+The hero section now streams real-time prediction events and payout claims as they happen on-chain, so you can see market activity at a glance without refreshing. Username updates also flow into your profile activity feed in real time.
+
+**AI delegation**
+
+You can now delegate trading decisions to Prophet's autonomous agents. The market-maker agent seeds new markets with liquidity and the oracle agent resolves them — see the [agent system](/architecture/agents) and [agent developer guide](/developer/agents) for how it works end to end.
+
+## Updates
+
+- Newly created markets now auto-refresh in the markets list — no manual page reload needed.
+- Token amounts now display with the correct decimals across the app (USDC shows 6 decimals).
+- Prediction cards now surface the full set of outcomes and current pool amounts.
+- Live ticker shows loading and fallback states while events stream in.
+- Leaderboard sorting now works reliably across all time ranges.
+
+## Bug fixes
+
+- Fixed the minimum stake displayed in the prediction modal — it now correctly shows `0.025` instead of `0.25`.
+- Fixed profile activity overflow on narrow screens; the feed is now fully responsive.
+- Fixed the leaderboard query that previously failed to return results in some cases.
+- Resolved a regression where market lists did not update after creating a market.
