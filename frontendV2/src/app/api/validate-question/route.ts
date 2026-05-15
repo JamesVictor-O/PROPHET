@@ -137,6 +137,16 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   }
+  // Hard timeout: if 0G Compute takes longer than 20s, skip validation gracefully
+  const TIMEOUT_MS = 20_000;
+  const timeout = <T>(p: Promise<T>, label: string): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`0G Compute timeout after ${TIMEOUT_MS / 1000}s (step: ${label})`)), TIMEOUT_MS)
+      ),
+    ]);
+
   try {
     const ethers = await getEthers();
     const { createZGComputeNetworkBroker } = await getBrokerModule();
@@ -145,15 +155,21 @@ export async function POST(req: NextRequest) {
     const key      = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
     const wallet   = new ethers.Wallet(key, provider);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const broker   = await createZGComputeNetworkBroker(wallet as any) as any;
+    const broker   = await timeout(createZGComputeNetworkBroker(wallet as any), "broker-init") as any;
 
     try { await broker.ledger.getLedger(); } catch {
-      try { await broker.ledger.addLedger(5); } catch { /* no funds */ }
+      try { await broker.ledger.addLedger(5); } catch { /* no funds — non-fatal */ }
     }
 
-    const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
-    const userPrompt          = buildValidationPrompt(question.trim(), category, deadlineIso ?? "not specified");
-    const billingHeaders      = await broker.inference.getRequestHeaders(providerAddress, userPrompt);
+    const { endpoint, model } = await timeout(
+      broker.inference.getServiceMetadata(providerAddress),
+      "provider-metadata"
+    ) as { endpoint: string; model: string };
+    const userPrompt     = buildValidationPrompt(question.trim(), category, deadlineIso ?? "not specified");
+    const billingHeaders = await timeout(
+      broker.inference.getRequestHeaders(providerAddress, userPrompt),
+      "billing-headers"
+    ) as Record<string, string>;
 
     const { default: OpenAI } = await import("openai");
     const client = new OpenAI({ baseURL: endpoint, apiKey: "", defaultHeaders: billingHeaders });
