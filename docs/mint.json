@@ -37,6 +37,10 @@
     {
       "group": "Developer Guide",
       "pages": ["developer/local-setup", "developer/contracts", "developer/agents", "developer/frontend"]
+    },
+    {
+      "group": "Changelog",
+      "pages": ["changelog/2026-05-15"]
     }
   ],
   "footerSocials": {

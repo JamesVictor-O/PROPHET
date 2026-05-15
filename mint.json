@@ -61,6 +61,12 @@
         "docs/developer/agents",
         "docs/developer/frontend"
       ]
+    },
+    {
+      "group": "Changelog",
+      "pages": [
+        "docs/changelog/2026-05-15"
+      ]
     }
   ],
   "footerSocials": {
